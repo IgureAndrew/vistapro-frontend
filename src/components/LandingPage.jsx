@@ -1,18 +1,18 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-// Example gold color pulled from the logo (adjust to your preference).
+// Example gold color from your logo.
 const goldColor = "#C6A768";
 
 function LandingPage() {
-  // Possible views: "login", "register", "forgot"
+  // Define which form to show (login, register, or forgot password)
   const [view, setView] = useState("login");
   const navigate = useNavigate();
 
   // Form state for each view.
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
-    secretKey: "", // Master Admin registration requires a secret key.
+    secretKey: "", // Registration is only for Master Admins.
     name: "",
     email: "",
     password: "",
@@ -21,25 +21,26 @@ function LandingPage() {
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
-  // Example base URL - adjust as needed.
-  const baseUrl = "http://localhost:5000";
+  // Use the environment variable for the API base URL.
+  // In your Vercel project, set REACT_APP_API_URL to your live backend URL.
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-  // Handlers for form submissions.
+  // Handler for login submission.
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${baseUrl}/api/auth/login`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginData),
       });
       const data = await res.json();
       if (res.ok) {
-        // alert("Login successful!");
+        // Save token and user details in localStorage.
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Redirect based on user role
+        // Redirect based on the user's role.
         if (data.user.role === "SuperAdmin") {
           navigate("/dashboard/superadmin");
         } else if (data.user.role === "MasterAdmin") {
@@ -49,7 +50,6 @@ function LandingPage() {
         } else if (data.user.role === "Dealer") {
           navigate("/dashboard/dealer");
         } else {
-          // Default redirect for other roles (if any)
           navigate("/");
         }
       } else {
@@ -61,11 +61,11 @@ function LandingPage() {
     }
   };
 
+  // Handler for registration submission.
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Registration endpoint for Master Admins.
-      const res = await fetch(`${baseUrl}/api/master-admin/register`, {
+      const res = await fetch(`${API_BASE_URL}/api/master-admin/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registerData),
@@ -82,10 +82,11 @@ function LandingPage() {
     }
   };
 
+  // Handler for forgot password submission.
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(forgotData),
@@ -102,7 +103,7 @@ function LandingPage() {
     }
   };
 
-  // Render the appropriate form based on the current view.
+  // Render the appropriate form based on current view.
   const renderForm = () => {
     if (view === "login") {
       return (
@@ -112,18 +113,14 @@ function LandingPage() {
             placeholder="Email"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={loginData.email}
-            onChange={(e) =>
-              setLoginData({ ...loginData, email: e.target.value })
-            }
+            onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
           />
           <input
             type="password"
             placeholder="Password"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={loginData.password}
-            onChange={(e) =>
-              setLoginData({ ...loginData, password: e.target.value })
-            }
+            onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
           />
           <button
             type="submit"
@@ -167,54 +164,42 @@ function LandingPage() {
             placeholder="Secret Key"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={registerData.secretKey}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, secretKey: e.target.value })
-            }
+            onChange={(e) => setRegisterData({ ...registerData, secretKey: e.target.value })}
           />
           <input
             type="text"
             placeholder="Name"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={registerData.name}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, name: e.target.value })
-            }
+            onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
           />
           <input
             type="email"
             placeholder="Email"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={registerData.email}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, email: e.target.value })
-            }
+            onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
           />
           <input
             type="password"
             placeholder="Password"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={registerData.password}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, password: e.target.value })
-            }
+            onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
           />
           <input
             type="text"
             placeholder="Phone"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={registerData.phone}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, phone: e.target.value })
-            }
+            onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
           />
           <input
             type="text"
             placeholder="Gender"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={registerData.gender}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, gender: e.target.value })
-            }
+            onChange={(e) => setRegisterData({ ...registerData, gender: e.target.value })}
           />
           <button
             type="submit"
@@ -246,9 +231,7 @@ function LandingPage() {
             placeholder="Email"
             className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
             value={forgotData.email}
-            onChange={(e) =>
-              setForgotData({ ...forgotData, email: e.target.value })
-            }
+            onChange={(e) => setForgotData({ ...forgotData, email: e.target.value })}
           />
           <button
             type="submit"
@@ -279,7 +262,6 @@ function LandingPage() {
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Header with Logo */}
       <header className="p-4 bg-black flex items-center">
-        {/* Replace "vistapro-logo-01.png" with the actual path or import of your logo */}
         <img
           src="/assets/logo/vistapro logo-01.png"
           alt="VistaPro Logo"
@@ -292,7 +274,7 @@ function LandingPage() {
         {/* Left Section: Title & Illustration */}
         <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12">
           <h1
-            className="text-5xl md:text-6xl font-bold mb-4"
+            className="text-5xl md:text-7xl font-bold mb-4"
             style={{ fontFamily: "Roboto, sans-serif", color: goldColor }}
           >
             Welcome to VistaPro
@@ -300,7 +282,6 @@ function LandingPage() {
           <p className="text-lg text-gray-300 text-center md:text-left max-w-md mb-8">
             Redefine Success in Phone Distribution.
           </p>
-          
         </div>
 
         {/* Right Section: Form Card */}
