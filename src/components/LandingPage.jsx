@@ -1,28 +1,42 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-// Example gold color from your logo.
+// Define our colors
 const goldColor = "#C6A768";
+const blackColor = "#000";
+
+// Utility function to check if a password meets the criteria:
+// - At least 12 characters
+// - Contains at least one letter
+// - Contains at least one digit
+function isPasswordValid(password) {
+  if (password.length < 12) return false;
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasDigit = /[0-9]/.test(password);
+  return hasLetter && hasDigit;
+}
 
 function LandingPage() {
-  // Define which form to show (login, register, or forgot password)
+  // Define which form to show: "login", "register", or "forgot"
   const [view, setView] = useState("login");
   const navigate = useNavigate();
 
   // Form state for each view.
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
-    secretKey: "", // Registration is only for Master Admins.
+    secretKey: "",
     name: "",
     email: "",
     password: "",
     phone: "",
-    gender: ""
+    gender: "",
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
-  // Use the environment variable for the API base URL.
-  // In your Vercel project, set REACT_APP_API_URL to your live backend URL.
+  // For toggling Show/Hide password in the register form
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+
+  // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   // Handler for login submission.
@@ -36,27 +50,32 @@ function LandingPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Save token and user details in localStorage.
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Redirect based on the user's role.
-        if (data.user.role === "SuperAdmin") {
-          navigate("/dashboard/superadmin");
-        } else if (data.user.role === "MasterAdmin") {
-          navigate("/dashboard/masteradmin");
-        } else if (data.user.role === "Admin") {
-          navigate("/dashboard/admin");
-        } else if (data.user.role === "Dealer") {
-          navigate("/dashboard/dealer");
-        } else {
-          navigate("/");
+        // Redirect based on the user's role
+        switch (data.user.role) {
+          case "SuperAdmin":
+            navigate("/dashboard/superadmin");
+            break;
+          case "MasterAdmin":
+            navigate("/dashboard/masteradmin");
+            break;
+          case "Admin":
+            navigate("/dashboard/admin");
+            break;
+          case "Dealer":
+            navigate("/dashboard/dealer");
+            break;
+          default:
+            navigate("/");
+            break;
         }
       } else {
         alert(data.message || "Login failed");
       }
     } catch (error) {
-      console.error(error);
+      console.error("Error logging in:", error);
       alert("Error logging in");
     }
   };
@@ -77,7 +96,7 @@ function LandingPage() {
         alert(data.message || "Registration failed");
       }
     } catch (error) {
-      console.error(error);
+      console.error("Error registering:", error);
       alert("Error registering");
     }
   };
@@ -98,12 +117,12 @@ function LandingPage() {
         alert(data.message || "Reset failed");
       }
     } catch (error) {
-      console.error(error);
+      console.error("Error sending reset instructions:", error);
       alert("Error sending reset instructions");
     }
   };
 
-  // Render the appropriate form based on current view.
+  // Render the appropriate form based on the current view.
   const renderForm = () => {
     if (view === "login") {
       return (
@@ -111,31 +130,29 @@ function LandingPage() {
           <input
             type="email"
             placeholder="Email"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={loginData.email}
-            onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+            onChange={(e) =>
+              setLoginData({ ...loginData, email: e.target.value })
+            }
           />
           <input
             type="password"
             placeholder="Password"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={loginData.password}
-            onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+            onChange={(e) =>
+              setLoginData({ ...loginData, password: e.target.value })
+            }
           />
           <button
             type="submit"
-            className="mt-4"
-            style={{
-              backgroundColor: goldColor,
-              color: "#000",
-              fontWeight: "bold",
-              padding: "0.5rem 1rem",
-              borderRadius: "0.25rem",
-            }}
+            className="mt-4 px-4 py-2 rounded font-bold"
+            style={{ backgroundColor: blackColor, color: goldColor }}
           >
             Login
           </button>
-          <div className="flex items-center justify-between mt-4 text-sm">
+          <div className="flex justify-between text-sm mt-2">
             <p
               className="cursor-pointer"
               style={{ color: goldColor }}
@@ -154,6 +171,9 @@ function LandingPage() {
         </form>
       );
     } else if (view === "register") {
+      // Check if password meets the criteria
+      const passwordValid = isPasswordValid(registerData.password);
+
       return (
         <form className="flex flex-col gap-4" onSubmit={handleRegisterSubmit}>
           <p className="text-sm text-red-600">
@@ -162,55 +182,83 @@ function LandingPage() {
           <input
             type="text"
             placeholder="Secret Key"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={registerData.secretKey}
-            onChange={(e) => setRegisterData({ ...registerData, secretKey: e.target.value })}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, secretKey: e.target.value })
+            }
           />
           <input
             type="text"
             placeholder="Name"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={registerData.name}
-            onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, name: e.target.value })
+            }
           />
           <input
             type="email"
             placeholder="Email"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={registerData.email}
-            onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, email: e.target.value })
+            }
           />
-          <input
-            type="password"
-            placeholder="Password"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
-            value={registerData.password}
-            onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-          />
+          {/* Password field with show/hide toggle */}
+          <div className="relative">
+            <input
+              type={showRegisterPassword ? "text" : "password"}
+              placeholder="Password (must be at least 12 alphanumeric chars)"
+              className="border border-gray-300 rounded px-4 py-2 text-black w-full"
+              value={registerData.password}
+              onChange={(e) =>
+                setRegisterData({ ...registerData, password: e.target.value })
+              }
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-2 text-sm text-gray-500"
+              onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+            >
+              {showRegisterPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+          {/* Show password criteria feedback */}
+          {!passwordValid ? (
+            <p className="text-red-600 text-sm">
+              Password must be at least 12 characters, containing letters and
+              numbers.
+            </p>
+          ) : (
+            <p className="text-green-600 text-sm">Password meets criteria!</p>
+          )}
+
           <input
             type="text"
             placeholder="Phone"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={registerData.phone}
-            onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, phone: e.target.value })
+            }
           />
           <input
             type="text"
             placeholder="Gender"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={registerData.gender}
-            onChange={(e) => setRegisterData({ ...registerData, gender: e.target.value })}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, gender: e.target.value })
+            }
           />
+
           <button
             type="submit"
-            className="mt-4"
-            style={{
-              backgroundColor: goldColor,
-              color: "#000",
-              fontWeight: "bold",
-              padding: "0.5rem 1rem",
-              borderRadius: "0.25rem",
-            }}
+            className="mt-4 px-4 py-2 rounded font-bold"
+            style={{ backgroundColor: blackColor, color: goldColor }}
+            disabled={!passwordValid}
           >
             Register
           </button>
@@ -229,20 +277,16 @@ function LandingPage() {
           <input
             type="email"
             placeholder="Email"
-            className="border border-gray-600 rounded px-4 py-2 bg-gray-900 text-white placeholder-gray-400"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
             value={forgotData.email}
-            onChange={(e) => setForgotData({ ...forgotData, email: e.target.value })}
+            onChange={(e) =>
+              setForgotData({ ...forgotData, email: e.target.value })
+            }
           />
           <button
             type="submit"
-            className="mt-4"
-            style={{
-              backgroundColor: goldColor,
-              color: "#000",
-              fontWeight: "bold",
-              padding: "0.5rem 1rem",
-              borderRadius: "0.25rem",
-            }}
+            className="mt-4 px-4 py-2 rounded font-bold"
+            style={{ backgroundColor: blackColor, color: goldColor }}
           >
             Send Reset Instructions
           </button>
@@ -259,35 +303,38 @@ function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen bg-white text-black flex flex-col">
       {/* Header with Logo */}
-      <header className="p-4 bg-black flex items-center">
+      <header className="p-4 bg-white flex items-center border-b border-gray-200">
         <img
           src="/assets/logo/vistapro logo-01.png"
           alt="VistaPro Logo"
-          className="h-30"
+          className="h-25"
         />
       </header>
 
       {/* Main content area */}
       <div className="flex flex-col md:flex-row flex-1">
         {/* Left Section: Title & Illustration */}
-        <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12">
+        <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12 text-center">
           <h1
-            className="text-5xl md:text-7xl font-bold mb-4"
-            style={{ fontFamily: "Roboto, sans-serif", color: goldColor }}
+            className="text-6xl md:text-7xl font-bold mb-4"
+            style={{ fontFamily: "Roboto, sans-serif", color: blackColor }}
           >
-            Welcome to VistaPro
+            Vistapro
           </h1>
-          <p className="text-lg text-gray-300 text-center md:text-left max-w-md mb-8">
+          <p className="text-lg text-gray-700 max-w-md mb-8">
             Redefine Success in Phone Distribution.
           </p>
         </div>
 
         {/* Right Section: Form Card */}
         <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12">
-          <div className="w-full max-w-sm bg-gray-800 p-6 rounded shadow-md">
-            <h2 className="text-2xl font-semibold mb-6" style={{ color: goldColor }}>
+          <div className="w-full max-w-sm bg-white border border-black shadow-lg p-6 rounded">
+            <h2
+              className="text-2xl font-semibold mb-6"
+              style={{ color: goldColor }}
+            >
               {view === "login"
                 ? "Login"
                 : view === "register"
