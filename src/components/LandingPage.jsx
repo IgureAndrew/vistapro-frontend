@@ -25,25 +25,27 @@ function LandingPage() {
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
     secretKey: "",
-    name: "",
+    first_name: "",    // Replaced "name" with "first_name"
+    last_name: "",     // Added "last_name"
     email: "",
     password: "",
     phone: "",
     gender: "",
+    address: "",       // If your backend expects address
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
-  // For toggling Show/Hide password in the register form
+  // For toggling password visibility in the register form.
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
   // Use the API base URL from environment variables.
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const baseUrl = "https://vistapro-backend.onrender.com";
 
   // Handler for login submission.
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginData),
@@ -52,8 +54,7 @@ function LandingPage() {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-
-        // Redirect based on the user's role
+        // Redirect based on the user's role.
         switch (data.user.role) {
           case "SuperAdmin":
             navigate("/dashboard/superadmin");
@@ -80,11 +81,16 @@ function LandingPage() {
     }
   };
 
-  // Handler for registration submission.
+  // Handler for registration submission (Master Admin).
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
+    if (!isPasswordValid(registerData.password)) {
+      alert("Password must be at least 12 alphanumeric characters.");
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE_URL}/api/master-admin/register`, {
+      // Adjust these field names to match your updated backend (e.g., first_name, last_name, etc.)
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/master-admin/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registerData),
@@ -105,7 +111,7 @@ function LandingPage() {
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(forgotData),
@@ -171,9 +177,7 @@ function LandingPage() {
         </form>
       );
     } else if (view === "register") {
-      // Check if password meets the criteria
       const passwordValid = isPasswordValid(registerData.password);
-
       return (
         <form className="flex flex-col gap-4" onSubmit={handleRegisterSubmit}>
           <p className="text-sm text-red-600">
@@ -190,12 +194,23 @@ function LandingPage() {
           />
           <input
             type="text"
-            placeholder="Name"
+            placeholder="First Name"
             className="border border-gray-300 rounded px-4 py-2 text-black"
-            value={registerData.name}
+            value={registerData.first_name}
             onChange={(e) =>
-              setRegisterData({ ...registerData, name: e.target.value })
+              setRegisterData({ ...registerData, first_name: e.target.value })
             }
+            required
+          />
+          <input
+            type="text"
+            placeholder="Last Name"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
+            value={registerData.last_name}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, last_name: e.target.value })
+            }
+            required
           />
           <input
             type="email"
@@ -205,36 +220,38 @@ function LandingPage() {
             onChange={(e) =>
               setRegisterData({ ...registerData, email: e.target.value })
             }
+            required
           />
-          {/* Password field with show/hide toggle */}
           <div className="relative">
             <input
               type={showRegisterPassword ? "text" : "password"}
-              placeholder="Password (must be at least 12 alphanumeric chars)"
+              placeholder="Password (min 12 alphanumeric chars)"
               className="border border-gray-300 rounded px-4 py-2 text-black w-full"
               value={registerData.password}
               onChange={(e) =>
                 setRegisterData({ ...registerData, password: e.target.value })
               }
+              required
             />
             <button
               type="button"
               className="absolute right-2 top-2 text-sm text-gray-500"
-              onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+              onClick={() =>
+                setShowRegisterPassword(!showRegisterPassword)
+              }
             >
               {showRegisterPassword ? "Hide" : "Show"}
             </button>
           </div>
-          {/* Show password criteria feedback */}
           {!passwordValid ? (
             <p className="text-red-600 text-sm">
-              Password must be at least 12 characters, containing letters and
-              numbers.
+              Password must be at least 12 characters, containing letters and numbers.
             </p>
           ) : (
-            <p className="text-green-600 text-sm">Password meets criteria!</p>
+            <p className="text-green-600 text-sm">
+              Password meets criteria!
+            </p>
           )}
-
           <input
             type="text"
             placeholder="Phone"
@@ -246,14 +263,23 @@ function LandingPage() {
           />
           <input
             type="text"
-            placeholder="Gender"
+            placeholder="Address"
+            className="border border-gray-300 rounded px-4 py-2 text-black"
+            value={registerData.address}
+            onChange={(e) =>
+              setRegisterData({ ...registerData, address: e.target.value })
+            }
+          />
+          <input
+            type="text"
+            placeholder="Gender (e.g., male/female)"
             className="border border-gray-300 rounded px-4 py-2 text-black"
             value={registerData.gender}
             onChange={(e) =>
               setRegisterData({ ...registerData, gender: e.target.value })
             }
+            required
           />
-
           <button
             type="submit"
             className="mt-4 px-4 py-2 rounded font-bold"
@@ -307,9 +333,9 @@ function LandingPage() {
       {/* Header with Logo */}
       <header className="p-4 bg-white flex items-center border-b border-gray-200">
         <img
-          src="/assets/logo/vistapro logo-01.png"
+          src="/assets/logo/vistapro_logo.png"
           alt="VistaPro Logo"
-          className="h-25"
+          className="h-12"
         />
       </header>
 

@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 function ProfileUpdate() {
-  // State to store text inputs
   const [profileData, setProfileData] = useState({
     email: "",
     phone: "",
@@ -9,43 +8,55 @@ function ProfileUpdate() {
     newPassword: "",
   });
 
-  // State to store file upload
-  const [profileImage, setProfileImage] = useState(null);
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
 
-  // Handler for text input changes
+  // Retrieve token from localStorage
+  const token = localStorage.getItem("token");
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setProfileData((prevData) => ({ ...prevData, [name]: value }));
   };
 
-  // Handler for file input changes
   const handleFileChange = (e) => {
-    setProfileImage(e.target.files[0]);
+    const file = e.target.files[0];
+    setProfileImageFile(file);
+    if (file) {
+      // Create a local preview URL for the uploaded image
+      const previewURL = URL.createObjectURL(file);
+      setAvatarPreview(previewURL);
+    } else {
+      setAvatarPreview("");
+    }
   };
 
-  // Handler for form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Create a FormData object to handle both text and file data
     const formData = new FormData();
-    formData.append("email", profileData.email);
-    formData.append("phone", profileData.phone);
-    formData.append("gender", profileData.gender);
-    formData.append("newPassword", profileData.newPassword);
-    if (profileImage) {
-      formData.append("profileImage", profileImage);
-    }
+    // Only add fields if they have values
+    if (profileData.email) formData.append("email", profileData.email);
+    if (profileData.phone) formData.append("phone", profileData.phone);
+    if (profileData.gender) formData.append("gender", profileData.gender);
+    if (profileData.newPassword) formData.append("newPassword", profileData.newPassword);
+    if (profileImageFile) formData.append("profileImage", profileImageFile);
 
     try {
-      const res = await fetch("http://localhost:5000/api/master-admin/profile", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/master-admin/profile`, {
         method: "PUT",
-        // Do not manually set Content-Type; let the browser handle it for FormData.
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Do not set Content-Type when sending FormData
+        },
         body: formData,
       });
       const data = await res.json();
       if (res.ok) {
+        // Optionally, update the locally stored user object with the updated profile image URL
+        const updatedUser = { ...JSON.parse(localStorage.getItem("user")), profile_image: data.profile_image };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        // You can use a Tailwind toast library here to show a notification instead of alert()
         alert("Profile updated successfully!");
-        // Optionally update localStorage or state with updated user data here.
       } else {
         alert(data.message || "Profile update failed.");
       }
@@ -56,14 +67,41 @@ function ProfileUpdate() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white shadow-lg rounded-lg">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Update Profile</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Email */}
-        <div>
-          <label className="block text-gray-700 font-semibold mb-1">
-            Email
-          </label>
+    <div className="max-w-3xl mx-auto mt-10 p-6 bg-white shadow-lg rounded-lg">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800">Account Settings</h2>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Avatar Section */}
+        <section>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Avatar</h3>
+          <p className="text-sm text-gray-500 mb-3">
+            Click to upload a custom avatar.
+          </p>
+          <div className="flex items-center gap-4">
+            {avatarPreview ? (
+              <img
+                src={avatarPreview}
+                alt="Avatar Preview"
+                className="w-14 h-14 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+                No Avatar
+              </div>
+            )}
+            <label className="cursor-pointer text-blue-600 underline">
+              Change
+              <input
+                type="file"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+          </div>
+        </section>
+
+        {/* Email Section */}
+        <section>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Email</h3>
           <input
             type="email"
             name="email"
@@ -72,13 +110,11 @@ function ProfileUpdate() {
             value={profileData.email}
             onChange={handleInputChange}
           />
-        </div>
+        </section>
 
-        {/* Phone */}
-        <div>
-          <label className="block text-gray-700 font-semibold mb-1">
-            Phone
-          </label>
+        {/* Phone Section */}
+        <section>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Phone</h3>
           <input
             type="text"
             name="phone"
@@ -87,13 +123,11 @@ function ProfileUpdate() {
             value={profileData.phone}
             onChange={handleInputChange}
           />
-        </div>
+        </section>
 
-        {/* Gender */}
-        <div>
-          <label className="block text-gray-700 font-semibold mb-1">
-            Gender
-          </label>
+        {/* Gender Section */}
+        <section>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Gender</h3>
           <input
             type="text"
             name="gender"
@@ -102,13 +136,11 @@ function ProfileUpdate() {
             value={profileData.gender}
             onChange={handleInputChange}
           />
-        </div>
+        </section>
 
-        {/* New Password */}
-        <div>
-          <label className="block text-gray-700 font-semibold mb-1">
-            New Password
-          </label>
+        {/* New Password Section */}
+        <section>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">New Password</h3>
           <input
             type="password"
             name="newPassword"
@@ -117,28 +149,17 @@ function ProfileUpdate() {
             value={profileData.newPassword}
             onChange={handleInputChange}
           />
-        </div>
-
-        {/* Profile Image */}
-        <div>
-          <label className="block text-gray-700 font-semibold mb-1">
-            Profile Image
-          </label>
-          <input
-            type="file"
-            name="profileImage"
-            onChange={handleFileChange}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-gray-300"
-          />
-        </div>
+        </section>
 
         {/* Submit Button */}
-        <button
-          type="submit"
-          className="mt-4 w-full bg-black text-yellow-400 font-bold py-2 rounded-lg hover:bg-gray-900 transition-colors"
-        >
-          Update Profile
-        </button>
+        <div>
+          <button
+            type="submit"
+            className="mt-4 w-full bg-black text-yellow-400 font-bold py-2 rounded-lg hover:bg-gray-900 transition-colors"
+          >
+            Save Changes
+          </button>
+        </div>
       </form>
     </div>
   );

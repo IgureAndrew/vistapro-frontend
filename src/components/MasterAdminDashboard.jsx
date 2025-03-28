@@ -1,3 +1,4 @@
+// src/components/MasterAdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -5,7 +6,9 @@ import {
   User,
   Users as UsersIcon,
   FileText,
+  TrendingUp,
   Package,
+  CheckCircle,
   Shield,
   UserPlus,
   ShoppingCart,
@@ -17,12 +20,13 @@ import {
 } from "lucide-react";
 
 import DashboardOverview from "./DashboardOverview";
+import AvatarDropdown from "./AvatarDropdown";
 import ProfileUpdate from "./ProfileUpdate";
 import UsersManagement from "./UsersManagement";
 import Reports from "./Reports";
 import CashOut from "./CashOut";
 import Performance from "./Performance";
-import StockManagement from "./StockManagement";
+import StockUpdate from "./StockUpdate";
 import Verification from "./Verification";
 import RegisterSuperAdmin from "./RegisterSuperAdmin";
 import AssignMarketer from "./AssignMarketer";
@@ -33,15 +37,39 @@ function MasterAdminDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
+
+  // Current active module
   const [activeModule, setActiveModule] = useState("overview");
+
+  // Track online/offline status
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
+
+  // Toggle sidebar for mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Dark mode toggle
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // NEW: Greeting state
+  const [greeting, setGreeting] = useState("Welcome");
+
   useEffect(() => {
+    // If no user found, redirect to login
     if (!user) {
       navigate("/");
     }
   }, [user, navigate]);
+
+  // NEW: Check localStorage for hasVisitedDashboard
+  useEffect(() => {
+    const hasVisited = localStorage.getItem("hasVisitedDashboard");
+    if (hasVisited) {
+      setGreeting("Welcome back");
+    } else {
+      setGreeting("Welcome");
+      localStorage.setItem("hasVisitedDashboard", "true");
+    }
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -53,6 +81,18 @@ function MasterAdminDashboard() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    // If you want "Welcome" to appear again on next login, remove the visit flag:
+    // localStorage.removeItem("hasVisitedDashboard");
+    navigate("/");
+  };
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
 
   const renderModule = () => {
     switch (activeModule) {
@@ -69,7 +109,7 @@ function MasterAdminDashboard() {
       case "performance":
         return <Performance />;
       case "stock":
-        return <StockManagement />;
+        return <StockUpdate />;
       case "verification":
         return <Verification />;
       case "register-super-admin":
@@ -85,44 +125,41 @@ function MasterAdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/");
-  };
-
   return (
-    <div className="min-h-screen flex flex-col bg-white text-gray-800">
+    <div
+      className={`min-h-screen flex flex-col transition-colors duration-300 ${
+        isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
+      }`}
+    >
       {/* Top Navbar for small screens */}
-      <header className="h-16 flex items-center justify-between px-4 bg-white border-b border-gray-200 md:hidden">
+      <header
+        className={`h-16 flex items-center justify-between px-4 border-b md:hidden transition-colors duration-300 ${
+          isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+        }`}
+      >
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded hover:bg-gray-100"
+            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <h2 className="text-lg font-bold">Vistapro</h2>
         </div>
         <div className="flex items-center gap-4">
-          <button className="relative p-2 rounded hover:bg-gray-100">
-            <Bell size={18} className="text-black" />
+          <button className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+            <Bell size={18} />
             <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
               3
             </span>
           </button>
-          {/* Small-screen avatar logic */}
-          {user?.profile_image ? (
-            <img
-              src={user.profile_image}
-              alt="Profile"
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-              {user ? user.name.charAt(0).toUpperCase() : "M"}
-            </div>
-          )}
+          <AvatarDropdown
+            user={user}
+            handleLogout={handleLogout}
+            toggleDarkMode={toggleDarkMode}
+            isDarkMode={isDarkMode}
+            setActiveModule={setActiveModule}
+          />
         </div>
       </header>
 
@@ -131,9 +168,13 @@ function MasterAdminDashboard() {
         <aside
           className={`${
             sidebarOpen ? "block" : "hidden"
-          } md:block w-full md:w-64 bg-white border-r border-gray-200 flex-shrink-0`}
+          } md:block w-full md:w-64 flex-shrink-0 transition-colors duration-300 ${
+            isDarkMode
+              ? "bg-gray-800 border-r border-gray-700"
+              : "bg-white border-r border-gray-200"
+          }`}
         >
-          <div className="p-4 text-center font-bold text-xl border-b border-gray-200 md:text-2xl">
+          <div className="p-4 text-center font-bold text-xl md:text-2xl border-b transition-colors duration-300 dark:border-gray-700">
             Vistapro
           </div>
           <nav className="p-3 flex-1">
@@ -145,6 +186,7 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Profile"
@@ -153,6 +195,7 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Users"
@@ -161,6 +204,7 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Reports"
@@ -169,23 +213,25 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Cash Out"
-                // Naira sign
-                Icon={() => <span className="text-black text-lg">₦</span>}
+                Icon={() => <span className="text-lg">₦</span>}
                 moduleName="cashout"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Performance"
-                Icon={Package}
+                Icon={TrendingUp}
                 moduleName="performance"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Stock"
@@ -194,14 +240,16 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Verification"
-                Icon={Shield}
+                Icon={CheckCircle}
                 moduleName="verification"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Register Super Admin"
@@ -210,6 +258,7 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Assign Marketers"
@@ -218,6 +267,7 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Products"
@@ -226,6 +276,7 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <SidebarItem
                 label="Manage Orders"
@@ -234,13 +285,18 @@ function MasterAdminDashboard() {
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
               />
               <li>
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-3 py-2 rounded flex items-center gap-2 hover:bg-gray-50 transition"
+                  className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
+                    isDarkMode
+                      ? "hover:bg-gray-700 text-white"
+                      : "hover:bg-gray-50 text-black"
+                  }`}
                 >
-                  <LogOut size={16} className="text-black" />
+                  <LogOut size={16} />
                   Logout
                 </button>
               </li>
@@ -251,39 +307,51 @@ function MasterAdminDashboard() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Top Bar for larger screens */}
-          <header className="hidden md:flex h-16 bg-white border-b border-gray-200 px-4 md:px-6 items-center justify-between">
+          <header
+            className={`hidden md:flex h-16 border-b px-4 md:px-6 items-center justify-between transition-colors duration-300 ${
+              isDarkMode
+                ? "bg-gray-800 border-gray-700 text-white"
+                : "bg-white border-gray-200 text-gray-800"
+            }`}
+          >
             <div>
+              {/*  Use the new greeting state here  */}
               <h2 className="text-lg md:text-xl font-bold">
-                Welcome Back, {user ? user.name : "Master Admin"}!
+                {greeting}, {user ? user.name : "Master Admin"}!
               </h2>
-              <p className="text-xs md:text-sm text-gray-500">
+              <p className="text-xs md:text-sm">
                 {isOnline ? "You are online" : "You are offline"}
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative p-2 rounded hover:bg-gray-100">
-                <Bell size={18} className="text-black" />
+              <button
+                className={`relative p-2 rounded transition-colors ${
+                  isDarkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
+                }`}
+              >
+                <Bell size={18} />
                 <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
                   3
                 </span>
               </button>
-              {/* Large-screen avatar logic */}
-              {user?.profile_image ? (
-                <img
-                  src={user.profile_image}
-                  alt="Profile"
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-                  {user ? user.name.charAt(0).toUpperCase() : "M"}
-                </div>
-              )}
+              <AvatarDropdown
+                user={user}
+                handleLogout={handleLogout}
+                toggleDarkMode={toggleDarkMode}
+                isDarkMode={isDarkMode}
+                setActiveModule={setActiveModule}
+              />
             </div>
           </header>
 
           {/* Render Active Module */}
-          <main className="p-3 md:p-6 overflow-auto flex-1">{renderModule()}</main>
+          <main
+            className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${
+              isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
+            }`}
+          >
+            {renderModule()}
+          </main>
         </div>
       </div>
     </div>
@@ -292,19 +360,22 @@ function MasterAdminDashboard() {
 
 export default MasterAdminDashboard;
 
-/* Reusable Sidebar Item Component */
+/* 
+  Updated SidebarItem to pass isDarkMode for styling
+*/
 function SidebarItem({
   label,
   Icon,
   moduleName,
   activeModule,
   setActiveModule,
-  setSidebarOpen
+  setSidebarOpen,
+  isDarkMode,
 }) {
   const isActive = activeModule === moduleName;
+
   const handleClick = () => {
     setActiveModule(moduleName);
-    // On small screens, close the sidebar after clicking
     setSidebarOpen(false);
   };
 
@@ -313,10 +384,16 @@ function SidebarItem({
       <button
         onClick={handleClick}
         className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-          isActive ? "bg-blue-100 font-semibold" : "hover:bg-blue-50"
+          isActive
+            ? isDarkMode
+              ? "bg-gray-700 font-semibold text-white"
+              : "bg-blue-100 font-semibold text-black"
+            : isDarkMode
+            ? "hover:bg-gray-700 text-white"
+            : "hover:bg-gray-50 text-black"
         }`}
       >
-        {Icon && <Icon size={16} className="text-black" />}
+        {Icon && <Icon size={16} />}
         <span>{label}</span>
       </button>
     </li>
