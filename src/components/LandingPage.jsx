@@ -29,9 +29,7 @@ function LandingPage() {
     last_name: "",     // Added "last_name"
     email: "",
     password: "",
-    phone: "",
     gender: "",
-    address: "",       // If your backend expects address
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
