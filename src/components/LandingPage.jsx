@@ -25,11 +25,12 @@ function LandingPage() {
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
     secretKey: "",
-    first_name: "",    // Replaced "name" with "first_name"
-    last_name: "",     // Added "last_name"
+    first_name: "",
+    last_name: "",
     email: "",
     password: "",
     gender: "",
+    // Removed address field
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
@@ -37,13 +38,13 @@ function LandingPage() {
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
   // Use the API base URL from environment variables.
-  const baseUrl = "https://vistapro-backend.onrender.com";
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   // Handler for login submission.
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginData),
@@ -79,7 +80,7 @@ function LandingPage() {
     }
   };
 
-  // Handler for registration submission (Master Admin).
+  // Handler for registration submission.
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     if (!isPasswordValid(registerData.password)) {
@@ -87,8 +88,7 @@ function LandingPage() {
       return;
     }
     try {
-      // Adjust these field names to match your updated backend (e.g., first_name, last_name, etc.)
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/master-admin/register`, {
+      const res = await fetch(`${API_BASE_URL}/api/master-admin/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registerData),
@@ -109,7 +109,7 @@ function LandingPage() {
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/forgot-password`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(forgotData),
@@ -234,9 +234,7 @@ function LandingPage() {
             <button
               type="button"
               className="absolute right-2 top-2 text-sm text-gray-500"
-              onClick={() =>
-                setShowRegisterPassword(!showRegisterPassword)
-              }
+              onClick={() => setShowRegisterPassword(!showRegisterPassword)}
             >
               {showRegisterPassword ? "Hide" : "Show"}
             </button>
@@ -250,34 +248,19 @@ function LandingPage() {
               Password meets criteria!
             </p>
           )}
-          <input
-            type="text"
-            placeholder="Phone"
-            className="border border-gray-300 rounded px-4 py-2 text-black"
-            value={registerData.phone}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, phone: e.target.value })
-            }
-          />
-          <input
-            type="text"
-            placeholder="Address"
-            className="border border-gray-300 rounded px-4 py-2 text-black"
-            value={registerData.address}
-            onChange={(e) =>
-              setRegisterData({ ...registerData, address: e.target.value })
-            }
-          />
-          <input
-            type="text"
-            placeholder="Gender (e.g., male/female)"
-            className="border border-gray-300 rounded px-4 py-2 text-black"
+          <select
+            name="gender"
             value={registerData.gender}
             onChange={(e) =>
               setRegisterData({ ...registerData, gender: e.target.value })
             }
+            className="border border-gray-300 rounded px-4 py-2"
             required
-          />
+          >
+            <option value="">Select Gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
           <button
             type="submit"
             className="mt-4 px-4 py-2 rounded font-bold"
