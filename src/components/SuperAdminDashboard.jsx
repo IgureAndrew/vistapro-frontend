@@ -1,3 +1,4 @@
+// src/components/SuperAdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 // Import lucide-react icons
@@ -12,7 +13,7 @@ import {
   Bell,
 } from "lucide-react";
 
-// Import your module components (or placeholders)
+// Import your module components
 import DashboardOverview from "./DashboardOverview";
 import ProfileUpdate from "./ProfileUpdate";
 import Reports from "./Reports";
@@ -23,6 +24,7 @@ import ManageOrders from "./ManageOrders";
 function SuperAdminDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
+  // Assuming storedUser now contains first_name and last_name
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
   const [activeModule, setActiveModule] = useState("overview");
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
@@ -44,13 +46,12 @@ function SuperAdminDashboard() {
     };
   }, []);
 
-  // Logout function: clear auth data and redirect to landing page.
+  // Logout function
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/");
   };
-
 
   const renderModule = () => {
     switch (activeModule) {
@@ -69,6 +70,24 @@ function SuperAdminDashboard() {
       default:
         return <DashboardOverview />;
     }
+  };
+
+  // Helper to get user display name
+  const getDisplayName = () => {
+    if (user) {
+      const first = user.first_name || "";
+      const last = user.last_name || "";
+      return `${first} ${last}`.trim();
+    }
+    return "Super Admin";
+  };
+
+  // Helper to get initial letter from first_name
+  const getUserInitial = () => {
+    if (user && user.first_name && user.first_name.length > 0) {
+      return user.first_name.charAt(0).toUpperCase();
+    }
+    return "S";
   };
 
   return (
@@ -141,7 +160,7 @@ function SuperAdminDashboard() {
         <header className="h-16 bg-white border-b border-gray-200 px-4 md:px-6 flex items-center justify-between">
           <div>
             <h2 className="text-lg md:text-xl font-bold">
-              Welcome Back, {user ? user.name : "Super Admin"}!
+              Welcome Back, {getDisplayName()}!
             </h2>
             <p className="text-xs md:text-sm text-gray-500">
               {isOnline ? "You are online" : "You are offline"}
@@ -155,7 +174,7 @@ function SuperAdminDashboard() {
               </span>
             </button>
             <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-              {user ? user.name.charAt(0).toUpperCase() : "S"}
+              {getUserInitial()}
             </div>
           </div>
         </header>

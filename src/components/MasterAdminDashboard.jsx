@@ -17,6 +17,7 @@ import {
   Bell,
   Menu,
   X,
+  MessageSquare, // New icon for messaging
 } from "lucide-react";
 
 import DashboardOverview from "./DashboardOverview";
@@ -32,9 +33,12 @@ import RegisterSuperAdmin from "./RegisterSuperAdmin";
 import AssignMarketer from "./AssignMarketer";
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
+import Messaging from "./Messaging"; // Import the Messaging component
 
 function MasterAdminDashboard() {
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
 
@@ -50,17 +54,15 @@ function MasterAdminDashboard() {
   // Dark mode toggle
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // NEW: Greeting state
+  // Greeting state
   const [greeting, setGreeting] = useState("Welcome");
 
   useEffect(() => {
-    // If no user found, redirect to login
     if (!user) {
       navigate("/");
     }
   }, [user, navigate]);
 
-  // NEW: Check localStorage for hasVisitedDashboard
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedDashboard");
     if (hasVisited) {
@@ -85,8 +87,6 @@ function MasterAdminDashboard() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    // If you want "Welcome" to appear again on next login, remove the visit flag:
-    // localStorage.removeItem("hasVisitedDashboard");
     navigate("/");
   };
 
@@ -120,6 +120,8 @@ function MasterAdminDashboard() {
         return <Product />;
       case "manage-orders":
         return <ManageOrders />;
+      case "messages":
+        return <Messaging />; // New messaging module
       default:
         return <DashboardOverview />;
     }
@@ -287,6 +289,15 @@ function MasterAdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
+              <SidebarItem
+                label="Messages"
+                Icon={MessageSquare}
+                moduleName="messages"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
               <li>
                 <button
                   onClick={handleLogout}
@@ -315,20 +326,15 @@ function MasterAdminDashboard() {
             }`}
           >
             <div>
-              {/*  Use the new greeting state here  */}
               <h2 className="text-lg md:text-xl font-bold">
-                {greeting}, {user ? user.name : "Master Admin"}!
+                {greeting}, {user ? `${user.first_name} ${user.last_name}` : "Master Admin"}!
               </h2>
               <p className="text-xs md:text-sm">
                 {isOnline ? "You are online" : "You are offline"}
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <button
-                className={`relative p-2 rounded transition-colors ${
-                  isDarkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
-                }`}
-              >
+              <button className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
                 <Bell size={18} />
                 <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
                   3
@@ -360,9 +366,7 @@ function MasterAdminDashboard() {
 
 export default MasterAdminDashboard;
 
-/* 
-  Updated SidebarItem to pass isDarkMode for styling
-*/
+/* SidebarItem Component */
 function SidebarItem({
   label,
   Icon,
