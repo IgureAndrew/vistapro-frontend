@@ -17,11 +17,12 @@ import {
   Bell,
   Menu,
   X,
-  MessageSquare, // New icon for messaging
+  ArrowLeft,
+  MessageSquare,
 } from "lucide-react";
 
 import DashboardOverview from "./DashboardOverview";
-import AvatarDropdown from "./AvatarDropdown";
+import AvatarDropdown from "./AvatarDropdown"; // Ensure this is correctly implemented
 import ProfileUpdate from "./ProfileUpdate";
 import UsersManagement from "./UsersManagement";
 import Reports from "./Reports";
@@ -33,12 +34,12 @@ import RegisterSuperAdmin from "./RegisterSuperAdmin";
 import AssignMarketer from "./AssignMarketer";
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
-import Messaging from "./Messaging"; // Import the Messaging component
+import Messaging from "./Messaging";
+import Submissions from "./Submissions"; // Import the new Submissions component
 
 function MasterAdminDashboard() {
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
-
+  const baseUrl = "https://vistapro-backend.onrender.com";
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
 
@@ -94,6 +95,11 @@ function MasterAdminDashboard() {
     setIsDarkMode(!isDarkMode);
   };
 
+  // Return function to go back to overview
+  const handleReturn = () => {
+    setActiveModule("overview");
+  };
+
   const renderModule = () => {
     switch (activeModule) {
       case "overview":
@@ -121,7 +127,9 @@ function MasterAdminDashboard() {
       case "manage-orders":
         return <ManageOrders />;
       case "messages":
-        return <Messaging />; // New messaging module
+        return <Messaging />;
+      case "submissions":
+        return <Submissions />; // New Submissions module
       default:
         return <DashboardOverview />;
     }
@@ -254,6 +262,15 @@ function MasterAdminDashboard() {
                 isDarkMode={isDarkMode}
               />
               <SidebarItem
+                label="Submissions"
+                Icon={FileText}  // or any other icon you prefer
+                moduleName="submissions"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
+              <SidebarItem
                 label="Register Super Admin"
                 Icon={Shield}
                 moduleName="register-super-admin"
@@ -298,13 +315,23 @@ function MasterAdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
+              {/* Return Button: Only show if not in overview */}
+              {activeModule !== "overview" && (
+                <li>
+                  <button
+                    onClick={handleReturn}
+                    className="w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors hover:bg-gray-50"
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Return</span>
+                  </button>
+                </li>
+              )}
               <li>
                 <button
                   onClick={handleLogout}
                   className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-                    isDarkMode
-                      ? "hover:bg-gray-700 text-white"
-                      : "hover:bg-gray-50 text-black"
+                    isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black"
                   }`}
                 >
                   <LogOut size={16} />
@@ -320,9 +347,7 @@ function MasterAdminDashboard() {
           {/* Top Bar for larger screens */}
           <header
             className={`hidden md:flex h-16 border-b px-4 md:px-6 items-center justify-between transition-colors duration-300 ${
-              isDarkMode
-                ? "bg-gray-800 border-gray-700 text-white"
-                : "bg-white border-gray-200 text-gray-800"
+              isDarkMode ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-200 text-gray-800"
             }`}
           >
             <div>
@@ -350,12 +375,7 @@ function MasterAdminDashboard() {
             </div>
           </header>
 
-          {/* Render Active Module */}
-          <main
-            className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${
-              isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
-            }`}
-          >
+          <main className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"}`}>
             {renderModule()}
           </main>
         </div>
@@ -364,9 +384,7 @@ function MasterAdminDashboard() {
   );
 }
 
-export default MasterAdminDashboard;
-
-/* SidebarItem Component */
+// Reusable SidebarItem Component for MasterAdminDashboard
 function SidebarItem({
   label,
   Icon,
@@ -403,3 +421,5 @@ function SidebarItem({
     </li>
   );
 }
+
+export default MasterAdminDashboard;

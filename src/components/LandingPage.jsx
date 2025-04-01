@@ -7,8 +7,7 @@ const blackColor = "#000";
 
 // Utility function to check if a password meets the criteria:
 // - At least 12 characters
-// - Contains at least one letter
-// - Contains at least one digit
+// - Contains at least one letter and one digit
 function isPasswordValid(password) {
   if (password.length < 12) return false;
   const hasLetter = /[a-zA-Z]/.test(password);
@@ -30,7 +29,6 @@ function LandingPage() {
     email: "",
     password: "",
     gender: "",
-    // Removed address field
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
@@ -66,6 +64,9 @@ function LandingPage() {
             break;
           case "Dealer":
             navigate("/dashboard/dealer");
+            break;
+          case "Marketer":
+            navigate("/dashboard/marketer");
             break;
           default:
             navigate("/");
@@ -244,9 +245,7 @@ function LandingPage() {
               Password must be at least 12 characters, containing letters and numbers.
             </p>
           ) : (
-            <p className="text-green-600 text-sm">
-              Password meets criteria!
-            </p>
+            <p className="text-green-600 text-sm">Password meets criteria!</p>
           )}
           <select
             name="gender"
