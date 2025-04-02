@@ -31,11 +31,12 @@ import Performance from "./Performance";
 import StockUpdate from "./StockUpdate";
 import Verification from "./Verification";
 import RegisterSuperAdmin from "./RegisterSuperAdmin";
-import AssignMarketer from "./AssignMarketer";
+// import AssignMarketer from "./AssignMarketer";  // No longer used.
+import AssignUsers from "./AssignUsers"; // New component that handles both assignments.
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
 import Messaging from "./Messaging";
-import Submissions from "./Submissions"; // Import the new Submissions component
+import Submissions from "./Submissions"; // Import the Submissions component
 
 function MasterAdminDashboard() {
   const navigate = useNavigate();
@@ -120,8 +121,8 @@ function MasterAdminDashboard() {
         return <Verification />;
       case "register-super-admin":
         return <RegisterSuperAdmin />;
-      case "assign-marketer":
-        return <AssignMarketer />;
+      case "assign":
+        return <AssignUsers />; // Render the new AssignUsers component
       case "product":
         return <Product />;
       case "manage-orders":
@@ -129,7 +130,7 @@ function MasterAdminDashboard() {
       case "messages":
         return <Messaging />;
       case "submissions":
-        return <Submissions />; // New Submissions module
+        return <Submissions />;
       default:
         return <DashboardOverview />;
     }
@@ -263,7 +264,7 @@ function MasterAdminDashboard() {
               />
               <SidebarItem
                 label="Submissions"
-                Icon={FileText}  // or any other icon you prefer
+                Icon={FileText}
                 moduleName="submissions"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
@@ -279,10 +280,11 @@ function MasterAdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
+              {/* New: Assign Users (for both assignments) */}
               <SidebarItem
-                label="Assign Marketers"
+                label="Assign"
                 Icon={UserPlus}
-                moduleName="assign-marketer"
+                moduleName="assign"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}

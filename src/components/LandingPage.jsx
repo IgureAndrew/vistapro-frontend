@@ -313,9 +313,9 @@ function LandingPage() {
       {/* Header with Logo */}
       <header className="p-4 bg-white flex items-center border-b border-gray-200">
         <img
-          src="/assets/logo/vistapro_logo.png"
+          src="/assets/logo/vistapro logo-01.png"
           alt="VistaPro Logo"
-          className="h-12"
+          className="h-16"
         />
       </header>
 
