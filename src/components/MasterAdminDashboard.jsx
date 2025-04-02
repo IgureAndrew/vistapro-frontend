@@ -30,8 +30,7 @@ import CashOut from "./CashOut";
 import Performance from "./Performance";
 import StockUpdate from "./StockUpdate";
 import Verification from "./Verification";
-import RegisterSuperAdmin from "./RegisterSuperAdmin";
-// import AssignMarketer from "./AssignMarketer";  // No longer used.
+import RegisterSuperAdmin from "./RegisterSuperAdmin"; // This import remains if used elsewhere
 import AssignUsers from "./AssignUsers"; // New component that handles both assignments.
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
@@ -96,10 +95,10 @@ function MasterAdminDashboard() {
     setIsDarkMode(!isDarkMode);
   };
 
-  // Return function to go back to overview
-  const handleReturn = () => {
-    setActiveModule("overview");
-  };
+  // Removed: Return function (no longer needed)
+  // const handleReturn = () => {
+  //   setActiveModule("overview");
+  // };
 
   const renderModule = () => {
     switch (activeModule) {
@@ -271,16 +270,8 @@ function MasterAdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              <SidebarItem
-                label="Register Super Admin"
-                Icon={Shield}
-                moduleName="register-super-admin"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              {/* New: Assign Users (for both assignments) */}
+              {/* Removed: Register Super Admin item */}
+              {/* Removed: Return Button */}
               <SidebarItem
                 label="Assign"
                 Icon={UserPlus}
@@ -317,18 +308,6 @@ function MasterAdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Return Button: Only show if not in overview */}
-              {activeModule !== "overview" && (
-                <li>
-                  <button
-                    onClick={handleReturn}
-                    className="w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors hover:bg-gray-50"
-                  >
-                    <ArrowLeft size={16} />
-                    <span>Return</span>
-                  </button>
-                </li>
-              )}
               <li>
                 <button
                   onClick={handleLogout}
@@ -377,7 +356,11 @@ function MasterAdminDashboard() {
             </div>
           </header>
 
-          <main className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"}`}>
+          <main
+            className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${
+              isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
+            }`}
+          >
             {renderModule()}
           </main>
         </div>
