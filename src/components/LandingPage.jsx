@@ -32,8 +32,9 @@ function LandingPage() {
   });
   const [forgotData, setForgotData] = useState({ email: "" });
 
-  // For toggling password visibility in the register form.
+  // For toggling password visibility in the register and login forms.
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -141,15 +142,24 @@ function LandingPage() {
               setLoginData({ ...loginData, email: e.target.value })
             }
           />
-          <input
-            type="password"
-            placeholder="Password"
-            className="border border-gray-300 rounded px-4 py-2 text-black"
-            value={loginData.password}
-            onChange={(e) =>
-              setLoginData({ ...loginData, password: e.target.value })
-            }
-          />
+          <div className="relative">
+            <input
+              type={showLoginPassword ? "text" : "password"}
+              placeholder="Password"
+              className="border border-gray-300 rounded px-4 py-2 text-black w-full"
+              value={loginData.password}
+              onChange={(e) =>
+                setLoginData({ ...loginData, password: e.target.value })
+              }
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-2 text-sm text-gray-500"
+              onClick={() => setShowLoginPassword(!showLoginPassword)}
+            >
+              {showLoginPassword ? "Hide" : "Show"}
+            </button>
+          </div>
           <button
             type="submit"
             className="mt-4 px-4 py-2 rounded font-bold"
@@ -242,7 +252,8 @@ function LandingPage() {
           </div>
           {!passwordValid ? (
             <p className="text-red-600 text-sm">
-              Password must be at least 12 characters, containing letters and numbers.
+              Password must be at least 12 characters, containing letters and
+              numbers.
             </p>
           ) : (
             <p className="text-green-600 text-sm">Password meets criteria!</p>

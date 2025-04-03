@@ -1,8 +1,8 @@
-// src/components/Product.jsx
 import React, { useState, useEffect } from "react";
 
 function Product() {
-  const baseUrl = "http://localhost:5000/api/products";
+  // Use the full URL for the products endpoint
+  const baseUrl = "https://vistapro-backend.onrender.com/api/products";
   const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -30,7 +30,7 @@ function Product() {
     fetchProducts();
   }, []);
 
-  // Filter products whenever the filter text or products array changes.
+  // Filter products whenever filter or products changes
   useEffect(() => {
     if (filter.trim() === "") {
       setFilteredProducts(products);
@@ -40,7 +40,8 @@ function Product() {
         products.filter(
           (prod) =>
             prod.device_name.toLowerCase().includes(lowerFilter) ||
-            (prod.dealer_business_name && prod.dealer_business_name.toLowerCase().includes(lowerFilter))
+            (prod.dealer_business_name &&
+              prod.dealer_business_name.toLowerCase().includes(lowerFilter))
         )
       );
     }
@@ -48,10 +49,11 @@ function Product() {
 
   const fetchProducts = async () => {
     try {
+      const currentToken = localStorage.getItem("token");
       const res = await fetch(baseUrl, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${currentToken}`,
         },
       });
       const data = await res.json();
@@ -73,14 +75,20 @@ function Product() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const currentToken = localStorage.getItem("token");
+    if (!currentToken) {
+      alert("No token provided. Please log in again.");
+      return;
+    }
     try {
       const method = editingProduct ? "PUT" : "POST";
+      // Use the correct endpoint path for products
       const url = editingProduct ? `${baseUrl}/${editingProduct.id}` : baseUrl;
       const res = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${currentToken}`,
         },
         body: JSON.stringify(formData),
       });
@@ -89,6 +97,7 @@ function Product() {
         alert(data.message);
         setShowForm(false);
         setEditingProduct(null);
+        // Reset form data after submission
         setFormData({
           dealer_id: "",
           dealer_business_name: "",
@@ -111,10 +120,14 @@ function Product() {
 
   const handleDelete = async (productId) => {
     if (!window.confirm("Are you sure you want to delete this product?")) return;
+    const currentToken = localStorage.getItem("token");
     try {
       const res = await fetch(`${baseUrl}/${productId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentToken}`,
+        },
       });
       const data = await res.json();
       if (res.ok) {
