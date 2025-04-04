@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../components/Modal";
-import { UserIcon } from "@heroicons/react/24/outline"; // For placeholder avatar
+import { UserIcon } from "@heroicons/react/24/outline";
 
 const NIGERIAN_STATES = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
@@ -17,12 +17,11 @@ function UsersManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Updated baseUrl using the master admin endpoint for users.
   const baseUrl = "https://vistapro-backend.onrender.com/api/master-admin/users";
   const token = localStorage.getItem("token");
 
-  // Updated form state with new Dealer fields.
   const [formData, setFormData] = useState({
     role: "",
     first_name: "",
@@ -34,12 +33,28 @@ function UsersManagement() {
     account_number: "",
     account_name: "",
     location: "",
-    // Dealer-specific fields:
     registered_business_name: "",
     registered_business_address: "",
     business_account_name: "",
     business_account_number: "",
-    // File field (registration certificate) if needed:
+    registrationCertificate: null,
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    role: "",
+    first_name: "",
+    last_name: "",
+    gender: "",
+    email: "",
+    password: "",
+    bank_name: "",
+    account_number: "",
+    account_name: "",
+    location: "",
+    registered_business_name: "",
+    registered_business_address: "",
+    business_account_name: "",
+    business_account_number: "",
     registrationCertificate: null,
   });
 
@@ -130,8 +145,6 @@ function UsersManagement() {
     try {
       let payload;
       let headers = { Authorization: `Bearer ${currentToken}` };
-      // If the user is a Dealer and a registration certificate file is provided,
-      // use FormData; otherwise, send JSON.
       if (formData.role === "Dealer" && formData.registrationCertificate) {
         payload = new FormData();
         for (const key in formData) {
@@ -162,21 +175,21 @@ function UsersManagement() {
 
   const openEditUserModal = (user) => {
     setSelectedUser(user);
-    setFormData({
+    setEditFormData({
+      role: user.role || "",
       first_name: user.first_name || "",
       last_name: user.last_name || "",
       gender: user.gender || "",
       email: user.email || "",
+      password: "",
       bank_name: user.bank_name || "",
       account_number: user.account_number || "",
       account_name: user.account_name || "",
       location: user.location || "",
-      // For dealer, map fields accordingly:
       registered_business_name: user.business_name || "",
       registered_business_address: user.business_address || "",
       business_account_name: user.business_account_name || "",
       business_account_number: user.business_account_number || "",
-      password: "",
       registrationCertificate: null,
     });
     setShowEditUserModal(true);
@@ -184,7 +197,8 @@ function UsersManagement() {
 
   const handleEditUserSubmit = async (e) => {
     e.preventDefault();
-    // Implement update logic (similar to handleAddUser) if needed.
+    // Implement update logic here (similar to handleAddUser)
+    console.log("Edit form submitted:", editFormData);
     closeEditUserModal();
   };
 
@@ -258,6 +272,10 @@ function UsersManagement() {
     }
   };
 
+  const toggleShowPassword = () => {
+    setShowPassword((prev) => !prev);
+  };
+
   return (
     <div className="p-6 space-y-6 bg-gray-100 min-h-screen">
       {/* Header */}
@@ -285,15 +303,21 @@ function UsersManagement() {
       {error && <p className="text-red-500 font-bold">{error}</p>}
 
       {/* Table of Users */}
-      <div className="bg-white shadow-sm rounded-lg">
+      <div className="bg-white shadow-sm rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Unique ID
+              </th>
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Name
               </th>
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Role
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Location
               </th>
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Status
@@ -312,6 +336,9 @@ function UsersManagement() {
                     : `${user.first_name} ${user.last_name}`;
                 return (
                   <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      {user.unique_id}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
@@ -324,6 +351,7 @@ function UsersManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">{user.role}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{user.location}</td>
                     <td className="px-6 py-4">
                       {user.locked ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">
@@ -369,7 +397,7 @@ function UsersManagement() {
               })
             ) : (
               <tr>
-                <td colSpan="4" className="px-6 py-4 text-center font-bold text-gray-500">
+                <td colSpan="6" className="px-6 py-4 text-center font-bold text-gray-500">
                   No users found.
                 </td>
               </tr>
@@ -454,10 +482,10 @@ function UsersManagement() {
                   required
                 />
               </div>
-              <div>
+              <div className="relative">
                 <label className="block font-bold text-gray-700 mb-1">Password</label>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder="Password (min 12 with letters, numbers, & special characters)"
                   value={formData.password}
@@ -465,6 +493,13 @@ function UsersManagement() {
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={toggleShowPassword}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500"
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
               </div>
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Bank Name</label>
@@ -572,7 +607,9 @@ function UsersManagement() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Upload Registration Certificate (PDF)</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Upload Registration Certificate (PDF)
+                    </label>
                     <input
                       type="file"
                       name="registrationCertificate"
@@ -610,10 +647,10 @@ function UsersManagement() {
 
       {showEditUserModal && (
         <Modal isOpen={showEditUserModal} onClose={closeEditUserModal}>
-          <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md mx-auto">
+          <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md mx-auto max-h-[60vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Edit User</h3>
             {selectedUser && (
-              <form onSubmit={handleEditUserSubmit} className="flex flex-col gap-4">
+              <form onSubmit={handleEditUserSubmit} className="space-y-4">
                 {selectedUser.role === "Dealer" ? (
                   <>
                     <label className="block mb-1 font-medium">Email</label>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 
 function Product() {
-  // Use the full URL for the products endpoint
-  const baseUrl = "https://vistapro-backend.onrender.com/api/products";
+  // Use the full URL for the product endpoint (adjust if your backend uses "product" or "products")
+  const baseUrl = "https://vistapro-backend.onrender.com/api/product";
   const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -30,7 +30,7 @@ function Product() {
     fetchProducts();
   }, []);
 
-  // Filter products whenever filter or products changes
+  // Filter products whenever the filter or products change
   useEffect(() => {
     if (filter.trim() === "") {
       setFilteredProducts(products);
@@ -70,7 +70,7 @@ function Product() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -82,7 +82,6 @@ function Product() {
     }
     try {
       const method = editingProduct ? "PUT" : "POST";
-      // Use the correct endpoint path for products
       const url = editingProduct ? `${baseUrl}/${editingProduct.id}` : baseUrl;
       const res = await fetch(url, {
         method,
@@ -97,7 +96,6 @@ function Product() {
         alert(data.message);
         setShowForm(false);
         setEditingProduct(null);
-        // Reset form data after submission
         setFormData({
           dealer_id: "",
           dealer_business_name: "",
@@ -191,7 +189,7 @@ function Product() {
 
       {/* Only show Add button for Master Admin */}
       {isMasterAdmin && (
-        <button 
+        <button
           onClick={handleAdd}
           className="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
         >
@@ -228,13 +226,13 @@ function Product() {
                 <td className="border px-4 py-2">{prod.cost_price}</td>
                 {isMasterAdmin && (
                   <td className="border px-4 py-2">
-                    <button 
+                    <button
                       onClick={() => handleEdit(prod)}
                       className="px-2 py-1 text-sm bg-blue-500 text-white rounded mr-2"
                     >
                       Edit
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDelete(prod.id)}
                       className="px-2 py-1 text-sm bg-red-500 text-white rounded"
                     >

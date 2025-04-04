@@ -30,7 +30,6 @@ function MarketerDashboard() {
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
   const [activeModule, setActiveModule] = useState("overview");
-  const [isOnline, setIsOnline] = useState(window.navigator.onLine);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
@@ -53,18 +52,6 @@ function MarketerDashboard() {
     }
   }, []);
 
-  // Online/offline status listeners
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -81,18 +68,18 @@ function MarketerDashboard() {
 
   const renderModule = () => {
     // If the marketer isn't yet approved, display an access restriction message and the verification form
-    if (user && user.overall_verification_status !== "approved") {
-      return (
-        <div className="max-w-3xl mx-auto p-4">
-          <h2 className="text-2xl font-bold mb-4">Access Restricted</h2>
-          <p className="mb-4">
-            Dear {user.first_name}, you cannot access your dashboard until your registration is complete and approved.
-            Please complete your registration and wait for administrative approval.
-          </p>
-          <VerificationMarketer />
-        </div>
-      );
-    }
+    // if (user && user.overall_verification_status !== "approved") {
+    //  return (
+    //    <div className="max-w-3xl mx-auto p-4">
+    //      <h2 className="text-2xl font-bold mb-4">Access Restricted</h2>
+    //      <p className="mb-4">
+    //        Dear {user.first_name}, you cannot access your dashboard until your registration is complete and approved.
+    //        Please complete your registration and wait for administrative approval.
+    //      </p>
+    //      <VerificationMarketer />
+    //    </div>
+    //  );
+    // }
     // If approved, render the selected module
     switch (activeModule) {
       case "overview":
@@ -268,7 +255,7 @@ function MarketerDashboard() {
                 {greeting}, {user ? `${user.first_name} ${user.last_name}` : "Marketer"}!
               </h2>
               <p className="text-xs md:text-sm">
-                {isOnline ? "You are online" : "You are offline"}
+                Unique ID: {user ? user.unique_id : ""}
               </p>
             </div>
             <div className="flex items-center gap-4">

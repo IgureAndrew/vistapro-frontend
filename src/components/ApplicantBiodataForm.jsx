@@ -1,5 +1,5 @@
 // src/components/ApplicantBiodataForm.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const NIGERIAN_STATES = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
@@ -9,13 +9,19 @@ const NIGERIAN_STATES = [
 ];
 
 function ApplicantBiodataForm({ onSuccess }) {
+  // Retrieve logged in user from localStorage and extract unique ID
+  const storedUser = localStorage.getItem("user");
+  const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+  const marketerUniqueId = parsedUser.unique_id || "";
+
   const [bioData, setBioData] = useState({
-    marketer_id: "",
+    marketer_id: marketerUniqueId, // pre-populate with marketer's unique id
     name: "",
+    // Added date_of_birth field
+    date_of_birth: "",
     address: "",
     phone: "",
     religion: "",
-    date_of_birth: "",
     marital_status: "",
     state_of_origin: "",
     state_of_residence: "",
@@ -74,8 +80,7 @@ function ApplicantBiodataForm({ onSuccess }) {
         return;
       }
       setIdFile(file);
-      // For demonstration, you could set the file name or a generated URL.
-      // In a real application you might upload the file to a storage service and then store the URL.
+      // For demonstration, we set the file name as a placeholder for the URL.
       setBioData((prev) => ({ ...prev, id_document_url: file.name }));
     }
   };
@@ -83,9 +88,6 @@ function ApplicantBiodataForm({ onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
-
-    // If you need to handle file upload separately (e.g., using FormData),
-    // you can do that here before sending the rest of the biodata.
 
     try {
       const response = await fetch(
@@ -106,12 +108,12 @@ function ApplicantBiodataForm({ onSuccess }) {
         if (onSuccess) onSuccess();
         // Optionally reset the form
         setBioData({
-          marketer_id: "",
+          marketer_id: marketerUniqueId, // keep pre-filled unique ID
           name: "",
+          date_of_birth: "",
           address: "",
           phone: "",
           religion: "",
-          date_of_birth: "",
           marital_status: "",
           state_of_origin: "",
           state_of_residence: "",
@@ -154,10 +156,10 @@ function ApplicantBiodataForm({ onSuccess }) {
             <input
               type="text"
               name="marketer_id"
-              placeholder="Enter your Marketer ID"
+              placeholder="Your Marketer Unique ID"
               value={bioData.marketer_id}
-              onChange={handleChange}
-              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              readOnly
+              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
               required
             />
           </div>
@@ -170,6 +172,20 @@ function ApplicantBiodataForm({ onSuccess }) {
               name="name"
               placeholder="Full Name"
               value={bioData.name}
+              onChange={handleChange}
+              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              required
+            />
+          </div>
+          {/* New Date of Birth field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              DATE OF BIRTH:
+            </label>
+            <input
+              type="date"
+              name="date_of_birth"
+              value={bioData.date_of_birth}
               onChange={handleChange}
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
               required

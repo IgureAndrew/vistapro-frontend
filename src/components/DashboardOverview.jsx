@@ -1,4 +1,3 @@
-// src/components/DashboardOverview.jsx
 import React, { useState, useEffect } from "react";
 import { User, ShoppingCart, CheckCircle, Clock, Activity } from "lucide-react";
 
@@ -16,10 +15,11 @@ function DashboardOverview() {
     const fetchMetrics = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/dashboard/metrics`,
+          `${import.meta.env.VITE_API_URL}/api/master-admin/dashboard-summary`,
           {
             headers: {
               "Content-Type": "application/json",
+               Authorization: `Bearer ${token}`,
             },
           }
         );
@@ -28,17 +28,24 @@ function DashboardOverview() {
           return;
         }
         const data = await res.json();
-        // Assuming the backend returns an object with metric keys.
-        setMetrics(data);
+        // Map backend response to our metrics state.
+        // Adjust these keys based on the actual data returned by your backend.
+        setMetrics({
+          totalUsers: data.totalUsers || 0,
+          activeSessions: data.activeSessions || 0,
+          recentRegistrations: data.recentRegistrations || 0,
+          pendingApprovals: data.pendingApprovals || 0,
+          totalOrders: data.totalOrders || 0,
+          totalSales: data.totalSales || 0,
+        });
       } catch (error) {
         console.error("Error fetching metrics:", error);
       }
     };
 
-    // Fetch data immediately on mount
+    // Fetch metrics on mount
     fetchMetrics();
-
-    // Poll for new data every 60 seconds
+    // Poll for updates every 60 seconds
     const intervalId = setInterval(fetchMetrics, 60000);
     return () => clearInterval(intervalId);
   }, []);
@@ -51,12 +58,8 @@ function DashboardOverview() {
           <div className="flex items-center">
             <User className="w-10 h-10 mr-4 text-gray-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-700">
-                Total Users
-              </h2>
-              <p className="text-3xl font-bold text-gray-800">
-                {metrics.totalUsers}
-              </p>
+              <h2 className="text-xl font-semibold text-gray-700">Total Users</h2>
+              <p className="text-3xl font-bold text-gray-800">{metrics.totalUsers}</p>
             </div>
           </div>
         </div>
@@ -66,12 +69,8 @@ function DashboardOverview() {
           <div className="flex items-center">
             <ShoppingCart className="w-10 h-10 mr-4 text-gray-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-700">
-                Total Orders
-              </h2>
-              <p className="text-3xl font-bold text-gray-800">
-                {metrics.totalOrders}
-              </p>
+              <h2 className="text-xl font-semibold text-gray-700">Total Orders</h2>
+              <p className="text-3xl font-bold text-gray-800">{metrics.totalOrders}</p>
             </div>
           </div>
         </div>
@@ -81,12 +80,8 @@ function DashboardOverview() {
           <div className="flex items-center">
             <CheckCircle className="w-10 h-10 mr-4 text-gray-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-700">
-                Recent Registrations
-              </h2>
-              <p className="text-3xl font-bold text-gray-800">
-                {metrics.recentRegistrations}
-              </p>
+              <h2 className="text-xl font-semibold text-gray-700">Recent Registrations</h2>
+              <p className="text-3xl font-bold text-gray-800">{metrics.recentRegistrations}</p>
             </div>
           </div>
         </div>
@@ -96,30 +91,22 @@ function DashboardOverview() {
           <div className="flex items-center">
             <Clock className="w-10 h-10 mr-4 text-gray-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-700">
-                Pending Approvals
-              </h2>
-              <p className="text-3xl font-bold text-gray-800">
-                {metrics.pendingApprovals}
-              </p>
+              <h2 className="text-xl font-semibold text-gray-700">Pending Approvals</h2>
+              <p className="text-3xl font-bold text-gray-800">{metrics.pendingApprovals}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Additional Section */}
+      {/* Additional Metrics */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Active Sessions */}
         <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
           <div className="flex items-center">
             <Activity className="w-10 h-10 mr-4 text-gray-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-700">
-                Active Sessions
-              </h2>
-              <p className="text-3xl font-bold text-gray-800">
-                {metrics.activeSessions}
-              </p>
+              <h2 className="text-xl font-semibold text-gray-700">Active Sessions</h2>
+              <p className="text-3xl font-bold text-gray-800">{metrics.activeSessions}</p>
             </div>
           </div>
         </div>
@@ -129,12 +116,8 @@ function DashboardOverview() {
           <div className="flex items-center">
             <ShoppingCart className="w-10 h-10 mr-4 text-gray-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-700">
-                Total Sales
-              </h2>
-              <p className="text-3xl font-bold text-gray-800">
-                {metrics.totalSales}
-              </p>
+              <h2 className="text-xl font-semibold text-gray-700">Total Sales</h2>
+              <p className="text-3xl font-bold text-gray-800">{metrics.totalSales}</p>
             </div>
           </div>
         </div>
