@@ -1,6 +1,6 @@
-// Example: src/components/SomeComponent.jsx
+// src/components/SomeComponent.jsx
 import React, { useEffect, useState } from "react";
-import api from "../api"; // Adjust the path as needed
+import api from "../api"; // our custom axios instance
 
 function SomeComponent() {
   const [data, setData] = useState(null);

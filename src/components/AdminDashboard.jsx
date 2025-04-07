@@ -2,36 +2,33 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Home,
   User,
-  FileText,
-  Package,
   ShoppingCart,
   ClipboardList,
-  LogOut,
-  Bell,
-  Menu,
-  X,
+  Package,
   MessageSquare,
+  FileText,
+  LogOut,
 } from "lucide-react";
 
-// Import module components (adjust these as needed for Admin)
-import DashboardOverview from "./DashboardOverview";
+// Import module components for each section.
 import ProfileUpdate from "./ProfileUpdate";
-import Reports from "./Reports";
-import StockManagement from "./StockManagement";
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
+import StockManagement from "./StockManagement";
 import Messaging from "./Messaging";
 import Submissions from "./Submissions";
+import AssignUsers from "./AssignUsers";
+// Assume you have Verification and Wallet components.
+import Verification from "./Verification";
+import Wallet from "./Wallet";
 import AvatarDropdown from "./AvatarDropdown";
 
 function AdminDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
-  const [activeModule, setActiveModule] = useState("overview");
-  const [isOnline, setIsOnline] = useState(window.navigator.onLine);
+  const [activeModule, setActiveModule] = useState("profile");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
@@ -52,17 +49,6 @@ function AdminDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -73,37 +59,37 @@ function AdminDashboard() {
     setIsDarkMode((prev) => !prev);
   };
 
+  // Renders the currently selected module.
   const renderModule = () => {
     switch (activeModule) {
-      case "overview":
-        return <DashboardOverview />;
       case "profile":
         return <ProfileUpdate />;
-      case "reports":
-        return <Reports />;
-      case "stock":
-        return <StockManagement />;
       case "product":
         return <Product />;
       case "manage-orders":
         return <ManageOrders />;
+      case "stock":
+        return <StockManagement />;
       case "messages":
         return <Messaging />;
       case "submissions":
         return <Submissions />;
+      case "assign":
+        return <AssignUsers />;
+      case "verification":
+        return <Verification />;
+      case "wallet":
+        return <Wallet />;
       default:
-        return <DashboardOverview />;
+        return <ProfileUpdate />;
     }
   };
 
-  // Helper to return the user's initial for the avatar
+  // Helper to return the user's initial for the avatar.
   const getUserInitial = () => {
     if (user) {
-      if (user.name) {
-        return user.name.charAt(0).toUpperCase();
-      } else if (user.first_name) {
-        return user.first_name.charAt(0).toUpperCase();
-      }
+      if (user.name) return user.name.charAt(0).toUpperCase();
+      if (user.first_name) return user.first_name.charAt(0).toUpperCase();
     }
     return "A";
   };
@@ -125,17 +111,11 @@ function AdminDashboard() {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {sidebarOpen ? "Close" : "Menu"}
           </button>
           <h2 className="text-lg font-bold">Vistapro</h2>
         </div>
         <div className="flex items-center gap-4">
-          <button className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-            <Bell size={18} className="text-black" />
-            <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-              3
-            </span>
-          </button>
           <AvatarDropdown
             user={user}
             handleLogout={handleLogout}
@@ -160,17 +140,8 @@ function AdminDashboard() {
           <div className="p-4 text-center font-bold text-xl md:text-2xl border-b transition-colors duration-300">
             Vistapro
           </div>
-          <nav className="p-3 flex-1">
+          <nav className="p-3">
             <ul className="list-none space-y-2 text-sm">
-              <SidebarItem
-                label="Overview"
-                Icon={Home}
-                moduleName="overview"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
               <SidebarItem
                 label="Profile"
                 Icon={User}
@@ -181,25 +152,7 @@ function AdminDashboard() {
                 isDarkMode={isDarkMode}
               />
               <SidebarItem
-                label="Reports"
-                Icon={FileText}
-                moduleName="reports"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Stock"
-                Icon={Package}
-                moduleName="stock"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Products"
+                label="Product"
                 Icon={ShoppingCart}
                 moduleName="product"
                 activeModule={activeModule}
@@ -211,6 +164,15 @@ function AdminDashboard() {
                 label="Manage Orders"
                 Icon={ClipboardList}
                 moduleName="manage-orders"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
+              <SidebarItem
+                label="Stock"
+                Icon={Package}
+                moduleName="stock"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
@@ -238,6 +200,24 @@ function AdminDashboard() {
                 label="Assign"
                 Icon={() => <span className="text-lg">+</span>}
                 moduleName="assign"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
+              <SidebarItem
+                label="Verification"
+                Icon={FileText}
+                moduleName="verification"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
+              <SidebarItem
+                label="Wallet"
+                Icon={ShoppingCart}
+                moduleName="wallet"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
@@ -275,12 +255,6 @@ function AdminDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                <Bell size={18} className="text-black" />
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-                  3
-                </span>
-              </button>
               <AvatarDropdown
                 user={user}
                 handleLogout={handleLogout}
@@ -288,7 +262,6 @@ function AdminDashboard() {
                 isDarkMode={isDarkMode}
                 setActiveModule={setActiveModule}
               />
-             
             </div>
           </header>
 
@@ -303,6 +276,7 @@ function AdminDashboard() {
 
 export default AdminDashboard;
 
+// SidebarItem component renders each item in the sidebar.
 function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) {
   const isActive = activeModule === moduleName;
 

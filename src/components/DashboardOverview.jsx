@@ -1,129 +1,69 @@
+// src/components/DashboardOverview.jsx
 import React, { useState, useEffect } from "react";
-import { User, ShoppingCart, CheckCircle, Clock, Activity } from "lucide-react";
+import { io } from "socket.io-client";
 
-function DashboardOverview() {
-  const [metrics, setMetrics] = useState({
+const DashboardOverview = () => {
+  // State to hold real-time data
+  const [stats, setStats] = useState({
     totalUsers: 0,
-    activeSessions: 0,
-    recentRegistrations: 0,
-    pendingApprovals: 0,
     totalOrders: 0,
+    pendingApprovals: 0,
     totalSales: 0,
   });
+  const [socketConnected, setSocketConnected] = useState(false);
 
   useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/master-admin/dashboard-summary`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-               Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        if (!res.ok) {
-          console.error("Error fetching metrics:", res.statusText);
-          return;
-        }
-        const data = await res.json();
-        // Map backend response to our metrics state.
-        // Adjust these keys based on the actual data returned by your backend.
-        setMetrics({
-          totalUsers: data.totalUsers || 0,
-          activeSessions: data.activeSessions || 0,
-          recentRegistrations: data.recentRegistrations || 0,
-          pendingApprovals: data.pendingApprovals || 0,
-          totalOrders: data.totalOrders || 0,
-          totalSales: data.totalSales || 0,
-        });
-      } catch (error) {
-        console.error("Error fetching metrics:", error);
-      }
-    };
+    // Connect to your backend's Socket.IO server using the VITE_API_URL
+    const socket = io(import.meta.env.VITE_API_URL, {
+      transports: ["websocket"],
+    });
 
-    // Fetch metrics on mount
-    fetchMetrics();
-    // Poll for updates every 60 seconds
-    const intervalId = setInterval(fetchMetrics, 60000);
-    return () => clearInterval(intervalId);
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+      setSocketConnected(true);
+    });
+
+    // Listen for the "real-time-data" event
+    socket.on("real-time-data", (data) => {
+      console.log("Received real-time data:", data);
+      setStats(data);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+      setSocketConnected(false);
+    });
+
+    // Cleanup on unmount
+    return () => socket.disconnect();
   }, []);
 
   return (
     <div className="p-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Users */}
-        <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <User className="w-10 h-10 mr-4 text-gray-600" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700">Total Users</h2>
-              <p className="text-3xl font-bold text-gray-800">{metrics.totalUsers}</p>
-            </div>
-          </div>
+      <h1 className="text-3xl font-bold mb-4">Real-Time Dashboard Overview</h1>
+      {!socketConnected && (
+        <p className="text-sm text-gray-500">Connecting to real-time data...</p>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 bg-white shadow rounded">
+          <h2 className="text-xl font-semibold">Total Users</h2>
+          <p className="text-2xl">{stats.totalUsers}</p>
         </div>
-
-        {/* Total Orders */}
-        <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <ShoppingCart className="w-10 h-10 mr-4 text-gray-600" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700">Total Orders</h2>
-              <p className="text-3xl font-bold text-gray-800">{metrics.totalOrders}</p>
-            </div>
-          </div>
+        <div className="p-4 bg-white shadow rounded">
+          <h2 className="text-xl font-semibold">Total Orders</h2>
+          <p className="text-2xl">{stats.totalOrders}</p>
         </div>
-
-        {/* Recent Registrations */}
-        <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <CheckCircle className="w-10 h-10 mr-4 text-gray-600" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700">Recent Registrations</h2>
-              <p className="text-3xl font-bold text-gray-800">{metrics.recentRegistrations}</p>
-            </div>
-          </div>
+        <div className="p-4 bg-white shadow rounded">
+          <h2 className="text-xl font-semibold">Pending Approvals</h2>
+          <p className="text-2xl">{stats.pendingApprovals}</p>
         </div>
-
-        {/* Pending Approvals */}
-        <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <Clock className="w-10 h-10 mr-4 text-gray-600" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700">Pending Approvals</h2>
-              <p className="text-3xl font-bold text-gray-800">{metrics.pendingApprovals}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Additional Metrics */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Active Sessions */}
-        <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <Activity className="w-10 h-10 mr-4 text-gray-600" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700">Active Sessions</h2>
-              <p className="text-3xl font-bold text-gray-800">{metrics.activeSessions}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Sales */}
-        <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-md">
-          <div className="flex items-center">
-            <ShoppingCart className="w-10 h-10 mr-4 text-gray-600" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-700">Total Sales</h2>
-              <p className="text-3xl font-bold text-gray-800">{metrics.totalSales}</p>
-            </div>
-          </div>
+        <div className="p-4 bg-white shadow rounded">
+          <h2 className="text-xl font-semibold">Total Sales</h2>
+          <p className="text-2xl">₦{stats.totalSales.toFixed(2)}</p>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default DashboardOverview;

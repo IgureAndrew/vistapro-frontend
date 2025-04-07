@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Package,
   CheckCircle,
-  Shield,
   UserPlus,
   ShoppingCart,
   ClipboardList,
@@ -21,7 +20,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-import DashboardOverview from "./DashboardOverview";
+import MasterAdminOverview from "./MasterAdminOverview"; // New overview component for real-time data
 import AvatarDropdown from "./AvatarDropdown"; // Ensure this is correctly implemented
 import ProfileUpdate from "./ProfileUpdate";
 import UsersManagement from "./UsersManagement";
@@ -30,12 +29,12 @@ import CashOut from "./CashOut";
 import Performance from "./Performance";
 import StockUpdate from "./StockUpdate";
 import Verification from "./Verification";
-import RegisterSuperAdmin from "./RegisterSuperAdmin"; // This import remains if used elsewhere
-import AssignUsers from "./AssignUsers"; // New component that handles both assignments.
+import RegisterSuperAdmin from "./RegisterSuperAdmin";
+import AssignUsers from "./AssignUsers";
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
 import Messaging from "./Messaging";
-import Submissions from "./Submissions"; // Import the Submissions component
+import Submissions from "./Submissions";
 
 function MasterAdminDashboard() {
   const navigate = useNavigate();
@@ -45,9 +44,6 @@ function MasterAdminDashboard() {
 
   // Current active module
   const [activeModule, setActiveModule] = useState("overview");
-
-  // Track online/offline status
-  const [isOnline, setIsOnline] = useState(window.navigator.onLine);
 
   // Toggle sidebar for mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -74,17 +70,6 @@ function MasterAdminDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -92,18 +77,13 @@ function MasterAdminDashboard() {
   };
 
   const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
+    setIsDarkMode((prev) => !prev);
   };
-
-  // Removed: Return function (no longer needed)
-  // const handleReturn = () => {
-  //   setActiveModule("overview");
-  // };
 
   const renderModule = () => {
     switch (activeModule) {
       case "overview":
-        return <DashboardOverview />;
+        return <MasterAdminOverview />;
       case "profile":
         return <ProfileUpdate />;
       case "users":
@@ -121,7 +101,7 @@ function MasterAdminDashboard() {
       case "register-super-admin":
         return <RegisterSuperAdmin />;
       case "assign":
-        return <AssignUsers />; // Render the new AssignUsers component
+        return <AssignUsers />;
       case "product":
         return <Product />;
       case "manage-orders":
@@ -131,7 +111,7 @@ function MasterAdminDashboard() {
       case "submissions":
         return <Submissions />;
       default:
-        return <DashboardOverview />;
+        return <MasterAdminOverview />;
     }
   };
 
@@ -270,8 +250,6 @@ function MasterAdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Removed: Register Super Admin item */}
-              {/* Removed: Return Button */}
               <SidebarItem
                 label="Assign"
                 Icon={UserPlus}
@@ -336,7 +314,7 @@ function MasterAdminDashboard() {
                 {greeting}, {user ? `${user.first_name} ${user.last_name}` : "Master Admin"}!
               </h2>
               <p className="text-xs md:text-sm">
-                {isOnline ? "You are online" : "You are offline"}
+                Unique ID: {user ? user.unique_id : ""}
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -356,11 +334,7 @@ function MasterAdminDashboard() {
             </div>
           </header>
 
-          <main
-            className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${
-              isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
-            }`}
-          >
+          <main className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"}`}>
             {renderModule()}
           </main>
         </div>
@@ -370,15 +344,7 @@ function MasterAdminDashboard() {
 }
 
 // Reusable SidebarItem Component for MasterAdminDashboard
-function SidebarItem({
-  label,
-  Icon,
-  moduleName,
-  activeModule,
-  setActiveModule,
-  setSidebarOpen,
-  isDarkMode,
-}) {
+function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) {
   const isActive = activeModule === moduleName;
 
   const handleClick = () => {

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+// src/components/ManageOrders.jsx
+import React, { useState, useEffect } from "react";
 
 function ManageOrders() {
-  // Use the environment variable for the base URL (ensure it's set correctly)
+  // Base URLs for pending orders and order history using the master admin endpoint.
   const baseUrl = `${import.meta.env.VITE_API_URL}/api/manage-order/orders`;
   const historyUrl = `${import.meta.env.VITE_API_URL}/api/manage-order/orders/history`;
   const token = localStorage.getItem("token");
@@ -12,7 +13,7 @@ function ManageOrders() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [error, setError] = useState("");
 
-  // Fetch pending orders
+  // Function: Fetch pending orders sent by marketers
   const fetchOrders = async () => {
     try {
       const res = await fetch(baseUrl, {
@@ -33,7 +34,7 @@ function ManageOrders() {
     }
   };
 
-  // Fetch order history
+  // Function: Fetch order history
   const fetchOrderHistory = async () => {
     try {
       const res = await fetch(historyUrl, {
@@ -54,12 +55,14 @@ function ManageOrders() {
     }
   };
 
+  // Fetch orders and order history on component mount (and when token updates)
   useEffect(() => {
     fetchOrders();
     fetchOrderHistory();
   }, [token]);
 
-  // Confirm order (pending orders) with a confirmation message
+  // Handle confirming a pending order.
+  // This sends the confirmation message along with the order ID.
   const handleConfirmOrder = async (orderId) => {
     if (!confirmationMessage) {
       alert("Please enter a confirmation message.");
@@ -89,7 +92,8 @@ function ManageOrders() {
     }
   };
 
-  // Confirm released order (for orders already released by dealers)
+  // Handle confirming an order that has already been released (by dealers).
+  // Only the Master Admin can perform this action.
   const handleConfirmReleasedOrder = async (orderId) => {
     try {
       const res = await fetch(`${baseUrl}/${orderId}/confirm-release`, {
@@ -114,11 +118,11 @@ function ManageOrders() {
 
   return (
     <div className="p-6 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Manage Orders</h2>
+      <h2 className="text-xl font-semibold mb-4">Manage Orders (Orders Sent by Marketers)</h2>
 
       <h3 className="text-lg font-semibold mb-2">Pending Orders</h3>
       {orders.length === 0 ? (
-        <p>No orders to confirm.</p>
+        <p>No pending orders to confirm.</p>
       ) : (
         <table className="min-w-full border mb-6">
           <thead>
@@ -150,7 +154,7 @@ function ManageOrders() {
                 <td className="border px-4 py-2">
                   {new Date(order.sale_date).toLocaleString()}
                 </td>
-                <td className="border px-4 py-2">{order.status}</td>
+                <td className="border px-4 py-2">{order.status || "Pending"}</td>
                 <td className="border px-4 py-2 space-x-2">
                   <button
                     onClick={() => setSelectedOrderId(order.id)}
@@ -199,6 +203,7 @@ function ManageOrders() {
               <th className="px-4 py-2 border">Order ID</th>
               <th className="px-4 py-2 border">Device</th>
               <th className="px-4 py-2 border">Confirmed At</th>
+              <th className="px-4 py-2 border">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -211,6 +216,7 @@ function ManageOrders() {
                     ? new Date(order.confirmed_at).toLocaleString()
                     : "N/A"}
                 </td>
+                <td className="border px-4 py-2">{order.status || "Pending"}</td>
               </tr>
             ))}
           </tbody>

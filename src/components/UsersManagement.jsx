@@ -1,7 +1,9 @@
+// src/components/UsersManagement.jsx
 import React, { useState, useEffect } from "react";
 import Modal from "../components/Modal";
 import { UserIcon } from "@heroicons/react/24/outline";
 
+// List of Nigerian states for location selection.
 const NIGERIAN_STATES = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
   "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "Gombe",
@@ -11,17 +13,21 @@ const NIGERIAN_STATES = [
 ];
 
 function UsersManagement() {
+  // Users state and error state.
   const [users, setUsers] = useState([]);
+  const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Pagination state.
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 20;
+
+  // Modal states for adding and editing users.
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
 
-  const baseUrl = "https://vistapro-backend.onrender.com/api/master-admin/users";
-  const token = localStorage.getItem("token");
-
+  // Form states for add and edit operations.
   const [formData, setFormData] = useState({
     role: "",
     first_name: "",
@@ -58,10 +64,16 @@ function UsersManagement() {
     registrationCertificate: null,
   });
 
+  // API base URL and token.
+  const baseUrl = "https://vistapro-backend.onrender.com/api/master-admin/users";
+  const token = localStorage.getItem("token");
+
+  // Fetch users on mount.
   useEffect(() => {
     fetchUsers();
   }, []);
 
+  // Fetch users function.
   const fetchUsers = async () => {
     try {
       const currentToken = localStorage.getItem("token");
@@ -83,6 +95,7 @@ function UsersManagement() {
     }
   };
 
+  // Filter users based on search term.
   const filteredUsers = users.filter((user) => {
     const term = searchTerm.toLowerCase();
     const nameString =
@@ -92,10 +105,22 @@ function UsersManagement() {
     return (
       nameString.toLowerCase().includes(term) ||
       (user.email || "").toLowerCase().includes(term) ||
-      user.id?.toString().includes(term)
+      (user.id && user.id.toString().includes(term))
     );
   });
 
+  // Pagination: calculate the users for the current page.
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  // Pagination handler function.
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // Modal management functions.
   const openAddUserModal = () => {
     setFormData({
       role: "",
@@ -117,8 +142,28 @@ function UsersManagement() {
     setShowAddUserModal(true);
   };
 
-  const closeAddUserModal = () => {
-    setShowAddUserModal(false);
+  const closeAddUserModal = () => setShowAddUserModal(false);
+
+  const openEditUserModal = (user) => {
+    setSelectedUser(user);
+    setEditFormData({
+      role: user.role || "",
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      gender: user.gender || "",
+      email: user.email || "",
+      password: "",
+      bank_name: user.bank_name || "",
+      account_number: user.account_number || "",
+      account_name: user.account_name || "",
+      location: user.location || "",
+      registered_business_name: user.business_name || "",
+      registered_business_address: user.business_address || "",
+      business_account_name: user.business_account_name || "",
+      business_account_number: user.business_account_number || "",
+      registrationCertificate: null,
+    });
+    setShowEditUserModal(true);
   };
 
   const closeEditUserModal = () => {
@@ -126,6 +171,7 @@ function UsersManagement() {
     setShowEditUserModal(false);
   };
 
+  // Handler for input changes in add/edit forms.
   const handleChange = (e) => {
     const { name, value, type, files } = e.target;
     if (type === "file") {
@@ -135,6 +181,7 @@ function UsersManagement() {
     }
   };
 
+  // Placeholder function to handle adding a user.
   const handleAddUser = async (e) => {
     e.preventDefault();
     const currentToken = localStorage.getItem("token");
@@ -173,35 +220,15 @@ function UsersManagement() {
     }
   };
 
-  const openEditUserModal = (user) => {
-    setSelectedUser(user);
-    setEditFormData({
-      role: user.role || "",
-      first_name: user.first_name || "",
-      last_name: user.last_name || "",
-      gender: user.gender || "",
-      email: user.email || "",
-      password: "",
-      bank_name: user.bank_name || "",
-      account_number: user.account_number || "",
-      account_name: user.account_name || "",
-      location: user.location || "",
-      registered_business_name: user.business_name || "",
-      registered_business_address: user.business_address || "",
-      business_account_name: user.business_account_name || "",
-      business_account_number: user.business_account_number || "",
-      registrationCertificate: null,
-    });
-    setShowEditUserModal(true);
-  };
-
+  // Placeholder function for editing a user.
   const handleEditUserSubmit = async (e) => {
     e.preventDefault();
-    // Implement update logic here (similar to handleAddUser)
+    // Implement update logic similar to handleAddUser.
     console.log("Edit form submitted:", editFormData);
     closeEditUserModal();
   };
 
+  // Handlers for locking, unlocking, and deleting users.
   const handleLockUser = async (userId) => {
     const currentToken = localStorage.getItem("token");
     try {
@@ -272,9 +299,9 @@ function UsersManagement() {
     }
   };
 
-  const toggleShowPassword = () => {
-    setShowPassword((prev) => !prev);
-  };
+  // Handler for toggling password visibility in modals.
+  const [showPassword, setShowPassword] = useState(false);
+  const toggleShowPassword = () => setShowPassword((prev) => !prev);
 
   return (
     <div className="p-6 space-y-6 bg-gray-100 min-h-screen">
@@ -302,7 +329,7 @@ function UsersManagement() {
 
       {error && <p className="text-red-500 font-bold">{error}</p>}
 
-      {/* Table of Users */}
+      {/* Users Table */}
       <div className="bg-white shadow-sm rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -328,8 +355,8 @@ function UsersManagement() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {filteredUsers.length > 0 ? (
-              filteredUsers.map((user) => {
+            {currentUsers.length > 0 ? (
+              currentUsers.map((user) => {
                 const displayName =
                   user.role === "Dealer"
                     ? user.business_name || `${user.first_name} ${user.last_name}`
@@ -406,6 +433,23 @@ function UsersManagement() {
         </table>
       </div>
 
+      {/* Pagination Controls */}
+      <div className="flex justify-center mt-6 space-x-2">
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+          <button
+            key={pageNumber}
+            onClick={() => handlePageChange(pageNumber)}
+            className={`px-4 py-2 rounded border font-bold ${
+              currentPage === pageNumber
+                ? "bg-black text-[#FFD700] border-black"
+                : "bg-white text-black border-gray-300"
+            }`}
+          >
+            {pageNumber}
+          </button>
+        ))}
+      </div>
+
       {/* Add / Edit User Modal */}
       {showAddUserModal && (
         <Modal isOpen={showAddUserModal} onClose={closeAddUserModal}>
@@ -414,7 +458,7 @@ function UsersManagement() {
               {selectedUser ? "Edit User" : "Add New User"}
             </h3>
             <form onSubmit={selectedUser ? handleEditUserSubmit : handleAddUser} className="space-y-4">
-              {/* Role */}
+              {/* Role Field */}
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Role</label>
                 <select
@@ -554,12 +598,13 @@ function UsersManagement() {
                   ))}
                 </select>
               </div>
-
               {/* Dealer-specific Fields */}
               {formData.role === "Dealer" && (
                 <>
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Registered Business Name</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Registered Business Name
+                    </label>
                     <input
                       type="text"
                       name="registered_business_name"
@@ -571,7 +616,9 @@ function UsersManagement() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Registered Business Address</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Registered Business Address
+                    </label>
                     <input
                       type="text"
                       name="registered_business_address"
@@ -583,7 +630,9 @@ function UsersManagement() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Business Account Name</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Business Account Name
+                    </label>
                     <input
                       type="text"
                       name="business_account_name"
@@ -595,7 +644,9 @@ function UsersManagement() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Business Account Number</label>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Business Account Number
+                    </label>
                     <input
                       type="text"
                       name="business_account_number"
@@ -645,7 +696,7 @@ function UsersManagement() {
         </Modal>
       )}
 
-      {showEditUserModal && (
+      {showEditUserModal && selectedUser && (
         <Modal isOpen={showEditUserModal} onClose={closeEditUserModal}>
           <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md mx-auto max-h-[60vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Edit User</h3>
@@ -789,6 +840,7 @@ function UsersManagement() {
           </div>
         </Modal>
       )}
+
     </div>
   );
 }

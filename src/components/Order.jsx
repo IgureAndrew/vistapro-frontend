@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from "react";
 
 function Order() {
+  // State for holding new order data.
   const [orderData, setOrderData] = useState({
     device_name: "",
     device_model: "",
     device_type: "Android", // default value
-    dealer_cost_price: "",
+    // Removed dealer_cost_price
     marketer_selling_price: "",
     number_of_devices: "",
     sold_amount: "",
@@ -17,11 +18,11 @@ function Order() {
     sale_date: "",
   });
 
-  // New state to hold orders fetched from the backend
+  // State to hold orders fetched from the backend.
   const [orders, setOrders] = useState([]);
   const token = localStorage.getItem("token");
 
-  // Function to fetch orders for the marketer
+  // Function to fetch orders for the marketer.
   const fetchOrders = async () => {
     try {
       const res = await fetch("https://vistapro-backend.onrender.com/api/marketer/orders", {
@@ -33,7 +34,7 @@ function Order() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Assuming the returned data has an "orders" field
+        // Assuming the returned data has an "orders" field.
         setOrders(data.orders);
       } else {
         alert(data.message || "Failed to fetch orders");
@@ -48,11 +49,13 @@ function Order() {
     fetchOrders();
   }, []);
 
+  // Handle input changes for the order form.
   const handleChange = (e) => {
     const { name, value } = e.target;
     setOrderData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Handle form submission for placing a new order.
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -67,12 +70,12 @@ function Order() {
       const data = await res.json();
       if (res.ok) {
         alert("Order placed successfully!");
-        // Reset the form:
+        // Reset the form.
         setOrderData({
           device_name: "",
           device_model: "",
           device_type: "Android",
-          dealer_cost_price: "",
+          // Removed dealer_cost_price,
           marketer_selling_price: "",
           number_of_devices: "",
           sold_amount: "",
@@ -82,7 +85,7 @@ function Order() {
           bnpl_platform: "",
           sale_date: "",
         });
-        // Refresh the list of orders
+        // Refresh the list of orders.
         fetchOrders();
       } else {
         alert(data.message || "Failed to place order");
@@ -135,17 +138,7 @@ function Order() {
         </div>
 
         {/* Pricing & Quantity */}
-        <div>
-          <label className="block font-bold mb-1">Dealer Cost Price</label>
-          <input
-            type="number"
-            name="dealer_cost_price"
-            value={orderData.dealer_cost_price}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
+        {/* Removed Dealer Cost Price Field */}
         <div>
           <label className="block font-bold mb-1">Marketer Selling Price</label>
           <input

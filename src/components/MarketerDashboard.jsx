@@ -4,25 +4,24 @@ import { useNavigate } from "react-router-dom";
 import {
   Home,
   ShoppingCart,
-  MapPin,
   User,
-  DollarSign,
-  Package,
   Bell,
   LogOut,
   Menu,
   X,
   ArrowLeft,
+  MessageSquare,
 } from "lucide-react";
 
 // Import your dashboard modules for marketers
-import DashboardOverview from "./DashboardOverview";
+import MarketersOverview from "./MarketersOverview"; // Overview module for marketers
 import ProfileUpdate from "./ProfileUpdate";
 import Order from "./Order";
-import Outlet from "./Outlet";
-import CashOut from "./CashOut";
-import StockUpdate from "./StockUpdate";
+import Messaging from "./Messaging";
 import VerificationMarketer from "./VerificationMarketer";
+import Wallet from "./Wallet";
+// Import the StockPickup component (note the file name is StockPickup.jsx)
+import MarketerStockPickup from "./MarketerStockPickup";
 import AvatarDropdown from "./AvatarDropdown";
 
 function MarketerDashboard() {
@@ -34,14 +33,14 @@ function MarketerDashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
 
-  // Redirect if not logged in
+  // Redirect if user is not logged in.
   useEffect(() => {
     if (!user) {
       navigate("/");
     }
   }, [user, navigate]);
 
-  // Greeting logic (welcome or welcome back)
+  // Set greeting based on previous visits.
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedMarketerDashboard");
     if (hasVisited) {
@@ -66,39 +65,35 @@ function MarketerDashboard() {
     setActiveModule("overview");
   };
 
+  // Render module based on activeModule state.
   const renderModule = () => {
-    // If the marketer isn't yet approved, display an access restriction message and the verification form
-    // if (user && user.overall_verification_status !== "approved") {
-    //  return (
-    //    <div className="max-w-3xl mx-auto p-4">
-    //      <h2 className="text-2xl font-bold mb-4">Access Restricted</h2>
-    //      <p className="mb-4">
-    //        Dear {user.first_name}, you cannot access your dashboard until your registration is complete and approved.
-    //        Please complete your registration and wait for administrative approval.
-    //      </p>
-    //      <VerificationMarketer />
-    //    </div>
-    //  );
-    // }
-    // If approved, render the selected module
     switch (activeModule) {
       case "overview":
-        return <DashboardOverview />;
+        return <MarketersOverview />;
       case "order":
         return <Order />;
-      case "outlet":
-        return <Outlet />;
       case "profile":
         return <ProfileUpdate />;
-      case "cashout":
-        return <CashOut />;
-      case "stock":
-        return <StockUpdate />;
+      case "messages":
+        return <Messaging />;
       case "verification":
         return <VerificationMarketer />;
+      case "wallet":
+        return <Wallet />;
+      case "MarketerStockPickup":
+        return <MarketerStockPickup />;
       default:
-        return <DashboardOverview />;
+        return <MarketersOverview />;
     }
+  };
+
+  // Helper to return the user's initial (for avatar fallback)
+  const getUserInitial = () => {
+    if (user) {
+      if (user.name) return user.name.charAt(0).toUpperCase();
+      if (user.first_name) return user.first_name.charAt(0).toUpperCase();
+    }
+    return "M";
   };
 
   return (
@@ -149,7 +144,7 @@ function MarketerDashboard() {
           <div className="p-4 text-center font-bold text-xl md:text-2xl border-b transition-colors duration-300">
             Vistapro
           </div>
-          <nav className="p-3 flex-1">
+          <nav className="p-3">
             <ul className="list-none space-y-2 text-sm">
               <SidebarItem
                 label="Overview"
@@ -170,15 +165,6 @@ function MarketerDashboard() {
                 isDarkMode={isDarkMode}
               />
               <SidebarItem
-                label="Outlet"
-                Icon={MapPin}
-                moduleName="outlet"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
                 label="Profile"
                 Icon={User}
                 moduleName="profile"
@@ -188,24 +174,14 @@ function MarketerDashboard() {
                 isDarkMode={isDarkMode}
               />
               <SidebarItem
-                label="Cashout"
-                Icon={DollarSign}
-                moduleName="cashout"
+                label="Messages"
+                Icon={MessageSquare}
+                moduleName="messages"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              <SidebarItem
-                label="Stock"
-                Icon={Package}
-                moduleName="stock"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              {/* Always accessible verification */}
               <SidebarItem
                 label="Verification"
                 Icon={Bell}
@@ -215,11 +191,28 @@ function MarketerDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Return Button: Only show if not in overview */}
+              <SidebarItem
+                label="Wallet"
+                Icon={ShoppingCart}
+                moduleName="wallet"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
+              <SidebarItem
+                label="Stock Pickup"
+                Icon={ShoppingCart}
+                moduleName="stock-pickup"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
               {activeModule !== "overview" && (
                 <li>
                   <button
-                    onClick={handleReturn}
+                    onClick={() => setActiveModule("overview")}
                     className="w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors hover:bg-gray-50"
                   >
                     <ArrowLeft size={16} />
@@ -254,17 +247,11 @@ function MarketerDashboard() {
               <h2 className="text-lg md:text-xl font-bold">
                 {greeting}, {user ? `${user.first_name} ${user.last_name}` : "Marketer"}!
               </h2>
-              <p className="text-xs md:text-sm">
+              <p className="text-xs md:text-sm text-gray-500">
                 Unique ID: {user ? user.unique_id : ""}
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                <Bell size={18} />
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-                  3
-                </span>
-              </button>
               <AvatarDropdown
                 user={user}
                 handleLogout={handleLogout}
@@ -284,7 +271,9 @@ function MarketerDashboard() {
   );
 }
 
-// Reusable SidebarItem Component for MarketerDashboard
+export default MarketerDashboard;
+
+// SidebarItem component renders each item in the sidebar.
 function SidebarItem({
   label,
   Icon,
@@ -319,5 +308,3 @@ function SidebarItem({
     </li>
   );
 }
-
-export default MarketerDashboard;
