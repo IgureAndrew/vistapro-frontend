@@ -555,22 +555,7 @@ function ApplicantBiodataForm({ onSuccess }) {
               required
             />
           </div>
-          {/* File Upload for ID Document */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              ID DOCUMENT (JPEG/JPG):
-            </label>
-            <input
-              type="file"
-              accept=".jpg,.jpeg"
-              onChange={handleIdFileUpload}
-              className="border rounded px-3 py-2 w-full"
-              required
-            />
-            {idFile && (
-              <p className="mt-1 text-xs text-green-600">Selected file: {idFile.name}</p>
-            )}
-          </div>
+          
         </div>
         <div className="flex justify-end gap-4 pt-4">
           <button

@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from "react";
 
 function ManageOrders() {
-  // Base URLs for pending orders and order history using the master admin endpoint.
-  const baseUrl = `${import.meta.env.VITE_API_URL}/api/manage-order/orders`;
-  const historyUrl = `${import.meta.env.VITE_API_URL}/api/manage-order/orders/history`;
+  // Define a single base URL for manage orders
+  const baseUrl = `${import.meta.env.VITE_API_URL}/api/manage-orders`;
+  const pendingOrdersUrl = `${baseUrl}/orders`;
+  const ordersHistoryUrl = `${baseUrl}/history`;
+
   const token = localStorage.getItem("token");
 
   const [orders, setOrders] = useState([]);
@@ -13,10 +15,10 @@ function ManageOrders() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [error, setError] = useState("");
 
-  // Function: Fetch pending orders sent by marketers
+  // Fetch pending orders sent by marketers.
   const fetchOrders = async () => {
     try {
-      const res = await fetch(baseUrl, {
+      const res = await fetch(pendingOrdersUrl, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -34,10 +36,10 @@ function ManageOrders() {
     }
   };
 
-  // Function: Fetch order history
+  // Fetch order history.
   const fetchOrderHistory = async () => {
     try {
-      const res = await fetch(historyUrl, {
+      const res = await fetch(ordersHistoryUrl, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -57,12 +59,13 @@ function ManageOrders() {
 
   // Fetch orders and order history on component mount (and when token updates)
   useEffect(() => {
-    fetchOrders();
-    fetchOrderHistory();
+    if (token) {
+      fetchOrders();
+      fetchOrderHistory();
+    }
   }, [token]);
 
   // Handle confirming a pending order.
-  // This sends the confirmation message along with the order ID.
   const handleConfirmOrder = async (orderId) => {
     if (!confirmationMessage) {
       alert("Please enter a confirmation message.");
@@ -118,7 +121,9 @@ function ManageOrders() {
 
   return (
     <div className="p-6 bg-white rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Manage Orders (Orders Sent by Marketers)</h2>
+      <h2 className="text-xl font-semibold mb-4">
+        Manage Orders (Orders Sent by Marketers)
+      </h2>
 
       <h3 className="text-lg font-semibold mb-2">Pending Orders</h3>
       {orders.length === 0 ? (
@@ -154,7 +159,9 @@ function ManageOrders() {
                 <td className="border px-4 py-2">
                   {new Date(order.sale_date).toLocaleString()}
                 </td>
-                <td className="border px-4 py-2">{order.status || "Pending"}</td>
+                <td className="border px-4 py-2">
+                  {order.status || "Pending"}
+                </td>
                 <td className="border px-4 py-2 space-x-2">
                   <button
                     onClick={() => setSelectedOrderId(order.id)}
@@ -177,7 +184,9 @@ function ManageOrders() {
 
       {selectedOrderId && (
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Confirm Order {selectedOrderId}</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            Confirm Order {selectedOrderId}
+          </h3>
           <textarea
             placeholder="Enter confirmation message..."
             value={confirmationMessage}
@@ -216,7 +225,9 @@ function ManageOrders() {
                     ? new Date(order.confirmed_at).toLocaleString()
                     : "N/A"}
                 </td>
-                <td className="border px-4 py-2">{order.status || "Pending"}</td>
+                <td className="border px-4 py-2">
+                  {order.status || "Pending"}
+                </td>
               </tr>
             ))}
           </tbody>

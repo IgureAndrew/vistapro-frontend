@@ -95,7 +95,7 @@ function UsersManagement() {
     }
   };
 
-  // Filter users based on search term.
+  // Filter users based on search term including role.
   const filteredUsers = users.filter((user) => {
     const term = searchTerm.toLowerCase();
     const nameString =
@@ -105,7 +105,8 @@ function UsersManagement() {
     return (
       nameString.toLowerCase().includes(term) ||
       (user.email || "").toLowerCase().includes(term) ||
-      (user.id && user.id.toString().includes(term))
+      (user.id && user.id.toString().includes(term)) ||
+      (user.role || "").toLowerCase().includes(term) // Added search by role.
     );
   });
 
@@ -320,7 +321,7 @@ function UsersManagement() {
       <div className="mb-4">
         <input
           type="text"
-          placeholder="Search by name, email, or ID"
+          placeholder="Search by name, email, ID, or role"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full max-w-sm border-2 border-gray-300 rounded px-4 py-2 font-bold"
