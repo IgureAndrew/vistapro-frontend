@@ -16,12 +16,11 @@ import {
   Bell,
   Menu,
   X,
-  ArrowLeft,
   MessageSquare,
 } from "lucide-react";
 
-import MasterAdminOverview from "./MasterAdminOverview"; // New overview component for real-time data
-import AvatarDropdown from "./AvatarDropdown"; // Ensure this is correctly implemented
+import MasterAdminOverview from "./MasterAdminOverview";
+import AvatarDropdown from "./AvatarDropdown";
 import ProfileUpdate from "./ProfileUpdate";
 import UsersManagement from "./UsersManagement";
 import Reports from "./Reports";
@@ -42,16 +41,16 @@ function MasterAdminDashboard() {
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
 
-  // Current active module
+  // Current active module state.
   const [activeModule, setActiveModule] = useState("overview");
 
-  // Toggle sidebar for mobile
+  // Toggle sidebar for mobile.
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Dark mode toggle
+  // Dark mode toggle.
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Greeting state
+  // Greeting state.
   const [greeting, setGreeting] = useState("Welcome");
 
   useEffect(() => {
@@ -80,6 +79,7 @@ function MasterAdminDashboard() {
     setIsDarkMode((prev) => !prev);
   };
 
+  // This function returns a component based on the active module.
   const renderModule = () => {
     switch (activeModule) {
       case "overview":

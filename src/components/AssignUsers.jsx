@@ -1,7 +1,8 @@
 // src/components/AssignUsers.jsx
 import React, { useState, useEffect, useMemo } from "react";
 
-// Helper function to get a user's display name given their unique_id and a list of users.
+// Helper function to generate a user's display name.
+// It searches a list of users by unique_id and returns their full name (or unique ID) if available.
 const getUserDisplayName = (uniqueId, users) => {
   const user = users.find((u) => u.unique_id === uniqueId);
   return user ? (user.name || `${user.first_name} ${user.last_name}`) : uniqueId;
@@ -11,49 +12,64 @@ function AssignUsers() {
   const token = localStorage.getItem("token");
   const apiUrl = import.meta.env.VITE_API_URL;
 
-  // ----------------------------
+  // --------------------------------------------------
   // State for Assignment Controls
-  // ----------------------------
-  // selectedRole: "Admin" means assigning marketers; "SuperAdmin" means assigning admins.
+  // --------------------------------------------------
+  // selectedRole: determines the assignment action.
+  // "Admin" = assign marketers to an Admin.
+  // "SuperAdmin" = assign admins to a SuperAdmin.
   const [selectedRole, setSelectedRole] = useState("Admin");
-  // roleUsers: target users for assignment based on the role selected.
-  // For marketers assignment, we want to show all admins regardless of assigned super admin.
+  // roleUsers: list of available target users for assignment.
   const [roleUsers, setRoleUsers] = useState([]);
-  // selectedRoleUser: the unique_id of the chosen target user.
+  // selectedRoleUser: the unique ID of the chosen target for assignment.
   const [selectedRoleUser, setSelectedRoleUser] = useState("");
 
-  // ----------------------------
-  // Data Lists for Each Role
-  // ----------------------------
-  const [marketers, setMarketers] = useState([]);
-  const [admins, setAdmins] = useState([]);
-  const [superAdmins, setSuperAdmins] = useState([]);
+  // --------------------------------------------------
+  // Data Lists for Users by Role
+  // --------------------------------------------------
+  const [marketers, setMarketers] = useState([]);    // List of marketers
+  const [admins, setAdmins] = useState([]);          // List of Admins
+  const [superAdmins, setSuperAdmins] = useState([]); // List of SuperAdmins
 
-  // ----------------------------
-  // State for Assignment Selection
-  // ----------------------------
-  // Array of unique IDs for users selected (for assignment).
+  // --------------------------------------------------
+  // State for Assignment Selection & Records
+  // --------------------------------------------------
+  // selectedAssignIds: array of unique IDs for users selected for assignment.
   const [selectedAssignIds, setSelectedAssignIds] = useState([]);
-  // assignments: list of current assignment records. Each record: { target, assignedId, role }
+  // assignments: array holding current assignment records.
+  // Each record is an object: { target, assignedId, role }.
   const [assignments, setAssignments] = useState([]);
-  // For unassignment selection.
+  // selectedUnassign: list of assignments chosen to be unassigned.
   const [selectedUnassign, setSelectedUnassign] = useState([]);
 
-  // ----------------------------
-  // State for Viewing Assignments
-  // ----------------------------
-  // viewRole: "Admin" or "SuperAdmin" (which role’s assignments we want to view).
+  // --------------------------------------------------
+  // State for Viewing Filtered Assignments
+  // --------------------------------------------------
+  // viewRole: which target’s assignments to view ("Admin" for marketers; "SuperAdmin" for admins).
   const [viewRole, setViewRole] = useState("");
-  // viewTarget: the selected target unique_id for filtering assignments.
+  // viewTarget: the target user's unique ID for filtering assignments.
   const [viewTarget, setViewTarget] = useState("");
-  // Filtered assignments based on viewTarget.
+  // filteredAssignments: assignments filtered by viewTarget.
   const [filteredAssignments, setFilteredAssignments] = useState([]);
 
-  // ----------------------------
-  // Data Fetching for Each Role
-  // ----------------------------
+  // --------------------------------------------------
+  // Derived state: viewTargets
+  // --------------------------------------------------
+  // Returns the list of target users based on the selected view role.
+  const viewTargets = useMemo(() => {
+    if (viewRole === "SuperAdmin") {
+      return superAdmins;
+    } else if (viewRole === "Admin") {
+      return admins;
+    }
+    return [];
+  }, [viewRole, admins, superAdmins]);
 
-  // Fetch all marketers (role "Marketer")
+  // --------------------------------------------------
+  // Data Fetching for Each Role from Backend
+  // --------------------------------------------------
+
+  // Fetch all marketers.
   useEffect(() => {
     const fetchMarketers = async () => {
       try {
@@ -76,7 +92,7 @@ function AssignUsers() {
     fetchMarketers();
   }, [apiUrl, token]);
 
-  // Fetch all admins (role "Admin")
+  // Fetch all admins.
   useEffect(() => {
     const fetchAdmins = async () => {
       try {
@@ -99,7 +115,7 @@ function AssignUsers() {
     fetchAdmins();
   }, [apiUrl, token]);
 
-  // Fetch all super admins (role "SuperAdmin")
+  // Fetch all super admins.
   useEffect(() => {
     const fetchSuperAdmins = async () => {
       try {
@@ -122,29 +138,28 @@ function AssignUsers() {
     fetchSuperAdmins();
   }, [apiUrl, token]);
 
-  // ----------------------------
-  // Update Target User Dropdown List
-  // ----------------------------
+  // --------------------------------------------------
+  // Update Target User Dropdown Based on Selected Role
+  // --------------------------------------------------
   useEffect(() => {
     if (selectedRole === "Admin") {
-      // For assigning marketers, now show ALL admins regardless of super admin assignment.
+      // For assigning marketers, list all Admins.
       setRoleUsers(admins);
     } else if (selectedRole === "SuperAdmin") {
-      // For assigning admins, show only super admins.
+      // For assigning admins, list all SuperAdmins.
       setRoleUsers(superAdmins);
     }
-    // Clear previous selections whenever the role changes.
+    // Clear the target selection and user assignment selections when role changes.
     setSelectedRoleUser("");
     setSelectedAssignIds([]);
   }, [selectedRole, admins, superAdmins]);
 
-  // ----------------------------
+  // --------------------------------------------------
   // Compute Available Users for Assignment
-  // ----------------------------
-  // When assigning:
-  // - If selectedRole is "Admin": available marketers are those without an existing admin (m.admin_id is falsy).
-  // - If selectedRole is "SuperAdmin": available admins are those without a super admin (a.super_admin_id is falsy).
-  // Additionally, if a target user is selected, only users from the same location are displayed.
+  // --------------------------------------------------
+  // For Admin assignment, available users are marketers that do not yet have an assigned admin.
+  // For SuperAdmin assignment, available users are admins that do not yet have an assigned super admin.
+  // Additionally, if a target is selected, filter users by matching location.
   const availableForAssignment = useMemo(() => {
     let list = [];
     if (selectedRole === "Admin") {
@@ -153,7 +168,6 @@ function AssignUsers() {
       list = admins.filter((a) => !a.super_admin_id);
     }
     if (selectedRoleUser) {
-      // Get the target from roleUsers by matching unique_id.
       const target = roleUsers.find((u) => u.unique_id === selectedRoleUser);
       if (target && target.location) {
         list = list.filter((u) => u.location === target.location);
@@ -162,32 +176,87 @@ function AssignUsers() {
     return list;
   }, [selectedRole, selectedRoleUser, marketers, admins, roleUsers]);
 
-  // ----------------------------
-  // Update Filtered Assignments on Change
-  // ----------------------------
+  // --------------------------------------------------
+  // Fetch All Current Assignments for the Selected Target
+  // --------------------------------------------------
+  // When a view role and view target are selected (in the View Assignments section),
+  // fetch assignments from the backend using the dedicated endpoints.
+  useEffect(() => {
+    if (!viewRole || !viewTarget) return; // Do nothing if no role or target selected.
+    const fetchAssignmentsForTarget = async () => {
+      try {
+        let url = "";
+        if (viewRole === "Admin") {
+          // For Admin view, get marketers assigned to this Admin.
+          url = `${apiUrl}/api/master-admin/marketers/${viewTarget}`;
+        } else if (viewRole === "SuperAdmin") {
+          // For SuperAdmin view, get admins assigned to this SuperAdmin.
+          url = `${apiUrl}/api/master-admin/admins/${viewTarget}`;
+        }
+        const res = await fetch(url, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const responseData = await res.json();
+        if (!res.ok) {
+          alert(responseData.message || "Error fetching assignments for the selected target");
+          return;
+        }
+        // Process the result based on role.
+        if (viewRole === "Admin" && responseData.assignedMarketers) {
+          // For Admin view, convert each marketer into an assignment record.
+          const newAssignments = responseData.assignedMarketers.map((m) => ({
+            target: viewTarget,        // Admin's unique_id
+            assignedId: m.unique_id,   // Marketer's unique_id
+            role: "Admin",
+          }));
+          setAssignments(newAssignments);
+        } else if (viewRole === "SuperAdmin" && responseData.assignedAdmins) {
+          // For SuperAdmin view, convert each admin into an assignment record.
+          const newAssignments = responseData.assignedAdmins.map((adm) => ({
+            target: viewTarget,         // SuperAdmin's unique_id
+            assignedId: adm.unique_id,  // Admin's unique_id
+            role: "SuperAdmin",
+          }));
+          setAssignments(newAssignments);
+        }
+      } catch (err) {
+        console.error("Error fetching assignments by target:", err);
+        alert("Error fetching assignments");
+      }
+    };
+    fetchAssignmentsForTarget();
+  }, [viewRole, viewTarget, apiUrl, token]);
+
+  // --------------------------------------------------
+  // Update Filtered Assignments Based on View Target
+  // --------------------------------------------------
   useEffect(() => {
     if (viewTarget) {
+      // Filter the assignments array to only include records for the selected target.
       setFilteredAssignments(assignments.filter((a) => a.target === viewTarget));
     } else {
       setFilteredAssignments(assignments);
     }
   }, [viewTarget, assignments]);
 
-  // ----------------------------
-  // Handlers for Controls
-  // ----------------------------
+  // --------------------------------------------------
+  // Handlers for UI Controls
+  // --------------------------------------------------
 
-  // When selected role changes.
+  // Updates the role dropdown for assignment.
   const handleRoleChange = (e) => {
     setSelectedRole(e.target.value);
   };
 
-  // When target user changes.
+  // Updates the target user for assignment.
   const handleRoleUserChange = (e) => {
     setSelectedRoleUser(e.target.value);
   };
 
-  // When checkbox is toggled in available assignments list.
+  // Handler for checkbox toggle in the available users table.
   const handleAssignCheckboxChange = (e) => {
     const { value, checked } = e.target;
     if (checked) {
@@ -197,25 +266,25 @@ function AssignUsers() {
     }
   };
 
-  // Assign selected users to the target.
+  // Handler to send the assignment payload to the backend.
   const handleAssign = async (e) => {
     e.preventDefault();
     if (!selectedRoleUser || selectedAssignIds.length === 0) {
-      alert("Please select a target user and at least one user to assign.");
+      alert("Please select a target and at least one user to assign.");
       return;
     }
     try {
       let endpoint = "";
       let payload = {};
       if (selectedRole === "Admin") {
-        // When assigning marketers to an admin.
+        // When assigning marketers to an Admin.
         endpoint = "/api/master-admin/assign-marketers-to-admin";
         payload = {
           adminUniqueId: selectedRoleUser,
           marketerUniqueIds: selectedAssignIds,
         };
       } else if (selectedRole === "SuperAdmin") {
-        // When assigning admins to a super admin.
+        // When assigning admins to a SuperAdmin.
         endpoint = "/api/master-admin/assign-admins-to-superadmin";
         payload = {
           superAdminUniqueId: selectedRoleUser,
@@ -233,14 +302,14 @@ function AssignUsers() {
       const data = await res.json();
       if (res.ok) {
         alert("Users assigned successfully!");
-        // Add new assignments to state.
+        // Update assignments state locally by adding new assignment records.
         selectedAssignIds.forEach((id) => {
           setAssignments((prev) => [
             ...prev,
             { target: selectedRoleUser, assignedId: id, role: selectedRole },
           ]);
         });
-        // Update the local record so the assigned user is no longer available.
+        // Update local data lists to remove assigned users.
         if (selectedRole === "Admin") {
           setMarketers((prev) =>
             prev.map((m) =>
@@ -258,7 +327,7 @@ function AssignUsers() {
             )
           );
         }
-        // Clear selections.
+        // Clear assignment selections.
         setSelectedAssignIds([]);
         setSelectedRoleUser("");
       } else {
@@ -270,7 +339,7 @@ function AssignUsers() {
     }
   };
 
-  // Handler for unassignment checkbox change.
+  // Handler for unassignment checkbox toggle.
   const handleUnassignCheckboxChange = (e, assignment) => {
     const { checked } = e.target;
     if (checked) {
@@ -279,13 +348,17 @@ function AssignUsers() {
       setSelectedUnassign((prev) =>
         prev.filter(
           (a) =>
-            !(a.target === assignment.target && a.assignedId === assignment.assignedId && a.role === assignment.role)
+            !(
+              a.target === assignment.target &&
+              a.assignedId === assignment.assignedId &&
+              a.role === assignment.role
+            )
         )
       );
     }
   };
 
-  // Unassign selected assignments.
+  // Handler to unassign selected assignments.
   const handleUnassignSelected = async () => {
     if (selectedUnassign.length === 0) {
       alert("Please select at least one assignment to unassign.");
@@ -299,7 +372,6 @@ function AssignUsers() {
         acc[key].push(assignment.assignedId);
         return acc;
       }, {});
-
       // Process each group.
       for (const key in groups) {
         const [role, target] = key.split("-");
@@ -328,10 +400,10 @@ function AssignUsers() {
         });
         const data = await res.json();
         if (!res.ok) {
-          alert(data.message || "Unassignment failed for group: " + key);
+          alert(data.message || `Unassignment failed for group: ${key}`);
           return;
         }
-        // Update local list to mark these users as unassigned.
+        // Update local data: mark the unassigned users as available.
         if (role === "Admin") {
           setMarketers((prev) =>
             prev.map((m) =>
@@ -351,7 +423,7 @@ function AssignUsers() {
         }
       }
       alert("Selected assignments unassigned successfully!");
-      // Remove these assignments from local state.
+      // Remove the unassigned assignments from the local state.
       setAssignments((prev) =>
         prev.filter((assignment) =>
           !selectedUnassign.some(
@@ -369,236 +441,151 @@ function AssignUsers() {
     }
   };
 
-  // Handler: Change view role for filtering assignments.
+  // Handler for view role selection in the "View Assignments by Target" section.
   const handleViewRoleChange = (e) => {
     setViewRole(e.target.value);
-    setViewTarget(""); // reset target when view role changes
+    setViewTarget(""); // Reset view target when role changes.
   };
 
-  // Handler: Change the target for viewing assignments.
+  // Handler for view target selection.
   const handleViewTargetChange = (e) => {
     setViewTarget(e.target.value);
   };
 
-  // Get the list of targets for the "View Assignments" dropdown based on viewRole.
-  const viewTargets =
-    viewRole === "SuperAdmin"
-      ? superAdmins
-      : viewRole === "Admin"
-      ? admins
-      : [];
-
-  // ----------------------------
-  // Render
-  // ----------------------------
+  // --------------------------------------------------
+  // Render the Component
+  // --------------------------------------------------
   return (
     <div className="p-6 bg-white rounded shadow space-y-8">
       <h2 className="text-2xl font-semibold mb-4">User Assignments</h2>
 
-      {/* Assignment Controls */}
+      {/* Assignment Controls Section */}
       <div className="p-4 border rounded shadow space-y-4">
         <div className="flex flex-col sm:flex-row gap-4">
-          {/* Role selection for assignment */}
+          {/* Role Selection Dropdown */}
           <div className="flex-1">
-            <label className="block mb-1 font-semibold">
-              Select Role for Assignment:
-            </label>
+            <label className="block mb-1 font-semibold">Select Role for Assignment:</label>
             <select
               value={selectedRole}
               onChange={handleRoleChange}
               className="border border-gray-300 rounded px-4 py-2 w-full"
             >
-              <option value="Admin">
-                Admin (assign marketers)
-              </option>
-              <option value="SuperAdmin">
-                SuperAdmin (assign admins)
-              </option>
+              <option value="Admin">Admin (assign marketers)</option>
+              <option value="SuperAdmin">SuperAdmin (assign admins)</option>
             </select>
           </div>
-          {/* Target user selection */}
+          {/* Target User Dropdown */}
           <div className="flex-1">
-            <label className="block mb-1 font-semibold">
-              Select {selectedRole} (Name, Location and Unique ID):
-            </label>
+            <label className="block mb-1 font-semibold">Select {selectedRole} (Name, Location, Unique ID):</label>
             <select
               value={selectedRoleUser}
               onChange={handleRoleUserChange}
               className="border border-gray-300 rounded px-4 py-2 w-full"
             >
-              <option value="">
-                -- Select {selectedRole} --
-              </option>
+              <option value="">-- Select {selectedRole} --</option>
               {roleUsers.map((ru) => (
                 <option key={ru.unique_id} value={ru.unique_id}>
-                  {ru.name || `${ru.first_name} ${ru.last_name}`} (
-                  {ru.location}) ({ru.unique_id})
+                  {ru.name || `${ru.first_name} ${ru.last_name}`} ({ru.location}) ({ru.unique_id})
                 </option>
               ))}
             </select>
           </div>
         </div>
-
-        {/* Table of Users Available for Assignment */}
+        
+        {/* Available Users Table for Assignment */}
         <div className="overflow-auto mt-4">
           <table className="min-w-full border border-gray-300">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 border text-center">
-                  Select
-                </th>
-                <th className="px-4 py-2 border">
-                  Name
-                </th>
-                <th className="px-4 py-2 border">
-                  Email
-                </th>
-                <th className="px-4 py-2 border">
-                  Unique ID
-                </th>
-                <th className="px-4 py-2 border">
-                  Role
-                </th>
-                <th className="px-4 py-2 border">
-                  Location
-                </th>
-                <th className="px-4 py-2 border">
-                  Assignment Status
-                </th>
+                <th className="px-4 py-2 border text-center">Select</th>
+                <th className="px-4 py-2 border">Name</th>
+                <th className="px-4 py-2 border">Email</th>
+                <th className="px-4 py-2 border">Unique ID</th>
+                <th className="px-4 py-2 border">Role</th>
+                <th className="px-4 py-2 border">Location</th>
+                <th className="px-4 py-2 border">Assignment Status</th>
               </tr>
             </thead>
             <tbody>
               {availableForAssignment.length > 0 ? (
                 availableForAssignment.map((usr) => (
-                  <tr key={usr.unique_id}>
+                  <tr key={usr.unique_id} className="hover:bg-gray-100">
                     <td className="px-4 py-2 border text-center">
                       <input
                         type="checkbox"
                         value={usr.unique_id}
-                        checked={selectedAssignIds.includes(
-                          usr.unique_id
-                        )}
+                        checked={selectedAssignIds.includes(usr.unique_id)}
                         onChange={handleAssignCheckboxChange}
                       />
                     </td>
-                    <td className="px-4 py-2 border">
-                      {usr.name ||
-                        `${usr.first_name} ${usr.last_name}`}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {usr.email}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {usr.unique_id}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {usr.role}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {usr.location}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {usr.admin_id || usr.super_admin_id
-                        ? "Assigned"
-                        : "Not Assigned"}
-                    </td>
+                    <td className="px-4 py-2 border">{usr.name || `${usr.first_name} ${usr.last_name}`}</td>
+                    <td className="px-4 py-2 border">{usr.email}</td>
+                    <td className="px-4 py-2 border">{usr.unique_id}</td>
+                    <td className="px-4 py-2 border">{usr.role}</td>
+                    <td className="px-4 py-2 border">{usr.location}</td>
+                    <td className="px-4 py-2 border">{usr.admin_id || usr.super_admin_id ? "Assigned" : "Not Assigned"}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan="7"
-                    className="px-4 py-2 text-center"
-                  >
-                    No users available for assignment.
-                  </td>
+                  <td colSpan="7" className="px-4 py-2 text-center">No users available for assignment.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <button
-          onClick={handleAssign}
-          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded"
-        >
+        <button onClick={handleAssign} className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded">
           Assign Selected Users
         </button>
       </div>
 
-      {/* View Assignments by Target */}
+      {/* View Assignments by Target Section */}
       <div className="p-4 border rounded shadow space-y-4">
-        <h3 className="text-xl font-semibold">
-          View Assignments by Target
-        </h3>
+        <h3 className="text-xl font-semibold">View Assignments by Target</h3>
         <div className="flex flex-col sm:flex-row gap-4">
+          {/* Dropdown to select view role */}
           <div className="flex-1">
-            <label className="block mb-1 font-semibold">
-              Select Role to View:
-            </label>
+            <label className="block mb-1 font-semibold">Select Role to View:</label>
             <select
               value={viewRole}
               onChange={handleViewRoleChange}
               className="border border-gray-300 rounded px-4 py-2 w-full"
             >
-              <option value="">
-                -- Select Role --
-              </option>
-              <option value="Admin">
-                Admin (view marketers assigned)
-              </option>
-              <option value="SuperAdmin">
-                SuperAdmin (view admins assigned)
-              </option>
+              <option value="">-- Select Role --</option>
+              <option value="Admin">Admin (view marketers assigned)</option>
+              <option value="SuperAdmin">SuperAdmin (view admins assigned)</option>
             </select>
           </div>
+          {/* Dropdown to select specific target */}
           {viewRole && (
             <div className="flex-1">
-              <label className="block mb-1 font-semibold">
-                Select {viewRole} (Name, Location and Unique ID):
-              </label>
+              <label className="block mb-1 font-semibold">Select {viewRole} (Name, Location, Unique ID):</label>
               <select
                 value={viewTarget}
                 onChange={handleViewTargetChange}
                 className="border border-gray-300 rounded px-4 py-2 w-full"
               >
-                <option value="">
-                  -- Select {viewRole} --
-                </option>
+                <option value="">-- Select {viewRole} --</option>
                 {viewTargets.map((user) => (
-                  <option
-                    key={user.unique_id}
-                    value={user.unique_id}
-                  >
-                    {user.name ||
-                      `${user.first_name} ${user.last_name}`}{" "}
-                    ({user.location}) ({user.unique_id})
+                  <option key={user.unique_id} value={user.unique_id}>
+                    {user.name || `${user.first_name} ${user.last_name}`} ({user.location}) ({user.unique_id})
                   </option>
                 ))}
               </select>
             </div>
           )}
         </div>
-        {/* Display filtered assignments based on selected target */}
+        {/* Display Filtered Assignments based on selected target */}
         {viewTarget && (
           <div className="overflow-auto mt-4">
             <table className="min-w-full border border-gray-300">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 border">
-                    Assigned To
-                  </th>
-                  <th className="px-4 py-2 border">
-                    User Assigned
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Role
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Location
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Status
-                  </th>
+                  <th className="px-4 py-2 border">Assigned To</th>
+                  <th className="px-4 py-2 border">User Assigned</th>
+                  <th className="px-4 py-2 border">Role</th>
+                  <th className="px-4 py-2 border">Location</th>
+                  <th className="px-4 py-2 border">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -606,46 +593,24 @@ function AssignUsers() {
                   filteredAssignments.map((assign, idx) => (
                     <tr key={idx}>
                       <td className="px-4 py-2 border">
-                        {getUserDisplayName(
-                          assign.target,
-                          viewTargets
-                        )}{" "}
-                        ({assign.target})
+                        {getUserDisplayName(assign.target, viewTargets)} ({assign.target})
                       </td>
                       <td className="px-4 py-2 border">
                         {assign.role === "Admin"
-                          ? getUserDisplayName(
-                              assign.assignedId,
-                              admins
-                            )
-                          : getUserDisplayName(
-                              assign.assignedId,
-                              marketers
-                            )}{" "}
-                        ({assign.assignedId})
+                          ? getUserDisplayName(assign.assignedId, marketers)
+                          : getUserDisplayName(assign.assignedId, admins)} ({assign.assignedId})
                       </td>
+                      <td className="px-4 py-2 border">{assign.role}</td>
                       <td className="px-4 py-2 border">
-                        {assign.role}
+                        {viewTargets.find((u) => u.unique_id === assign.target)?.location || "N/A"}
                       </td>
-                      <td className="px-4 py-2 border">
-                        {viewTargets.find(
-                          (u) =>
-                            u.unique_id === assign.target
-                        )?.location || "N/A"}
-                      </td>
-                      <td className="px-4 py-2 border">
-                        Active
-                      </td>
+                      <td className="px-4 py-2 border">Active</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan="5"
-                      className="px-4 py-2 text-center"
-                    >
-                      No assignments found for the selected{" "}
-                      {viewRole}.
+                    <td colSpan="5" className="px-4 py-2 text-center">
+                      No assignments found for the selected {viewRole}.
                     </td>
                   </tr>
                 )}
@@ -655,34 +620,20 @@ function AssignUsers() {
         )}
       </div>
 
-      {/* Assigned Users Table with Unassign Option */}
+      {/* Current Assignments Section with Unassign Option */}
       <div className="p-4 border rounded shadow">
-        <h3 className="text-xl font-semibold mb-2">
-          Current Assignments (All)
-        </h3>
+        <h3 className="text-xl font-semibold mb-2">Current Assignments (All)</h3>
         {assignments.length > 0 ? (
           <>
             <table className="min-w-full border border-gray-300">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 border text-center">
-                    Select
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Assigned To
-                  </th>
-                  <th className="px-4 py-2 border">
-                    User Assigned
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Role
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Location
-                  </th>
-                  <th className="px-4 py-2 border">
-                    Status
-                  </th>
+                  <th className="px-4 py-2 border text-center">Select</th>
+                  <th className="px-4 py-2 border">Assigned To</th>
+                  <th className="px-4 py-2 border">User Assigned</th>
+                  <th className="px-4 py-2 border">Role</th>
+                  <th className="px-4 py-2 border">Location</th>
+                  <th className="px-4 py-2 border">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -691,9 +642,7 @@ function AssignUsers() {
                     <td className="px-4 py-2 border text-center">
                       <input
                         type="checkbox"
-                        onChange={(e) =>
-                          handleUnassignCheckboxChange(e, assign)
-                        }
+                        onChange={(e) => handleUnassignCheckboxChange(e, assign)}
                         checked={selectedUnassign.some(
                           (a) =>
                             a.target === assign.target &&
@@ -704,36 +653,19 @@ function AssignUsers() {
                     </td>
                     <td className="px-4 py-2 border">
                       {assign.role === "SuperAdmin"
-                        ? getUserDisplayName(
-                            assign.target,
-                            superAdmins
-                          )
-                        : getUserDisplayName(assign.target, admins)}{" "}
-                      ({assign.target})
+                        ? getUserDisplayName(assign.target, superAdmins)
+                        : getUserDisplayName(assign.target, admins)} ({assign.target})
                     </td>
                     <td className="px-4 py-2 border">
                       {assign.role === "Admin"
-                        ? getUserDisplayName(
-                            assign.assignedId,
-                            marketers
-                          )
-                        : getUserDisplayName(
-                            assign.assignedId,
-                            admins
-                          )}{" "}
-                      ({assign.assignedId})
+                        ? getUserDisplayName(assign.assignedId, marketers)
+                        : getUserDisplayName(assign.assignedId, admins)} ({assign.assignedId})
                     </td>
+                    <td className="px-4 py-2 border">{assign.role}</td>
                     <td className="px-4 py-2 border">
-                      {assign.role}
+                      {roleUsers.find((u) => u.unique_id === assign.target)?.location || "N/A"}
                     </td>
-                    <td className="px-4 py-2 border">
-                      {roleUsers.find(
-                        (u) => u.unique_id === assign.target
-                      )?.location || "N/A"}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      Active
-                    </td>
+                    <td className="px-4 py-2 border">Active</td>
                   </tr>
                 ))}
               </tbody>

@@ -7,8 +7,7 @@ function Order() {
     device_name: "",
     device_model: "",
     device_type: "Android", // default value
-    // Removed dealer_cost_price
-    marketer_selling_price: "",
+    imei: "",              // new field for IMEI
     number_of_devices: "",
     sold_amount: "",
     customer_name: "",
@@ -65,18 +64,18 @@ function Order() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        // Send the new orderData (with imei field, and without marketer_selling_price)
         body: JSON.stringify(orderData),
       });
       const data = await res.json();
       if (res.ok) {
         alert("Order placed successfully!");
-        // Reset the form.
+        // Reset the form with default values.
         setOrderData({
           device_name: "",
           device_model: "",
           device_type: "Android",
-          // Removed dealer_cost_price,
-          marketer_selling_price: "",
+          imei: "",
           number_of_devices: "",
           sold_amount: "",
           customer_name: "",
@@ -136,20 +135,20 @@ function Order() {
             <option value="iPhone">iPhone</option>
           </select>
         </div>
-
-        {/* Pricing & Quantity */}
-        {/* Removed Dealer Cost Price Field */}
+        {/* New Field: IMEI */}
         <div>
-          <label className="block font-bold mb-1">Marketer Selling Price</label>
+          <label className="block font-bold mb-1">IMEI</label>
           <input
-            type="number"
-            name="marketer_selling_price"
-            value={orderData.marketer_selling_price}
+            type="text"
+            name="imei"
+            value={orderData.imei}
             onChange={handleChange}
             className="w-full border rounded px-3 py-2"
             required
           />
         </div>
+        {/* Pricing & Quantity */}
+        {/* Removed marketer_selling_price field */}
         <div>
           <label className="block font-bold mb-1">Number of Devices</label>
           <input
@@ -172,7 +171,6 @@ function Order() {
             required
           />
         </div>
-
         {/* Customer Details */}
         <div>
           <label className="block font-bold mb-1">Customer Name</label>
@@ -207,7 +205,6 @@ function Order() {
             required
           />
         </div>
-
         {/* BNPL Platform and Sale Date */}
         <div>
           <label className="block font-bold mb-1">BNPL Platform</label>
@@ -249,6 +246,7 @@ function Order() {
                 <th className="px-4 py-2 text-left text-xs font-bold uppercase">Order ID</th>
                 <th className="px-4 py-2 text-left text-xs font-bold uppercase">Device</th>
                 <th className="px-4 py-2 text-left text-xs font-bold uppercase">Model</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">IMEI</th>
                 <th className="px-4 py-2 text-left text-xs font-bold uppercase">Quantity</th>
                 <th className="px-4 py-2 text-left text-xs font-bold uppercase">Sold Amount</th>
                 <th className="px-4 py-2 text-left text-xs font-bold uppercase">Sale Date</th>
@@ -261,6 +259,7 @@ function Order() {
                   <td className="px-4 py-2 text-sm">{order.id}</td>
                   <td className="px-4 py-2 text-sm">{order.device_name}</td>
                   <td className="px-4 py-2 text-sm">{order.device_model}</td>
+                  <td className="px-4 py-2 text-sm">{order.imei}</td>
                   <td className="px-4 py-2 text-sm">{order.number_of_devices}</td>
                   <td className="px-4 py-2 text-sm">{order.sold_amount}</td>
                   <td className="px-4 py-2 text-sm">{order.sale_date}</td>
