@@ -2,22 +2,23 @@
 import React, { useState, useEffect } from "react";
 
 function Submissions() {
-  // State variables for submissions, loading, errors, and open details.
+  // State variables to hold submissions, loading status, errors, and open details.
   const [submissions, setSubmissions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // Track which submission's details are expanded.
+  // This state maps submission ids to a boolean indicating whether details are open.
   const [openDetails, setOpenDetails] = useState({});
 
-  // Determine the correct API endpoint based on the logged-in user's role.
+  // Get the current user from localStorage (assumes user object is stored after login).
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  /**
+   * getEndpointForRole
+   * Determines the proper GET endpoint based on the logged-in user's role.
+   */
   const getEndpointForRole = () => {
-    // Get the user object from localStorage.
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
-      return null;
-    }
-    const user = JSON.parse(storedUser);
-    // You can adjust these role names to match exactly how they are stored.
+    if (!user) return null;
     switch (user.role) {
       case "MasterAdmin":
         return "/api/verification/submissions/master";
@@ -25,13 +26,15 @@ function Submissions() {
         return "/api/verification/submissions/admin";
       case "SuperAdmin":
         return "/api/verification/submissions/superadmin";
-      // If needed, you can add a fallback endpoint.
       default:
         return null;
     }
   };
 
-  // Fetch submissions using the endpoint determined by the user's role.
+  /**
+   * fetchSubmissions
+   * Fetch submissions from the backend using the endpoint determined by the user's role.
+   */
   useEffect(() => {
     const fetchSubmissions = async () => {
       try {
@@ -49,7 +52,7 @@ function Submissions() {
           throw new Error("Failed to fetch submissions");
         }
         const data = await res.json();
-        // Assumes the data object returned by the backend has a "submissions" property.
+        // Assumes data is returned in the format: { submissions: { biodata: [...], guarantor: [...], commitment: [...] } }
         setSubmissions(data.submissions);
       } catch (err) {
         setError(err.message);
@@ -61,31 +64,38 @@ function Submissions() {
     fetchSubmissions();
   }, []);
 
-  // Toggle details view for a submission.
+  /**
+   * toggleDetails
+   * Toggles the display of details for a specific submission.
+   * @param {string|number} id - The submission's unique id.
+   */
   const toggleDetails = (id) => {
-    setOpenDetails((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setOpenDetails((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Delete a submission by providing the form type (table) and the submission's ID.
+  /**
+   * handleDelete
+   * Deletes a submission from a given form type.
+   * @param {string} table - The form type ("biodata", "guarantor", or "commitment").
+   * @param {string|number} id - The submission's unique id.
+   */
   const handleDelete = async (table, id) => {
     if (!window.confirm("Are you sure you want to delete this submission?")) return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/${table}/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/verification/${table}/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       if (!res.ok) {
         const data = await res.json();
         alert(data.message || "Failed to delete submission");
         return;
       }
-      // Remove the deleted submission from state.
+      // Update state: remove the deleted submission from the corresponding array.
       setSubmissions((prev) => ({
         ...prev,
         [table]: prev[table].filter((item) => item.id !== id),
@@ -97,26 +107,56 @@ function Submissions() {
     }
   };
 
+  /**
+   * handleReset
+   * Allows a Master Admin to reset a submission flag for a given form type so that a marketer can refill/update that form.
+   * @param {string} formType - The form type ("biodata", "guarantor", or "commitment").
+   * @param {string} marketerUniqueId - The unique id of the marketer.
+   */
+  const handleReset = async (formType, marketerUniqueId) => {
+    if (!window.confirm(`Are you sure you want to allow a refill for ${formType}?`)) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/allow-refill`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          marketerUniqueId,
+          formType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || "Failed to reset form.");
+      } else {
+        alert(data.message || `${formType} reset successfully.`);
+      }
+    } catch (error) {
+      console.error("Error resetting form:", error);
+      alert("Error resetting form.");
+    }
+  };
+
   if (loading) return <p>Loading submissions...</p>;
   if (error) return <p>Error: {error}</p>;
+  if (!submissions) return <p>No submissions available.</p>;
 
   return (
     <div className="p-4">
       {/* ---------------- Biodata Submissions Section ---------------- */}
       <h2 className="text-2xl font-bold mb-4">Biodata Submissions</h2>
-      {submissions && submissions.biodata && submissions.biodata.length > 0 ? (
+      {submissions.biodata && submissions.biodata.length > 0 ? (
         <div className="space-y-4">
           {submissions.biodata.map((item) => (
             <div key={item.id} className="border p-4 rounded shadow">
               {/* Summary Section */}
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold">
-                    <span className="mr-2">ID:</span> {item.id}
-                  </p>
-                  <p className="font-semibold">
-                    <span className="mr-2">Name:</span> {item.name}
-                  </p>
+                  <p className="font-semibold"><span className="mr-2">ID:</span>{item.id}</p>
+                  <p className="font-semibold"><span className="mr-2">Name:</span>{item.name}</p>
                   <p className="text-sm text-gray-600">
                     Submitted on: {new Date(item.created_at).toLocaleDateString()}
                   </p>
@@ -134,81 +174,43 @@ function Submissions() {
                   >
                     Delete
                   </button>
+                  {/* Reset button for Master Admin */}
+                  {user && user.role === "MasterAdmin" && (
+                    <button
+                      onClick={() => handleReset("biodata", item.marketer_unique_id)}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+                    >
+                      Reset Form
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Details Section */}
               {openDetails[item.id] && (
                 <div className="mt-4 text-sm text-gray-700">
-                  <p>
-                    <strong>Date of Birth:</strong>{" "}
-                    {item.date_of_birth ? new Date(item.date_of_birth).toLocaleDateString() : "N/A"}
-                  </p>
-                  <p>
-                    <strong>Phone:</strong> {item.phone}
-                  </p>
-                  <p>
-                    <strong>Address:</strong> {item.address}
-                  </p>
-                  <p>
-                    <strong>Religion:</strong> {item.religion}
-                  </p>
-                  <p>
-                    <strong>Marital Status:</strong> {item.marital_status}
-                  </p>
-                  <p>
-                    <strong>State of Origin:</strong> {item.state_of_origin}
-                  </p>
-                  <p>
-                    <strong>State of Residence:</strong> {item.state_of_residence}
-                  </p>
-                  <p>
-                    <strong>Mother's Maiden Name:</strong> {item.mothers_maiden_name}
-                  </p>
-                  <p>
-                    <strong>School Attended:</strong> {item.school_attended}
-                  </p>
-                  <p>
-                    <strong>Means of Identification:</strong> {item.means_of_identification}
-                  </p>
-                  <p>
-                    <strong>ID Document URL:</strong> {item.id_document_url}
-                  </p>
-                  <p>
-                    <strong>Last Place of Work:</strong> {item.last_place_of_work}
-                  </p>
-                  <p>
-                    <strong>Job Description:</strong> {item.job_description}
-                  </p>
-                  <p>
-                    <strong>Reason for Quitting:</strong> {item.reason_for_quitting}
-                  </p>
-                  <p>
-                    <strong>Medical Condition:</strong> {item.medical_condition}
-                  </p>
-                  <p>
-                    <strong>Next of Kin Name:</strong> {item.next_of_kin_name}
-                  </p>
-                  <p>
-                    <strong>Next of Kin Phone:</strong> {item.next_of_kin_phone}
-                  </p>
-                  <p>
-                    <strong>Next of Kin Address:</strong> {item.next_of_kin_address}
-                  </p>
-                  <p>
-                    <strong>Next of Kin Relationship:</strong> {item.next_of_kin_relationship}
-                  </p>
-                  <p>
-                    <strong>Bank Name:</strong> {item.bank_name}
-                  </p>
-                  <p>
-                    <strong>Account Name:</strong> {item.account_name}
-                  </p>
-                  <p>
-                    <strong>Account Number:</strong> {item.account_number}
-                  </p>
-                  <p>
-                    <strong>Passport Photo URL:</strong> {item.passport_photo_url}
-                  </p>
+                  <p><strong>Date of Birth:</strong> {item.date_of_birth ? new Date(item.date_of_birth).toLocaleDateString() : "N/A"}</p>
+                  <p><strong>Phone:</strong> {item.phone}</p>
+                  <p><strong>Address:</strong> {item.address}</p>
+                  <p><strong>Religion:</strong> {item.religion}</p>
+                  <p><strong>Marital Status:</strong> {item.marital_status}</p>
+                  <p><strong>State of Origin:</strong> {item.state_of_origin}</p>
+                  <p><strong>State of Residence:</strong> {item.state_of_residence}</p>
+                  <p><strong>Mother's Maiden Name:</strong> {item.mothers_maiden_name}</p>
+                  <p><strong>School Attended:</strong> {item.school_attended}</p>
+                  <p><strong>Means of Identification:</strong> {item.means_of_identification}</p>
+                  <p><strong>ID Document URL:</strong> {item.id_document_url}</p>
+                  <p><strong>Last Place of Work:</strong> {item.last_place_of_work}</p>
+                  <p><strong>Job Description:</strong> {item.job_description}</p>
+                  <p><strong>Reason for Quitting:</strong> {item.reason_for_quitting}</p>
+                  <p><strong>Medical Condition:</strong> {item.medical_condition}</p>
+                  <p><strong>Next of Kin Name:</strong> {item.next_of_kin_name}</p>
+                  <p><strong>Next of Kin Phone:</strong> {item.next_of_kin_phone}</p>
+                  <p><strong>Next of Kin Address:</strong> {item.next_of_kin_address}</p>
+                  <p><strong>Next of Kin Relationship:</strong> {item.next_of_kin_relationship}</p>
+                  <p><strong>Bank Name:</strong> {item.bank_name}</p>
+                  <p><strong>Account Name:</strong> {item.account_name}</p>
+                  <p><strong>Account Number:</strong> {item.account_number}</p>
+                  <p><strong>Passport Photo URL:</strong> {item.passport_photo_url}</p>
                 </div>
               )}
             </div>
@@ -220,19 +222,15 @@ function Submissions() {
 
       {/* ---------------- Guarantor Submissions Section ---------------- */}
       <h2 className="text-2xl font-bold my-4">Guarantor Submissions</h2>
-      {submissions && submissions.guarantor && submissions.guarantor.length > 0 ? (
+      {submissions.guarantor && submissions.guarantor.length > 0 ? (
         <div className="space-y-4">
           {submissions.guarantor.map((item) => (
             <div key={item.id} className="border p-4 rounded shadow">
               {/* Summary Section */}
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold">
-                    <span className="mr-2">ID:</span> {item.id}
-                  </p>
-                  <p className="font-semibold">
-                    <span className="mr-2">Relationship:</span> {item.relationship}
-                  </p>
+                  <p className="font-semibold"><span className="mr-2">ID:</span> {item.id}</p>
+                  <p className="font-semibold"><span className="mr-2">Relationship:</span> {item.relationship}</p>
                   <p className="text-sm text-gray-600">
                     Submitted on: {new Date(item.created_at).toLocaleDateString()}
                   </p>
@@ -250,45 +248,31 @@ function Submissions() {
                   >
                     Delete
                   </button>
+                  {/* Reset button for Master Admin */}
+                  {user && user.role === "MasterAdmin" && (
+                    <button
+                      onClick={() => handleReset("guarantor", item.marketer_unique_id)}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+                    >
+                      Reset Form
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Details Section */}
               {openDetails[item.id] && (
                 <div className="mt-4 text-sm text-gray-700">
-                  <p>
-                    <strong>Candidate Well Known:</strong>{" "}
-                    {item.is_candidate_known ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Known Duration:</strong> {item.known_duration}
-                  </p>
-                  <p>
-                    <strong>Occupation:</strong> {item.occupation}
-                  </p>
-                  <p>
-                    <strong>Means of Identification:</strong> {item.means_of_identification}
-                  </p>
-                  <p>
-                    <strong>Identification File URL:</strong> {item.identification_file_url}
-                  </p>
-                  <p>
-                    <strong>Signature URL:</strong> {item.signature_url}
-                  </p>
-                  <p>
-                    <strong>Guarantor's Full Name:</strong> {item.guarantor_full_name}
-                  </p>
-                  <p>
-                    <strong>Guarantor's Home Address:</strong> {item.guarantor_home_address}
-                  </p>
-                  <p>
-                    <strong>Guarantor's Office Address:</strong> {item.guarantor_office_address}
-                  </p>
-                  <p>
-                    <strong>Guarantor's Phone:</strong> {item.guarantor_phone}
-                  </p>
-                  <p>
-                    <strong>Guarantor's Email:</strong> {item.guarantor_email}
-                  </p>
+                  <p><strong>Candidate Well Known:</strong> {item.is_candidate_known ? "Yes" : "No"}</p>
+                  <p><strong>Known Duration:</strong> {item.known_duration}</p>
+                  <p><strong>Occupation:</strong> {item.occupation}</p>
+                  <p><strong>Means of Identification:</strong> {item.means_of_identification}</p>
+                  <p><strong>Identification File URL:</strong> {item.identification_file_url}</p>
+                  <p><strong>Signature URL:</strong> {item.signature_url}</p>
+                  <p><strong>Guarantor's Full Name:</strong> {item.guarantor_full_name}</p>
+                  <p><strong>Guarantor's Home Address:</strong> {item.guarantor_home_address}</p>
+                  <p><strong>Guarantor's Office Address:</strong> {item.guarantor_office_address}</p>
+                  <p><strong>Guarantor's Phone:</strong> {item.guarantor_phone}</p>
+                  <p><strong>Guarantor's Email:</strong> {item.guarantor_email}</p>
                 </div>
               )}
             </div>
@@ -300,19 +284,15 @@ function Submissions() {
 
       {/* ---------------- Commitment Submissions Section ---------------- */}
       <h2 className="text-2xl font-bold my-4">Commitment Submissions</h2>
-      {submissions && submissions.commitment && submissions.commitment.length > 0 ? (
+      {submissions.commitment && submissions.commitment.length > 0 ? (
         <div className="space-y-4">
           {submissions.commitment.map((item) => (
             <div key={item.id} className="border p-4 rounded shadow">
               {/* Summary Section */}
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold">
-                    <span className="mr-2">ID:</span> {item.id}
-                  </p>
-                  <p className="font-semibold">
-                    <span className="mr-2">Direct Sales Rep:</span> {item.direct_sales_rep_name}
-                  </p>
+                  <p className="font-semibold"><span className="mr-2">ID:</span>{item.id}</p>
+                  <p className="font-semibold"><span className="mr-2">Direct Sales Rep:</span>{item.direct_sales_rep_name}</p>
                   <p className="text-sm text-gray-600">
                     Submitted on: {new Date(item.created_at).toLocaleDateString()}
                   </p>
@@ -330,59 +310,32 @@ function Submissions() {
                   >
                     Delete
                   </button>
+                  {/* Reset button for Master Admin */}
+                  {user && user.role === "MasterAdmin" && (
+                    <button
+                      onClick={() => handleReset("commitment", item.marketer_unique_id)}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+                    >
+                      Reset Form
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Details Section */}
               {openDetails[item.id] && (
                 <div className="mt-4 text-sm text-gray-700">
-                  <p>
-                    <strong>Promise Accept False Documents:</strong>{" "}
-                    {item.promise_accept_false_documents ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Request Unrelated Info:</strong>{" "}
-                    {item.promise_not_request_unrelated_info ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Charge Customer Fees:</strong>{" "}
-                    {item.promise_not_charge_customer_fees ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Modify Contract Info:</strong>{" "}
-                    {item.promise_not_modify_contract_info ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Sell Unapproved Phones:</strong>{" "}
-                    {item.promise_not_sell_unapproved_phones ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Make Unofficial Commitment:</strong>{" "}
-                    {item.promise_not_make_unofficial_commitment ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Operate Customer Account:</strong>{" "}
-                    {item.promise_not_operate_customer_account ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Accept Fraud Firing:</strong>{" "}
-                    {item.promise_accept_fraud_firing ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Not Share Company Info:</strong>{" "}
-                    {item.promise_not_share_company_info ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Ensure Loan Recovery:</strong>{" "}
-                    {item.promise_ensure_loan_recovery ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Promise Abide by System:</strong>{" "}
-                    {item.promise_abide_by_system ? "Yes" : "No"}
-                  </p>
-                  <p>
-                    <strong>Date Signed:</strong>{" "}
-                    {item.date_signed ? new Date(item.date_signed).toLocaleDateString() : "N/A"}
-                  </p>
+                  <p><strong>Promise Accept False Documents:</strong> {item.promise_accept_false_documents ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Request Unrelated Info:</strong> {item.promise_not_request_unrelated_info ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Charge Customer Fees:</strong> {item.promise_not_charge_customer_fees ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Modify Contract Info:</strong> {item.promise_not_modify_contract_info ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Sell Unapproved Phones:</strong> {item.promise_not_sell_unapproved_phones ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Make Unofficial Commitment:</strong> {item.promise_not_make_unofficial_commitment ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Operate Customer Account:</strong> {item.promise_not_operate_customer_account ? "Yes" : "No"}</p>
+                  <p><strong>Promise Accept Fraud Firing:</strong> {item.promise_accept_fraud_firing ? "Yes" : "No"}</p>
+                  <p><strong>Promise Not Share Company Info:</strong> {item.promise_not_share_company_info ? "Yes" : "No"}</p>
+                  <p><strong>Promise Ensure Loan Recovery:</strong> {item.promise_ensure_loan_recovery ? "Yes" : "No"}</p>
+                  <p><strong>Promise Abide by System:</strong> {item.promise_abide_by_system ? "Yes" : "No"}</p>
+                  <p><strong>Date Signed:</strong> {item.date_signed ? new Date(item.date_signed).toLocaleDateString() : "N/A"}</p>
                 </div>
               )}
             </div>

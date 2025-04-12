@@ -1,6 +1,6 @@
 // src/components/MarketerDashboard.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate, Outlet } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Home,
   ShoppingCart,
@@ -26,13 +26,17 @@ import AvatarDropdown from "./AvatarDropdown";
 function MarketerDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
-  const [user, setUser] = useState(storedUser ? JSON.parse(storedUser) : null);
+  const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
   const [activeModule, setActiveModule] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
 
-  // Check if user is logged in.
+  // Temporary flag to unlock dashboard during testing.
+  // Set this to true to bypass verification locking logic.
+  const tempUnlockDashboard = true;
+
+  // Redirect if user is not logged in.
   useEffect(() => {
     if (!user) {
       navigate("/");
@@ -60,23 +64,20 @@ function MarketerDashboard() {
     setIsDarkMode((prev) => !prev);
   };
 
-  // If the marketer's verification status is not "verified", force the Verification module.
-  const isVerified = user && user.overall_verification_status === "verified";
+  // Determine if the marketer is verified. If tempUnlockDashboard is true, dashboard will be unlocked regardless.
+  const isVerified = tempUnlockDashboard || (user && user.overall_verification_status === "approved");
 
-  // This function determines which module to render.
+  // Render different modules based on the activeModule state.
   const renderModule = () => {
-    // If the account is not verified, force verification.
+    // If the account is not verified (and temporary unlock is off), force the Verification module.
     if (!isVerified) {
       return (
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-4">
-            Your Dashboard is currently locked.
+            Your Dashboard is Currently Locked.
           </h2>
           <p className="mb-4 text-md">
-            You must complete and submit all the verification forms. Once your
-            information is reviewed and approved by the Admin, SuperAdmin, and
-            Master Admin, your dashboard will be unlocked and you'll have full
-            access to the system.
+            You must complete and submit all verification forms. Once your information is reviewed and approved, your dashboard will be unlocked.
           </p>
           <VerificationMarketer />
         </div>
@@ -104,29 +105,18 @@ function MarketerDashboard() {
     }
   };
 
-  // SidebarItem component for convenience.
-  const SidebarItem = ({
-    label,
-    Icon,
-    moduleName,
-    activeModule,
-    setActiveModule,
-    setSidebarOpen,
-    isDarkMode,
-  }) => {
+  // SidebarItem component renders each item in the sidebar.
+  const SidebarItem = ({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) => {
     const isActive = activeModule === moduleName;
     const handleClick = () => {
-      // If the dashboard is locked, prevent changing to other modules.
+      // If the dashboard is locked and the module isn't verification, prevent navigation.
       if (!isVerified && moduleName !== "verification") {
-        alert(
-          "Your dashboard is locked until your verification is approved. Please complete the verification forms."
-        );
+        alert("Your dashboard is locked until your verification is approved. Please complete your verification forms.");
         return;
       }
       setActiveModule(moduleName);
       setSidebarOpen(false);
     };
-
     return (
       <li>
         <button
@@ -148,7 +138,7 @@ function MarketerDashboard() {
     );
   };
 
-  // Helper to return the user's initial (for avatar fallback)
+  // Helper to return the user's initial (for avatar fallback).
   const getUserInitial = () => {
     if (user) {
       if (user.name) return user.name.charAt(0).toUpperCase();
@@ -186,9 +176,7 @@ function MarketerDashboard() {
             </span>
           </button>
           <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-            {user && user.first_name
-              ? user.first_name.charAt(0).toUpperCase()
-              : "M"}
+            {user && user.first_name ? user.first_name.charAt(0).toUpperCase() : "M"}
           </div>
         </div>
       </header>
@@ -313,12 +301,6 @@ function MarketerDashboard() {
               <p className="text-xs md:text-sm text-gray-500">
                 Unique ID: {user ? user.unique_id : ""}
               </p>
-              {/* If not verified, notify the marketer */}
-              {!isVerified && (
-                <p className="mt-1 text-sm text-red-500">
-                  Your dashboard access is restricted until your verification forms are reviewed and approved.
-                </p>
-              )}
             </div>
             <div className="flex items-center gap-4">
               <AvatarDropdown
@@ -343,22 +325,9 @@ function MarketerDashboard() {
 export default MarketerDashboard;
 
 // SidebarItem component renders each item in the sidebar.
-function SidebarItem({
-  label,
-  Icon,
-  moduleName,
-  activeModule,
-  setActiveModule,
-  setSidebarOpen,
-  isDarkMode,
-}) {
+function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) {
   const isActive = activeModule === moduleName;
   const handleClick = () => {
-    // Prevent navigation to other modules if not verified.
-    if (activeModule !== "verification" && moduleName !== "verification") {
-      alert("Your dashboard is locked until your verification is approved.");
-      return;
-    }
     setActiveModule(moduleName);
     setSidebarOpen(false);
   };
@@ -382,3 +351,23 @@ function SidebarItem({
     </li>
   );
 }
+
+/**
+ * Temporary Dashboard Lock:
+ * The following snippet can be placed at the top of your MarketerDashboard component’s render logic
+ * to force a locked view if the marketer’s overall_verification_status is not "approved" 
+ * (unless temporary unlock is enabled for testing).
+ *
+ * For example, right inside the MarketerDashboard component (before returning the main dashboard):
+ *
+ * if (user.overall_verification_status !== "approved") {
+ *   return (
+ *     <div className="p-4">
+ *       <h2>Your dashboard is locked until verification is complete.</h2>
+ *       <p>Please complete all verification forms and await approval.</p>
+ *     </div>
+ *   );
+ * }
+ *
+ * You can comment out this block when you're ready to unlock the dashboard.
+ */
