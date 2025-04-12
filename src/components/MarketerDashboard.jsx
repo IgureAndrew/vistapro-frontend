@@ -13,14 +13,13 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-// Import your dashboard modules for marketers
+// Import your dashboard modules for marketers.
 import MarketersOverview from "./MarketersOverview"; // Overview module for marketers
 import ProfileUpdate from "./ProfileUpdate";
 import Order from "./Order";
 import Messaging from "./Messaging";
-import VerificationMarketer from "./VerificationMarketer";
+import VerificationMarketer from "./VerificationMarketer"; // Verification module (forms, status, etc.)
 import Wallet from "./Wallet";
-// Import the StockPickup component (note the file name is StockPickup.jsx)
 import MarketerStockPickup from "./MarketerStockPickup";
 import AvatarDropdown from "./AvatarDropdown";
 
@@ -33,7 +32,7 @@ function MarketerDashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
 
-  // Redirect if user is not logged in.
+  // Redirect if the user is not logged in.
   useEffect(() => {
     if (!user) {
       navigate("/");
@@ -76,18 +75,19 @@ function MarketerDashboard() {
         return <ProfileUpdate />;
       case "messages":
         return <Messaging />;
+      // When "verification" is active, load the VerificationMarketer component.
       case "verification":
         return <VerificationMarketer />;
       case "wallet":
         return <Wallet />;
-      case "MarketerStockPickup":
+      case "stock-pickup":
         return <MarketerStockPickup />;
       default:
         return <MarketersOverview />;
     }
   };
 
-  // Helper to return the user's initial (for avatar fallback)
+  // Helper to return the user's initial (for avatar fallback).
   const getUserInitial = () => {
     if (user) {
       if (user.name) return user.name.charAt(0).toUpperCase();
@@ -182,6 +182,7 @@ function MarketerDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
+              {/* Verification item: When clicked, this sets the activeModule to "verification" */}
               <SidebarItem
                 label="Verification"
                 Icon={Bell}
@@ -263,6 +264,7 @@ function MarketerDashboard() {
           </header>
 
           <main className="p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300">
+            {/* Render the module corresponding to the activeModule value */}
             {renderModule()}
           </main>
         </div>
@@ -273,7 +275,7 @@ function MarketerDashboard() {
 
 export default MarketerDashboard;
 
-// SidebarItem component renders each item in the sidebar.
+// SidebarItem component: Renders a sidebar button item.
 function SidebarItem({
   label,
   Icon,
@@ -307,4 +309,11 @@ function SidebarItem({
       </button>
     </li>
   );
+}
+
+// Handle logout functionality.
+function handleLogout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  window.location.href = "/";
 }
