@@ -2,28 +2,54 @@
 import React, { useState, useEffect } from "react";
 
 function Submissions() {
+  // State variables for submissions, loading, errors, and open details.
   const [submissions, setSubmissions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // For toggling details per submission (using submission id)
+  // Track which submission's details are expanded.
   const [openDetails, setOpenDetails] = useState({});
 
+  // Determine the correct API endpoint based on the logged-in user's role.
+  const getEndpointForRole = () => {
+    // Get the user object from localStorage.
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) {
+      return null;
+    }
+    const user = JSON.parse(storedUser);
+    // You can adjust these role names to match exactly how they are stored.
+    switch (user.role) {
+      case "MasterAdmin":
+        return "/api/verification/submissions/master";
+      case "Admin":
+        return "/api/verification/submissions/admin";
+      case "SuperAdmin":
+        return "/api/verification/submissions/superadmin";
+      // If needed, you can add a fallback endpoint.
+      default:
+        return null;
+    }
+  };
+
+  // Fetch submissions using the endpoint determined by the user's role.
   useEffect(() => {
     const fetchSubmissions = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/verification/submissions`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const endpoint = getEndpointForRole();
+        if (!endpoint) {
+          throw new Error("User role not authorized to view submissions or user is not logged in.");
+        }
+        const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         if (!res.ok) {
           throw new Error("Failed to fetch submissions");
         }
         const data = await res.json();
+        // Assumes the data object returned by the backend has a "submissions" property.
         setSubmissions(data.submissions);
       } catch (err) {
         setError(err.message);
@@ -35,6 +61,7 @@ function Submissions() {
     fetchSubmissions();
   }, []);
 
+  // Toggle details view for a submission.
   const toggleDetails = (id) => {
     setOpenDetails((prev) => ({
       ...prev,
@@ -42,26 +69,23 @@ function Submissions() {
     }));
   };
 
-  // Delete a submission by table and id.
+  // Delete a submission by providing the form type (table) and the submission's ID.
   const handleDelete = async (table, id) => {
     if (!window.confirm("Are you sure you want to delete this submission?")) return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/verification/${table}/${id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/${table}/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!res.ok) {
         const data = await res.json();
         alert(data.message || "Failed to delete submission");
         return;
       }
-      // Remove deleted submission from state
+      // Remove the deleted submission from state.
       setSubmissions((prev) => ({
         ...prev,
         [table]: prev[table].filter((item) => item.id !== id),
@@ -78,7 +102,7 @@ function Submissions() {
 
   return (
     <div className="p-4">
-      {/* Biodata Submissions */}
+      {/* ---------------- Biodata Submissions Section ---------------- */}
       <h2 className="text-2xl font-bold mb-4">Biodata Submissions</h2>
       {submissions && submissions.biodata && submissions.biodata.length > 0 ? (
         <div className="space-y-4">
@@ -117,9 +141,7 @@ function Submissions() {
                 <div className="mt-4 text-sm text-gray-700">
                   <p>
                     <strong>Date of Birth:</strong>{" "}
-                    {item.date_of_birth
-                      ? new Date(item.date_of_birth).toLocaleDateString()
-                      : "N/A"}
+                    {item.date_of_birth ? new Date(item.date_of_birth).toLocaleDateString() : "N/A"}
                   </p>
                   <p>
                     <strong>Phone:</strong> {item.phone}
@@ -196,7 +218,7 @@ function Submissions() {
         <p>No biodata submissions yet.</p>
       )}
 
-      {/* Guarantor Submissions */}
+      {/* ---------------- Guarantor Submissions Section ---------------- */}
       <h2 className="text-2xl font-bold my-4">Guarantor Submissions</h2>
       {submissions && submissions.guarantor && submissions.guarantor.length > 0 ? (
         <div className="space-y-4">
@@ -235,7 +257,7 @@ function Submissions() {
                 <div className="mt-4 text-sm text-gray-700">
                   <p>
                     <strong>Candidate Well Known:</strong>{" "}
-                    {item.is_candidate_well_known ? "Yes" : "No"}
+                    {item.is_candidate_known ? "Yes" : "No"}
                   </p>
                   <p>
                     <strong>Known Duration:</strong> {item.known_duration}
@@ -244,10 +266,10 @@ function Submissions() {
                     <strong>Occupation:</strong> {item.occupation}
                   </p>
                   <p>
-                    <strong>ID Document URL:</strong> {item.id_document_url}
+                    <strong>Means of Identification:</strong> {item.means_of_identification}
                   </p>
                   <p>
-                    <strong>Passport Photo URL:</strong> {item.passport_photo_url}
+                    <strong>Identification File URL:</strong> {item.identification_file_url}
                   </p>
                   <p>
                     <strong>Signature URL:</strong> {item.signature_url}
@@ -262,19 +284,10 @@ function Submissions() {
                     <strong>Guarantor's Office Address:</strong> {item.guarantor_office_address}
                   </p>
                   <p>
-                    <strong>Guarantor's Telephone:</strong> {item.guarantor_telephone}
+                    <strong>Guarantor's Phone:</strong> {item.guarantor_phone}
                   </p>
                   <p>
                     <strong>Guarantor's Email:</strong> {item.guarantor_email}
-                  </p>
-                  <p>
-                    <strong>Date:</strong>{" "}
-                    {item.guarantor_date
-                      ? new Date(item.guarantor_date).toLocaleDateString()
-                      : "N/A"}
-                  </p>
-                  <p>
-                    <strong>State of Residence:</strong> {item.state_of_residence}
                   </p>
                 </div>
               )}
@@ -285,7 +298,7 @@ function Submissions() {
         <p>No guarantor submissions yet.</p>
       )}
 
-      {/* Commitment Submissions */}
+      {/* ---------------- Commitment Submissions Section ---------------- */}
       <h2 className="text-2xl font-bold my-4">Commitment Submissions</h2>
       {submissions && submissions.commitment && submissions.commitment.length > 0 ? (
         <div className="space-y-4">
@@ -327,8 +340,8 @@ function Submissions() {
                     {item.promise_accept_false_documents ? "Yes" : "No"}
                   </p>
                   <p>
-                    <strong>Promise Not Request Irrelevant Info:</strong>{" "}
-                    {item.promise_not_request_irrelevant_info ? "Yes" : "No"}
+                    <strong>Promise Not Request Unrelated Info:</strong>{" "}
+                    {item.promise_not_request_unrelated_info ? "Yes" : "No"}
                   </p>
                   <p>
                     <strong>Promise Not Charge Customer Fees:</strong>{" "}
@@ -368,9 +381,7 @@ function Submissions() {
                   </p>
                   <p>
                     <strong>Date Signed:</strong>{" "}
-                    {item.date_signed
-                      ? new Date(item.date_signed).toLocaleDateString()
-                      : "N/A"}
+                    {item.date_signed ? new Date(item.date_signed).toLocaleDateString() : "N/A"}
                   </p>
                 </div>
               )}

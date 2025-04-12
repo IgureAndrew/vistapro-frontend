@@ -1,6 +1,6 @@
 // src/components/MarketerDashboard.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Outlet } from "react-router-dom";
 import {
   Home,
   ShoppingCart,
@@ -18,7 +18,7 @@ import MarketersOverview from "./MarketersOverview"; // Overview module for mark
 import ProfileUpdate from "./ProfileUpdate";
 import Order from "./Order";
 import Messaging from "./Messaging";
-import VerificationMarketer from "./VerificationMarketer"; // Verification module (forms, status, etc.)
+import VerificationMarketer from "./VerificationMarketer";
 import Wallet from "./Wallet";
 import MarketerStockPickup from "./MarketerStockPickup";
 import AvatarDropdown from "./AvatarDropdown";
@@ -26,13 +26,13 @@ import AvatarDropdown from "./AvatarDropdown";
 function MarketerDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
-  const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
+  const [user, setUser] = useState(storedUser ? JSON.parse(storedUser) : null);
   const [activeModule, setActiveModule] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
 
-  // Redirect if the user is not logged in.
+  // Check if user is logged in.
   useEffect(() => {
     if (!user) {
       navigate("/");
@@ -60,12 +60,30 @@ function MarketerDashboard() {
     setIsDarkMode((prev) => !prev);
   };
 
-  const handleReturn = () => {
-    setActiveModule("overview");
-  };
+  // If the marketer's verification status is not "verified", force the Verification module.
+  const isVerified = user && user.overall_verification_status === "verified";
 
-  // Render module based on activeModule state.
+  // This function determines which module to render.
   const renderModule = () => {
+    // If the account is not verified, force verification.
+    if (!isVerified) {
+      return (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-4">
+            Your Dashboard is currently locked.
+          </h2>
+          <p className="mb-4 text-md">
+            You must complete and submit all the verification forms. Once your
+            information is reviewed and approved by the Admin, SuperAdmin, and
+            Master Admin, your dashboard will be unlocked and you'll have full
+            access to the system.
+          </p>
+          <VerificationMarketer />
+        </div>
+      );
+    }
+
+    // If verified, render the module based on the activeModule state.
     switch (activeModule) {
       case "overview":
         return <MarketersOverview />;
@@ -75,7 +93,6 @@ function MarketerDashboard() {
         return <ProfileUpdate />;
       case "messages":
         return <Messaging />;
-      // When "verification" is active, load the VerificationMarketer component.
       case "verification":
         return <VerificationMarketer />;
       case "wallet":
@@ -87,7 +104,51 @@ function MarketerDashboard() {
     }
   };
 
-  // Helper to return the user's initial (for avatar fallback).
+  // SidebarItem component for convenience.
+  const SidebarItem = ({
+    label,
+    Icon,
+    moduleName,
+    activeModule,
+    setActiveModule,
+    setSidebarOpen,
+    isDarkMode,
+  }) => {
+    const isActive = activeModule === moduleName;
+    const handleClick = () => {
+      // If the dashboard is locked, prevent changing to other modules.
+      if (!isVerified && moduleName !== "verification") {
+        alert(
+          "Your dashboard is locked until your verification is approved. Please complete the verification forms."
+        );
+        return;
+      }
+      setActiveModule(moduleName);
+      setSidebarOpen(false);
+    };
+
+    return (
+      <li>
+        <button
+          onClick={handleClick}
+          className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
+            isActive
+              ? isDarkMode
+                ? "bg-gray-700 font-semibold text-white"
+                : "bg-blue-100 font-semibold text-black"
+              : isDarkMode
+              ? "hover:bg-gray-700 text-white"
+              : "hover:bg-gray-50 text-black"
+          }`}
+        >
+          {Icon && <Icon size={16} />}
+          <span>{label}</span>
+        </button>
+      </li>
+    );
+  };
+
+  // Helper to return the user's initial (for avatar fallback)
   const getUserInitial = () => {
     if (user) {
       if (user.name) return user.name.charAt(0).toUpperCase();
@@ -125,7 +186,9 @@ function MarketerDashboard() {
             </span>
           </button>
           <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-            {user && user.first_name ? user.first_name.charAt(0).toUpperCase() : "M"}
+            {user && user.first_name
+              ? user.first_name.charAt(0).toUpperCase()
+              : "M"}
           </div>
         </div>
       </header>
@@ -182,7 +245,6 @@ function MarketerDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Verification item: When clicked, this sets the activeModule to "verification" */}
               <SidebarItem
                 label="Verification"
                 Icon={Bell}
@@ -251,6 +313,12 @@ function MarketerDashboard() {
               <p className="text-xs md:text-sm text-gray-500">
                 Unique ID: {user ? user.unique_id : ""}
               </p>
+              {/* If not verified, notify the marketer */}
+              {!isVerified && (
+                <p className="mt-1 text-sm text-red-500">
+                  Your dashboard access is restricted until your verification forms are reviewed and approved.
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <AvatarDropdown
@@ -264,7 +332,6 @@ function MarketerDashboard() {
           </header>
 
           <main className="p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300">
-            {/* Render the module corresponding to the activeModule value */}
             {renderModule()}
           </main>
         </div>
@@ -275,7 +342,7 @@ function MarketerDashboard() {
 
 export default MarketerDashboard;
 
-// SidebarItem component: Renders a sidebar button item.
+// SidebarItem component renders each item in the sidebar.
 function SidebarItem({
   label,
   Icon,
@@ -287,6 +354,11 @@ function SidebarItem({
 }) {
   const isActive = activeModule === moduleName;
   const handleClick = () => {
+    // Prevent navigation to other modules if not verified.
+    if (activeModule !== "verification" && moduleName !== "verification") {
+      alert("Your dashboard is locked until your verification is approved.");
+      return;
+    }
     setActiveModule(moduleName);
     setSidebarOpen(false);
   };
@@ -309,11 +381,4 @@ function SidebarItem({
       </button>
     </li>
   );
-}
-
-// Handle logout functionality.
-function handleLogout() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-  window.location.href = "/";
 }
