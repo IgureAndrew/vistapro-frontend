@@ -24,7 +24,7 @@ function Order() {
   // Function to fetch orders for the marketer.
   const fetchOrders = async () => {
     try {
-      const res = await fetch("https://vistapro-backend.onrender.com/api/marketer/orders", {
+      const res = await fetch("https://vistapro-backend.onrender.com/api/manage-orders/order", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

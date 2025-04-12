@@ -1,15 +1,28 @@
 // src/components/VerificationMarketer.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ApplicantBiodataForm from "./ApplicantBiodataForm";
 import ApplicantGuarantorForm from "./ApplicantGuarantorForm";
 import ApplicantCommitmentForm from "./ApplicantCommitmentForm";
 
 function VerificationMarketer({ onComplete }) {
-  // Step 1: Biodata, Step 2: Guarantor, Step 3: Commitment
-  const [step, setStep] = useState(1);
+  // Check if there's a saved step in localStorage; otherwise, default to step 1.
+  const savedStep = localStorage.getItem("verificationStep");
+  const [step, setStep] = useState(savedStep ? Number(savedStep) : 1);
 
+  // When the step changes, persist it in localStorage.
+  useEffect(() => {
+    localStorage.setItem("verificationStep", step);
+  }, [step]);
+
+  // Functions to advance or go back a step.
   const nextStep = () => setStep((prev) => prev + 1);
-  const prevStep = () => setStep((prev) => prev - 1);
+  const prevStep = () => setStep((prev) => (prev > 1 ? prev - 1 : 1));
+
+  // When the final step is completed, clear the saved step.
+  const finishVerification = () => {
+    localStorage.removeItem("verificationStep");
+    if (onComplete) onComplete();
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -43,8 +56,10 @@ function VerificationMarketer({ onComplete }) {
         <div>
           <ApplicantCommitmentForm
             onSuccess={() => {
-              alert("Commitment form submitted successfully! Verification process completed. Await further review.");
-              if (onComplete) onComplete();
+              alert(
+                "Commitment form submitted successfully! Verification process completed. Await further review."
+              );
+              finishVerification();
             }}
           />
           <div className="mt-4">
