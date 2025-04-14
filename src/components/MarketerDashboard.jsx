@@ -35,7 +35,7 @@ function MarketerDashboard() {
 
   // Temporary flag to unlock dashboard during testing.
   // Set this to true to bypass verification locking logic.
-  const tempUnlockDashboard = false;
+  const tempUnlockDashboard = true;
 
   // Redirect if user is not logged in.
   useEffect(() => {
