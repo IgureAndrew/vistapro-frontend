@@ -46,19 +46,19 @@ function Submissions() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
-          throw new Error("Failed to fetch submissions");
+          const errorData = await res.json();
+          throw new Error(errorData.message || "Failed to fetch submissions");
         }
         const data = await res.json();
         // Expected structure: data.submissions has keys: biodata, guarantor, commitment.
         const { biodata = [], guarantor = [], commitment = [] } = data.submissions;
-        // Tag each with a type.
+        // Tag each submission with its type.
         const taggedBiodata = biodata.map((item) => ({ ...item, type: "Biodata" }));
         const taggedGuarantor = guarantor.map((item) => ({ ...item, type: "Guarantor" }));
         const taggedCommitment = commitment.map((item) => ({ ...item, type: "Commitment" }));
 
-        // Combine all and then group them by marketer_unique_id (if needed).
+        // Combine all submissions into one array.
         const combined = [...taggedBiodata, ...taggedGuarantor, ...taggedCommitment];
-        // If you want one row per marketer (showing for each type), you can also group; for this example we assume each submission is an individual row.
         setSubmissions(combined);
       } catch (err) {
         setError(err.message);
@@ -74,7 +74,8 @@ function Submissions() {
     selectedFormType === "All"
       ? submissions
       : submissions.filter(
-          (sub) => sub.type.toLowerCase() === selectedFormType.toLowerCase()
+          (sub) =>
+            sub.type.toLowerCase() === selectedFormType.toLowerCase()
         );
 
   // Open modal with details.
@@ -89,21 +90,26 @@ function Submissions() {
     setModalData(null);
   };
 
-  // Handlers for delete, reset, and approve (unchanged from previous implementations).
+  // Handler for deleting a submission.
   const handleDelete = async (table, submissionId) => {
     if (!window.confirm("Are you sure you want to delete this submission?")) return;
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/api/verification/${table.toLowerCase()}/${submissionId}`,
-        { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       if (!res.ok) {
         const data = await res.json();
         alert(data.message || "Failed to delete submission");
         return;
       }
-      setSubmissions((prev) => prev.filter((item) => item.id !== submissionId));
+      setSubmissions((prev) =>
+        prev.filter((item) => item.id !== submissionId)
+      );
       alert("Submission deleted successfully.");
     } catch (error) {
       console.error("Error deleting submission:", error);
@@ -111,6 +117,7 @@ function Submissions() {
     }
   };
 
+  // Handler for allowing a refill (reset) of a submission flag.
   const handleReset = async (item) => {
     if (!window.confirm(`Allow refill for ${item.type} form?`)) return;
     try {
@@ -138,6 +145,7 @@ function Submissions() {
     }
   };
 
+  // Handler for approving a marketer (Master Admin only).
   const handleApprove = async (item) => {
     if (!window.confirm("Approve and verify this marketer?")) return;
     try {
@@ -148,7 +156,9 @@ function Submissions() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ marketerUniqueId: item.marketer_unique_id }),
+        body: JSON.stringify({
+          marketerUniqueId: item.marketer_unique_id,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -165,7 +175,8 @@ function Submissions() {
 
   if (loading) return <p>Loading submissions...</p>;
   if (error) return <p>Error: {error}</p>;
-  if (filteredSubmissions.length === 0) return <p>No submissions available for the selected form type.</p>;
+  if (filteredSubmissions.length === 0)
+    return <p>No submissions available for the selected form type.</p>;
 
   return (
     <div className="p-4">
@@ -256,7 +267,7 @@ function Submissions() {
                     {value
                       ? typeof value === "string"
                         ? value
-                        : JSON.stringify(value)
+                        : JSON.stringify(value, null, 2)
                       : "N/A"}
                   </div>
                 ))}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import io from "socket.io-client";
 import {
   Home,
   ShoppingCart,
@@ -14,8 +15,6 @@ import {
 
 // Import your dashboard modules for marketers.
 import MarketersOverview from "./MarketersOverview"; // Overview module for marketers
-// Removed the old ProfileUpdate module.
-// Instead, import the new Account Settings component.
 import MarketerAccountSettings from "./MarketerAccountSettings";
 import Order from "./Order";
 import Messaging from "./Messaging";
@@ -24,27 +23,41 @@ import Wallet from "./Wallet";
 import MarketerStockPickup from "./MarketerStockPickup";
 import AvatarDropdown from "./AvatarDropdown";
 
+// Initialize the socket connection to your backend URL.
+// Make sure you include HTTPS because your backend is secured.
+const socket = io("https://vistapro-backend.onrender.com");
+
 function MarketerDashboard() {
   const navigate = useNavigate();
+
+  // Retrieve stored user from localStorage.
   const storedUser = localStorage.getItem("user");
-  const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
+  const [user, setUser] = useState(storedUser ? JSON.parse(storedUser) : null);
+
+  // Set initial active module (e.g., "overview").
   const [activeModule, setActiveModule] = useState("overview");
+
+  // State to control sidebar visibility (for small screens).
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // State to toggle dark mode.
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Greeting message which may change based on previous visits.
   const [greeting, setGreeting] = useState("Welcome");
 
   // Temporary flag to unlock dashboard during testing.
-  // Set this to true to bypass verification locking logic.
-  const tempUnlockDashboard = true;
+  // Set to true to bypass verification locking logic.
+  const tempUnlockDashboard = false;
 
-  // Redirect if user is not logged in.
+  // If no user is logged in, navigate back to the login page.
   useEffect(() => {
     if (!user) {
       navigate("/");
     }
   }, [user, navigate]);
 
-  // Set greeting based on previous visits.
+  // Set greeting message on component load.
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedMarketerDashboard");
     if (hasVisited) {
@@ -55,24 +68,49 @@ function MarketerDashboard() {
     }
   }, []);
 
+  // Logout handler clears token and user data from localStorage and redirects.
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/");
   };
 
+  // Toggle dark mode handler.
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => !prev);
   };
 
   // Determine if the marketer is verified.
+  // isVerified is true if the temporary flag is on or if the user's overall verification status is "approved".
   const isVerified =
     tempUnlockDashboard ||
     (user && user.overall_verification_status === "approved");
 
-  // Render different modules based on the activeModule state.
+  // Integrate Socket.IO functionality.
+  useEffect(() => {
+    // If user exists and has a unique_id, register this socket connection on the backend.
+    if (user && user.unique_id) {
+      socket.emit("register", user.unique_id);
+    }
+
+    // Listen for "verificationApproved" events.
+    socket.on("verificationApproved", (data) => {
+      if (user && data.marketerUniqueId === user.unique_id) {
+        alert(data.message); // Display notification to the user.
+        // Optionally, update the user state to reflect verification (uncomment below if desired):
+        // setUser({ ...user, overall_verification_status: "approved" });
+      }
+    });
+
+    // Cleanup: disconnect the socket on component unmount.
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
+  // Render the dashboard module based on activeModule.
+  // If not verified, force the locked state by showing VerificationMarketer.
   const renderModule = () => {
-    // If the account is not verified and temporary unlock is off, force Verification module.
     if (!isVerified) {
       return (
         <div className="p-6">
@@ -81,15 +119,14 @@ function MarketerDashboard() {
           </h2>
           <p className="mb-4 text-md">
             You must complete and submit all verification forms. Once your
-            information is reviewed and approved, your dashboard will be
-            unlocked.
+            information is reviewed and approved, your dashboard will be unlocked.
           </p>
           <VerificationMarketer />
         </div>
       );
     }
 
-    // Render module based on activeModule state.
+    // Render module based on the activeModule state.
     switch (activeModule) {
       case "overview":
         return <MarketersOverview />;
@@ -110,7 +147,7 @@ function MarketerDashboard() {
     }
   };
 
-  // SidebarItem component renders each item in the sidebar.
+  // SidebarItem component for rendering each sidebar option.
   const SidebarItem = ({
     label,
     Icon,
@@ -122,7 +159,7 @@ function MarketerDashboard() {
   }) => {
     const isActive = activeModule === moduleName;
     const handleClick = () => {
-      // If the dashboard is locked and the module isn't verification, prevent navigation.
+      // Prevent navigation to other modules if the dashboard is locked (except for the verification module).
       if (!isVerified && moduleName !== "verification") {
         alert(
           "Your dashboard is locked until your verification is approved. Please complete your verification forms."
@@ -153,7 +190,7 @@ function MarketerDashboard() {
     );
   };
 
-  // Helper to return the user's initial (for avatar fallback).
+  // Helper function to display user initial for avatar fallback.
   const getUserInitial = () => {
     if (user) {
       if (user.name) return user.name.charAt(0).toUpperCase();
@@ -232,7 +269,7 @@ function MarketerDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Replace old ProfileUpdate with Account Settings */}
+              {/* Replacing old ProfileUpdate with Account Settings */}
               <SidebarItem
                 label="Account Settings"
                 Icon={User}
@@ -377,5 +414,3 @@ function SidebarItem({
     </li>
   );
 }
-
-// (If needed, additional helper or temporary dashboard lock code can be placed here.)

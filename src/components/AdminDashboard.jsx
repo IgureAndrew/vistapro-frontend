@@ -1,4 +1,3 @@
-// src/components/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,13 +12,13 @@ import {
 
 // Import module components for each section.
 import ProfileUpdate from "./ProfileUpdate";
-import Product from "./Product";
+// Removed Product and AssignUsers imports.
+// import Product from "./Product";
 import ManageOrders from "./ManageOrders";
 import StockManagement from "./StockManagement";
 import Messaging from "./Messaging";
 import Submissions from "./Submissions";
-import AssignUsers from "./AssignUsers";
-// Assume you have Verification and Wallet components.
+// Keep Verification and Wallet components.
 import Verification from "./Verification";
 import Wallet from "./Wallet";
 import AvatarDropdown from "./AvatarDropdown";
@@ -64,8 +63,7 @@ function AdminDashboard() {
     switch (activeModule) {
       case "profile":
         return <ProfileUpdate />;
-      case "product":
-        return <Product />;
+      // Removed "product" case.
       case "manage-orders":
         return <ManageOrders />;
       case "stock":
@@ -74,8 +72,7 @@ function AdminDashboard() {
         return <Messaging />;
       case "submissions":
         return <Submissions />;
-      case "assign":
-        return <AssignUsers />;
+      // Removed "assign" case.
       case "verification":
         return <Verification />;
       case "wallet":
@@ -151,15 +148,7 @@ function AdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              <SidebarItem
-                label="Product"
-                Icon={ShoppingCart}
-                moduleName="product"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
+              {/* Removed the Product sidebar item */}
               <SidebarItem
                 label="Manage Orders"
                 Icon={ClipboardList}
@@ -196,15 +185,7 @@ function AdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              <SidebarItem
-                label="Assign"
-                Icon={() => <span className="text-lg">+</span>}
-                moduleName="assign"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
+              {/* Removed "Assign" sidebar item */}
               <SidebarItem
                 label="Verification"
                 Icon={FileText}
@@ -279,12 +260,10 @@ export default AdminDashboard;
 // SidebarItem component renders each item in the sidebar.
 function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) {
   const isActive = activeModule === moduleName;
-
   const handleClick = () => {
     setActiveModule(moduleName);
     setSidebarOpen(false);
   };
-
   return (
     <li>
       <button

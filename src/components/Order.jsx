@@ -14,7 +14,7 @@ function Order() {
     customer_phone: "",
     customer_address: "",
     bnpl_platform: "",
-    sale_date: "",
+    // Removed sale_date - this will be set automatically in the backend.
   });
 
   // State to hold orders fetched from the backend.
@@ -64,13 +64,13 @@ function Order() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        // Send the new orderData (with imei field, and without marketer_selling_price)
+        // Send the new orderData (sale_date is not sent, backend auto-sets it)
         body: JSON.stringify(orderData),
       });
       const data = await res.json();
       if (res.ok) {
         alert("Order placed successfully!");
-        // Reset the form with default values.
+        // Reset the form with default values (without sale_date).
         setOrderData({
           device_name: "",
           device_model: "",
@@ -82,7 +82,6 @@ function Order() {
           customer_phone: "",
           customer_address: "",
           bnpl_platform: "",
-          sale_date: "",
         });
         // Refresh the list of orders.
         fetchOrders();
@@ -148,7 +147,6 @@ function Order() {
           />
         </div>
         {/* Pricing & Quantity */}
-        {/* Removed marketer_selling_price field */}
         <div>
           <label className="block font-bold mb-1">Number of Devices</label>
           <input
@@ -205,7 +203,7 @@ function Order() {
             required
           />
         </div>
-        {/* BNPL Platform and Sale Date */}
+        {/* BNPL Platform */}
         <div>
           <label className="block font-bold mb-1">BNPL Platform</label>
           <select
@@ -219,16 +217,6 @@ function Order() {
             <option value="EASYBUY">EASYBUY</option>
             <option value="CREDIT DIRECT">CREDIT DIRECT</option>
           </select>
-        </div>
-        <div>
-          <label className="block font-bold mb-1">Sale Date</label>
-          <input
-            type="datetime-local"
-            name="sale_date"
-            value={orderData.sale_date}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          />
         </div>
 
         <button type="submit" className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded">

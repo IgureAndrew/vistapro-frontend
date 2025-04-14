@@ -1,4 +1,3 @@
-// src/components/UsersManagement.jsx
 import React, { useState, useEffect } from "react";
 import Modal from "../components/Modal";
 import { UserIcon } from "@heroicons/react/24/outline";
@@ -13,22 +12,21 @@ const NIGERIAN_STATES = [
 ];
 
 function UsersManagement() {
-  // Users state and error state.
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Pagination state.
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 20;
 
-  // Modal states for adding and editing users.
+  // Modals for add/edit
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
+
+  // The user we are editing
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Form states for add and edit operations.
-  const [formData, setFormData] = useState({
+  // Form data for ADD user
+  const [addFormData, setAddFormData] = useState({
     role: "",
     first_name: "",
     last_name: "",
@@ -46,6 +44,7 @@ function UsersManagement() {
     registrationCertificate: null,
   });
 
+  // Form data for EDIT user
   const [editFormData, setEditFormData] = useState({
     role: "",
     first_name: "",
@@ -64,16 +63,17 @@ function UsersManagement() {
     registrationCertificate: null,
   });
 
-  // API base URL and token.
+  const [showPassword, setShowPassword] = useState(false);
+  const toggleShowPassword = () => setShowPassword((prev) => !prev);
+
   const baseUrl = "https://vistapro-backend.onrender.com/api/master-admin/users";
   const token = localStorage.getItem("token");
 
-  // Fetch users on mount.
+  // Fetch users
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Fetch users function.
   const fetchUsers = async () => {
     try {
       const currentToken = localStorage.getItem("token");
@@ -95,35 +95,10 @@ function UsersManagement() {
     }
   };
 
-  // Filter users based on search term including role.
-  const filteredUsers = users.filter((user) => {
-    const term = searchTerm.toLowerCase();
-    const nameString =
-      user.role === "Dealer"
-        ? user.business_name || `${user.first_name} ${user.last_name}`
-        : `${user.first_name || ""} ${user.last_name || ""}`;
-    return (
-      nameString.toLowerCase().includes(term) ||
-      (user.email || "").toLowerCase().includes(term) ||
-      (user.id && user.id.toString().includes(term)) ||
-      (user.role || "").toLowerCase().includes(term) // Added search by role.
-    );
-  });
-
-  // Pagination: calculate the users for the current page.
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-
-  // Pagination handler function.
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-  };
-
-  // Modal management functions.
+  // -------------------- ADD USER LOGIC --------------------
   const openAddUserModal = () => {
-    setFormData({
+    // Reset addFormData to defaults
+    setAddFormData({
       role: "",
       first_name: "",
       last_name: "",
@@ -143,65 +118,43 @@ function UsersManagement() {
     setShowAddUserModal(true);
   };
 
-  const closeAddUserModal = () => setShowAddUserModal(false);
-
-  const openEditUserModal = (user) => {
-    setSelectedUser(user);
-    setEditFormData({
-      role: user.role || "",
-      first_name: user.first_name || "",
-      last_name: user.last_name || "",
-      gender: user.gender || "",
-      email: user.email || "",
-      password: "",
-      bank_name: user.bank_name || "",
-      account_number: user.account_number || "",
-      account_name: user.account_name || "",
-      location: user.location || "",
-      registered_business_name: user.business_name || "",
-      registered_business_address: user.business_address || "",
-      business_account_name: user.business_account_name || "",
-      business_account_number: user.business_account_number || "",
-      registrationCertificate: null,
-    });
-    setShowEditUserModal(true);
+  const closeAddUserModal = () => {
+    setShowAddUserModal(false);
   };
 
-  const closeEditUserModal = () => {
-    setSelectedUser(null);
-    setShowEditUserModal(false);
-  };
-
-  // Handler for input changes in add/edit forms.
-  const handleChange = (e) => {
+  const handleAddChange = (e) => {
     const { name, value, type, files } = e.target;
     if (type === "file") {
-      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+      setAddFormData((prev) => ({ ...prev, [name]: files[0] }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setAddFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  // Placeholder function to handle adding a user.
-  const handleAddUser = async (e) => {
+  const handleAddUserSubmit = async (e) => {
     e.preventDefault();
-    const currentToken = localStorage.getItem("token");
-    if (!currentToken) {
+    if (!token) {
       alert("No token provided. Please log in again.");
       return;
     }
     try {
       let payload;
-      let headers = { Authorization: `Bearer ${currentToken}` };
-      if (formData.role === "Dealer" && formData.registrationCertificate) {
+      let headers = { Authorization: `Bearer ${token}` };
+
+      // If creating a Dealer with a PDF certificate, use FormData
+      if (
+        addFormData.role === "Dealer" &&
+        addFormData.registrationCertificate
+      ) {
         payload = new FormData();
-        for (const key in formData) {
-          payload.append(key, formData[key]);
+        for (const key in addFormData) {
+          payload.append(key, addFormData[key]);
         }
       } else {
-        payload = JSON.stringify(formData);
+        payload = JSON.stringify(addFormData);
         headers["Content-Type"] = "application/json";
       }
+
       const res = await fetch(baseUrl, {
         method: "POST",
         headers,
@@ -221,23 +174,88 @@ function UsersManagement() {
     }
   };
 
-  // Placeholder function for editing a user.
-  const handleEditUserSubmit = async (e) => {
-    e.preventDefault();
-    // Implement update logic similar to handleAddUser.
-    console.log("Edit form submitted:", editFormData);
-    closeEditUserModal();
+  // -------------------- EDIT USER LOGIC --------------------
+  const openEditUserModal = (user) => {
+    setSelectedUser(user);
+    // Pre-populate editFormData
+    setEditFormData({
+      role: user.role || "",
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      gender: user.gender || "",
+      email: user.email || "",
+      password: "", // not shown (only if they want to reset)
+      bank_name: user.bank_name || "",
+      account_number: user.account_number || "",
+      account_name: user.account_name || "",
+      location: user.location || "",
+      registered_business_name: user.business_name || "",
+      registered_business_address: user.business_address || "",
+      business_account_name: user.business_account_name || "",
+      business_account_number: user.business_account_number || "",
+      registrationCertificate: null,
+    });
+    setShowEditUserModal(true);
   };
 
-  // Handlers for locking, unlocking, and deleting users.
+  const closeEditUserModal = () => {
+    setShowEditUserModal(false);
+    setSelectedUser(null);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value, type, files } = e.target;
+    if (type === "file") {
+      setEditFormData((prev) => ({ ...prev, [name]: files[0] }));
+    } else {
+      setEditFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleEditUserSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedUser || !selectedUser.unique_id) {
+      alert("No user selected for update.");
+      return;
+    }
+    if (!token) {
+      alert("No token provided. Please log in again.");
+      return;
+    }
+
+    try {
+      // We'll do a simple JSON body approach (assuming PDF updates are not required for editing).
+      // If you need to handle PDF re-upload for editing, you'd do it similarly to handleAddUserSubmit.
+      const res = await fetch(`${baseUrl}/${selectedUser.unique_id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editFormData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("User updated successfully!");
+        fetchUsers();
+        closeEditUserModal();
+      } else {
+        alert(data.message || "Failed to update user");
+      }
+    } catch (error) {
+      console.error("Error updating user:", error);
+      alert("Error updating user");
+    }
+  };
+
+  // -------------------- LOCK / UNLOCK / DELETE --------------------
   const handleLockUser = async (userId) => {
-    const currentToken = localStorage.getItem("token");
     try {
       const res = await fetch(`${baseUrl}/${userId}/lock`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${currentToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       const data = await res.json();
@@ -254,13 +272,12 @@ function UsersManagement() {
   };
 
   const handleUnlockUser = async (userId) => {
-    const currentToken = localStorage.getItem("token");
     try {
       const res = await fetch(`${baseUrl}/${userId}/unlock`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${currentToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       const data = await res.json();
@@ -278,13 +295,12 @@ function UsersManagement() {
 
   const handleDeleteUser = async (userId) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
-    const currentToken = localStorage.getItem("token");
     try {
       const res = await fetch(`${baseUrl}/${userId}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${currentToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       const data = await res.json();
@@ -300,10 +316,31 @@ function UsersManagement() {
     }
   };
 
-  // Handler for toggling password visibility in modals.
-  const [showPassword, setShowPassword] = useState(false);
-  const toggleShowPassword = () => setShowPassword((prev) => !prev);
+  // -------------------- SEARCH & PAGINATION --------------------
+  const filteredUsers = users.filter((user) => {
+    const term = searchTerm.toLowerCase();
+    const nameString =
+      user.role === "Dealer"
+        ? user.business_name || `${user.first_name} ${user.last_name}`
+        : `${user.first_name || ""} ${user.last_name || ""}`;
+    return (
+      nameString.toLowerCase().includes(term) ||
+      (user.email || "").toLowerCase().includes(term) ||
+      (user.id && user.id.toString().includes(term)) ||
+      (user.role || "").toLowerCase().includes(term)
+    );
+  });
 
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // -------------------- RENDER --------------------
   return (
     <div className="p-6 space-y-6 bg-gray-100 min-h-screen">
       {/* Header */}
@@ -313,7 +350,7 @@ function UsersManagement() {
           onClick={openAddUserModal}
           className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
         >
-          Add User
+          Add Users
         </button>
       </div>
 
@@ -451,21 +488,19 @@ function UsersManagement() {
         ))}
       </div>
 
-      {/* Add / Edit User Modal */}
+      {/* ADD USER MODAL */}
       {showAddUserModal && (
         <Modal isOpen={showAddUserModal} onClose={closeAddUserModal}>
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-md mx-auto max-h-[60vh] overflow-y-auto">
-            <h3 className="text-2xl font-bold mb-4">
-              {selectedUser ? "Edit User" : "Add New User"}
-            </h3>
-            <form onSubmit={selectedUser ? handleEditUserSubmit : handleAddUser} className="space-y-4">
+            <h3 className="text-2xl font-bold mb-4">Add New User</h3>
+            <form onSubmit={handleAddUserSubmit} className="space-y-4">
               {/* Role Field */}
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Role</label>
                 <select
                   name="role"
-                  value={formData.role}
-                  onChange={handleChange}
+                  value={addFormData.role}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 >
@@ -483,8 +518,8 @@ function UsersManagement() {
                   type="text"
                   name="first_name"
                   placeholder="First Name"
-                  value={formData.first_name}
-                  onChange={handleChange}
+                  value={addFormData.first_name}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -495,8 +530,8 @@ function UsersManagement() {
                   type="text"
                   name="last_name"
                   placeholder="Last Name"
-                  value={formData.last_name}
-                  onChange={handleChange}
+                  value={addFormData.last_name}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -505,8 +540,8 @@ function UsersManagement() {
                 <label className="block font-bold text-gray-700 mb-1">Gender</label>
                 <select
                   name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
+                  value={addFormData.gender}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 >
@@ -521,8 +556,8 @@ function UsersManagement() {
                   type="email"
                   name="email"
                   placeholder="Email"
-                  value={formData.email}
-                  onChange={handleChange}
+                  value={addFormData.email}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -533,8 +568,8 @@ function UsersManagement() {
                   type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder="Password (min 12 with letters, numbers, & special characters)"
-                  value={formData.password}
-                  onChange={handleChange}
+                  value={addFormData.password}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -552,8 +587,8 @@ function UsersManagement() {
                   type="text"
                   name="bank_name"
                   placeholder="Bank Name"
-                  value={formData.bank_name}
-                  onChange={handleChange}
+                  value={addFormData.bank_name}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -564,8 +599,8 @@ function UsersManagement() {
                   type="text"
                   name="account_number"
                   placeholder="Account Number (10 digits)"
-                  value={formData.account_number}
-                  onChange={handleChange}
+                  value={addFormData.account_number}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -576,8 +611,8 @@ function UsersManagement() {
                   type="text"
                   name="account_name"
                   placeholder="Account Name"
-                  value={formData.account_name}
-                  onChange={handleChange}
+                  value={addFormData.account_name}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 />
@@ -586,8 +621,8 @@ function UsersManagement() {
                 <label className="block font-bold text-gray-700 mb-1">Location (State)</label>
                 <select
                   name="location"
-                  value={formData.location}
-                  onChange={handleChange}
+                  value={addFormData.location}
+                  onChange={handleAddChange}
                   className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                   required
                 >
@@ -600,7 +635,7 @@ function UsersManagement() {
                 </select>
               </div>
               {/* Dealer-specific Fields */}
-              {formData.role === "Dealer" && (
+              {addFormData.role === "Dealer" && (
                 <>
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
@@ -610,8 +645,8 @@ function UsersManagement() {
                       type="text"
                       name="registered_business_name"
                       placeholder="Registered Business Name"
-                      value={formData.registered_business_name}
-                      onChange={handleChange}
+                      value={addFormData.registered_business_name}
+                      onChange={handleAddChange}
                       className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                       required
                     />
@@ -624,8 +659,8 @@ function UsersManagement() {
                       type="text"
                       name="registered_business_address"
                       placeholder="Registered Business Address"
-                      value={formData.registered_business_address}
-                      onChange={handleChange}
+                      value={addFormData.registered_business_address}
+                      onChange={handleAddChange}
                       className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                       required
                     />
@@ -638,8 +673,8 @@ function UsersManagement() {
                       type="text"
                       name="business_account_name"
                       placeholder="Business Account Name"
-                      value={formData.business_account_name}
-                      onChange={handleChange}
+                      value={addFormData.business_account_name}
+                      onChange={handleAddChange}
                       className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                       required
                     />
@@ -652,8 +687,8 @@ function UsersManagement() {
                       type="text"
                       name="business_account_number"
                       placeholder="Business Account Number"
-                      value={formData.business_account_number}
-                      onChange={handleChange}
+                      value={addFormData.business_account_number}
+                      onChange={handleAddChange}
                       className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                       required
                     />
@@ -666,21 +701,17 @@ function UsersManagement() {
                       type="file"
                       name="registrationCertificate"
                       accept="application/pdf"
-                      onChange={handleChange}
+                      onChange={handleAddChange}
                       className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                       required
                     />
                   </div>
                 </>
               )}
-
               <div className="flex justify-end gap-4 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAddUserModal(false);
-                    closeEditUserModal();
-                  }}
+                  onClick={closeAddUserModal}
                   className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
                 >
                   Cancel
@@ -689,7 +720,7 @@ function UsersManagement() {
                   type="submit"
                   className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
                 >
-                  {selectedUser ? "Update" : "Save"}
+                  Save
                 </button>
               </div>
             </form>
@@ -697,122 +728,124 @@ function UsersManagement() {
         </Modal>
       )}
 
+      {/* EDIT USER MODAL */}
       {showEditUserModal && selectedUser && (
         <Modal isOpen={showEditUserModal} onClose={closeEditUserModal}>
-          <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md mx-auto max-h-[60vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold mb-4">Edit User</h3>
-            {selectedUser && (
-              <form onSubmit={handleEditUserSubmit} className="space-y-4">
-                {selectedUser.role === "Dealer" ? (
-                  <>
-                    <label className="block mb-1 font-medium">Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={selectedUser.email || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, email: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <label className="block mb-1 font-medium">First Name</label>
-                    <input
-                      type="text"
-                      name="first_name"
-                      value={selectedUser.first_name || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, first_name: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                    <label className="block mb-1 font-medium">Last Name</label>
-                    <input
-                      type="text"
-                      name="last_name"
-                      value={selectedUser.last_name || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, last_name: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                    <label className="block mb-1 font-medium">Gender</label>
-                    <input
-                      type="text"
-                      name="gender"
-                      value={selectedUser.gender || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, gender: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                    <label className="block mb-1 font-medium">Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={selectedUser.email || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, email: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                    <label className="block mb-1 font-medium">Bank Name</label>
-                    <input
-                      type="text"
-                      name="bank_name"
-                      value={selectedUser.bank_name || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, bank_name: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                    <label className="block mb-1 font-medium">Account Number</label>
-                    <input
-                      type="text"
-                      name="account_number"
-                      value={selectedUser.account_number || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, account_number: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                    <label className="block mb-1 font-medium">Account Name</label>
-                    <input
-                      type="text"
-                      name="account_name"
-                      value={selectedUser.account_name || ""}
-                      onChange={(e) =>
-                        setSelectedUser((prev) => ({ ...prev, account_name: e.target.value }))
-                      }
-                      className="border border-gray-300 rounded px-4 py-2 w-full"
-                    />
-                  </>
-                )}
-                <label className="block mb-1 font-medium">Role</label>
+          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md mx-auto max-h-[60vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">Edit User</h3>
+            <form onSubmit={handleEditUserSubmit} className="space-y-4">
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Role</label>
                 <select
                   name="role"
-                  value={selectedUser.role || ""}
-                  onChange={(e) =>
-                    setSelectedUser((prev) => ({ ...prev, role: e.target.value }))
-                  }
-                  className="border border-gray-300 rounded px-4 py-2 w-full"
+                  value={editFormData.role}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                 >
                   <option value="SuperAdmin">Super Admin</option>
                   <option value="Admin">Admin</option>
                   <option value="Marketer">Marketer</option>
                   <option value="Dealer">Dealer</option>
                 </select>
-                <label className="block mb-1 font-medium">Location</label>
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">First Name</label>
+                <input
+                  type="text"
+                  name="first_name"
+                  value={editFormData.first_name}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Last Name</label>
+                <input
+                  type="text"
+                  name="last_name"
+                  value={editFormData.last_name}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Gender</label>
+                <select
+                  name="gender"
+                  value={editFormData.gender}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={editFormData.email}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+              </div>
+              <div className="relative">
+                <label className="block font-bold text-gray-700 mb-1">Password</label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={editFormData.password}
+                  onChange={handleEditChange}
+                  placeholder="(Optional) Enter new password"
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+                <button
+                  type="button"
+                  onClick={toggleShowPassword}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500"
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Bank Name</label>
+                <input
+                  type="text"
+                  name="bank_name"
+                  value={editFormData.bank_name}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Account Number</label>
+                <input
+                  type="text"
+                  name="account_number"
+                  value={editFormData.account_number}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Account Name</label>
+                <input
+                  type="text"
+                  name="account_name"
+                  value={editFormData.account_name}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Location (State)</label>
                 <select
                   name="location"
-                  value={selectedUser.location || ""}
-                  onChange={(e) =>
-                    setSelectedUser((prev) => ({ ...prev, location: e.target.value }))
-                  }
-                  className="border border-gray-300 rounded px-4 py-2 w-full"
-                  required
+                  value={editFormData.location}
+                  onChange={handleEditChange}
+                  className="w-full border-2 border-gray-300 rounded px-3 py-2 font-bold"
                 >
                   <option value="">Select State</option>
                   {NIGERIAN_STATES.map((state) => (
@@ -821,27 +854,30 @@ function UsersManagement() {
                     </option>
                   ))}
                 </select>
-                <div className="flex justify-end space-x-2 mt-4">
-                  <button
-                    type="button"
-                    onClick={closeEditUserModal}
-                    className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
-                  >
-                    Update
-                  </button>
-                </div>
-              </form>
-            )}
+              </div>
+
+              {/* If editing a Dealer, you can optionally allow re-upload of a PDF, etc. 
+                  For brevity, we omit re-upload logic or make it optional. */}
+
+              <div className="flex justify-end gap-4 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEditUserModal}
+                  className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded"
+                >
+                  Update
+                </button>
+              </div>
+            </form>
           </div>
         </Modal>
       )}
-
     </div>
   );
 }
