@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import api from "../api"; // Your custom axios instance
-import { useNavigate } from "react-router-dom";
 
 function MarketerStockPickup() {
   const {
@@ -10,18 +9,44 @@ function MarketerStockPickup() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm();
-  const navigate = useNavigate();
 
-  // State for holding the fetched stock updates.
   const [stockUpdates, setStockUpdates] = useState([]);
-  // State for holding the list of dealers.
-  const [dealers, setDealers] = useState([]);
+  const [dealers, setDealers] = useState([]); // State to store the list of dealers.
 
-  // Fetch the current marketer's stock updates using the new endpoint.
+  // Fetch the dealer list once the component mounts.
+  useEffect(() => {
+    fetchDealers();
+  }, []);
+
+  // Fetch existing stock updates.
+  useEffect(() => {
+    fetchStockUpdates();
+  }, []);
+
+  // Function to fetch dealers from the backend.
+  const fetchDealers = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      // Adjust if your backend uses a different route for dealers
+      const response = await api.get("/api/dealer", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (response.data && response.data.dealers) {
+        setDealers(response.data.dealers);
+      }
+    } catch (error) {
+      console.error("Error fetching dealers:", error);
+      // Optionally display an error message to the user.
+    }
+  };
+
+  // Function to fetch existing stock updates for the marketer.
   const fetchStockUpdates = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await api.get("/api/marketer/stock-update/marketer", {
+      const response = await api.get("/api/stock/", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -31,48 +56,22 @@ function MarketerStockPickup() {
       }
     } catch (error) {
       console.error("Error fetching stock updates:", error);
-      // Optional: Display an error message to the user.
     }
   };
 
-  // Fetch the list of dealers for the dropdown.
-  const fetchDealers = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await api.get("/api/marketer/dealer", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      // Assuming the API returns an object like: { dealers: [ { unique_id, business_name, ... }, ... ] }
-      if (response.data && response.data.dealers) {
-        setDealers(response.data.dealers);
-      }
-    } catch (error) {
-      console.error("Error fetching dealers:", error);
-      // Optionally, display an error message if necessary.
-    }
-  };
-
-  // Fetch stock updates and dealers when the component mounts.
-  useEffect(() => {
-    fetchStockUpdates();
-    fetchDealers();
-  }, []);
-
-  // Handle form submission: create a new stock update.
+  // Handle form submission to create a new stock update.
   const onSubmit = async (data) => {
     try {
       const token = localStorage.getItem("token");
-      // Send a POST request to the createStockUpdate endpoint.
-      const response = await api.post("/api/marketer/stock-update", data, {
+      // POST to your createStockUpdate endpoint
+      const response = await api.post("/api/stock/", data, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       alert("Stock update recorded successfully!");
       reset();
-      // Re-fetch the stock updates after a successful creation.
+      // Re-fetch the stock updates after creation.
       fetchStockUpdates();
     } catch (error) {
       console.error("Error recording stock update:", error);
@@ -81,9 +80,9 @@ function MarketerStockPickup() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-4">
+    <div className="w-full p-4">  {/* Make container wide */}
       <h2 className="text-2xl font-bold mb-4">Record Stock Pickup</h2>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-w-xl">
         {/* Dealer Dropdown */}
         <div>
           <label className="block font-semibold">Dealer:</label>
@@ -99,7 +98,9 @@ function MarketerStockPickup() {
             ))}
           </select>
           {errors.dealerUniqueId && (
-            <p className="text-red-500 text-sm">{errors.dealerUniqueId.message}</p>
+            <p className="text-red-500 text-sm">
+              {errors.dealerUniqueId.message}
+            </p>
           )}
         </div>
 
@@ -121,7 +122,9 @@ function MarketerStockPickup() {
           <label className="block font-semibold">Device Model:</label>
           <input
             className="border rounded px-3 py-2 w-full"
-            {...register("device_model", { required: "Device Model is required" })}
+            {...register("device_model", {
+              required: "Device Model is required",
+            })}
             placeholder="Enter device model"
           />
           {errors.device_model && (
@@ -134,11 +137,15 @@ function MarketerStockPickup() {
           <label className="block font-semibold">Device Category:</label>
           <input
             className="border rounded px-3 py-2 w-full"
-            {...register("device_category", { required: "Device category is required" })}
+            {...register("device_category", {
+              required: "Device category is required",
+            })}
             placeholder="Enter device category (e.g. Phone, Tablet)"
           />
           {errors.device_category && (
-            <p className="text-red-500 text-sm">{errors.device_category.message}</p>
+            <p className="text-red-500 text-sm">
+              {errors.device_category.message}
+            </p>
           )}
         </div>
 
@@ -168,32 +175,119 @@ function MarketerStockPickup() {
         </button>
       </form>
 
-      {/* Stock Updates List */}
+      {/* Display existing stock updates in a wide table */}
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">My Stock Updates</h2>
-        {stockUpdates.length > 0 ? (
-          stockUpdates.map((stock) => (
-            <div key={stock.id} className="border p-4 mb-4 rounded">
-              <h3 className="font-bold">
-                {stock.device_name} - {stock.device_model}
-              </h3>
-              <p>
-                Picked up on:{" "}
-                {new Date(stock.pickup_date).toLocaleString()}
-              </p>
-              <p>
-                Deadline:{" "}
-                {new Date(stock.deadline).toLocaleString()}
-              </p>
-              <p>
-                Time remaining:{" "}
-                {stock.countdown ? stock.countdown : "Expired"}
-              </p>
-            </div>
-          ))
-        ) : (
-          <p>No stock updates yet.</p>
-        )}
+
+        {/* Make table container horizontally scrollable for wide content */}
+        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+          <table className="min-w-full text-sm text-left">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
+              <tr>
+                <th scope="col" className="px-6 py-3">
+                  Dealer
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Marketer
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Device
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Category
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Quantity
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Pickup Date
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Deadline
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {stockUpdates.length > 0 ? (
+                stockUpdates.map((stock) => {
+                  // We'll assume your backend returns:
+                  // stock.dealer_business_name
+                  // stock.dealer_unique_id
+                  // stock.marketer_name
+                  // stock.marketer_unique_id
+                  // stock.marketer_location
+                  // This requires a join in your getStockUpdates code. 
+                  const {
+                    dealer_business_name = "N/A",
+                    dealer_unique_id = "N/A",
+                    marketer_name = "N/A",
+                    marketer_unique_id = "N/A",
+                    marketer_location = "N/A",
+                    device_name,
+                    device_model,
+                    device_category,
+                    quantity,
+                    pickup_date,
+                    deadline,
+                    sold,
+                    countdown,
+                  } = stock;
+
+                  // Determine status text
+                  let statusText = "";
+                  if (sold) {
+                    statusText = "Sold";
+                  } else if (countdown && countdown !== "Expired") {
+                    statusText = `Time remaining: ${countdown}`;
+                  } else {
+                    statusText = "Expired";
+                  }
+
+                  return (
+                    <tr key={stock.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {dealer_business_name} ({dealer_unique_id})
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {marketer_name} ({marketer_unique_id})
+                        <br />
+                        <span className="text-gray-500 text-xs">
+                          Location: {marketer_location}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {device_name} - {device_model}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {device_category}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{quantity}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {new Date(pickup_date).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {new Date(deadline).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{statusText}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="px-6 py-4 text-center text-gray-500"
+                  >
+                    No stock updates yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
