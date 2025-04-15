@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
@@ -7,6 +8,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import DealerDashboard from "./components/DealerDashboard";
 import MarketerDashboard from "./components/MarketerDashboard";
 import PrivateRoute from "./components/PrivateRoute";
+import SubmissionUnderReview from "./components/SubmissionUnderReview";
 
 function App() {
   return (
@@ -37,24 +39,31 @@ function App() {
             </PrivateRoute>
           }
         />
-
-<Route
-  path="/dashboard/dealer"
-  element={
-    <PrivateRoute allowedRoles={["Dealer"]}>
-      <DealerDashboard />
-    </PrivateRoute>
-  }
-/>
-
-<Route
-  path="/dashboard/marketer"
-  element={
-    <PrivateRoute allowedRoles={["Marketer"]}>
-      <MarketerDashboard />
-    </PrivateRoute>
-  }
-/>
+        <Route
+          path="/dashboard/dealer"
+          element={
+            <PrivateRoute allowedRoles={["Dealer"]}>
+              <DealerDashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/marketer"
+          element={
+            <PrivateRoute allowedRoles={["Marketer"]}>
+              <MarketerDashboard />
+            </PrivateRoute>
+          }
+        />
+        {/* Updated Submission Under Review Route for Marketers */}
+        <Route
+          path="/submission-under-review"
+          element={
+            <PrivateRoute allowedRoles={["Marketer"]}>
+              <SubmissionUnderReview />
+            </PrivateRoute>
+          }
+        />
       </Routes>
     
   );

@@ -1,28 +1,33 @@
 // src/components/ApplicantCommitmentForm.jsx
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const ApplicantCommitmentForm = ({ onSuccess }) => {
-  // Initial state for all promise fields and additional fields.
+  // State for all promise fields and additional fields.
   const [formData, setFormData] = useState({
-    promise_accept_false_documents: "",         // For: I promise I will not accept false or forged documents and information for the BUY NOW AND PAY LATER process.
-    promise_not_request_unrelated_info: "",      // For: I promise I will not request for information unrelated to the BUY NOW PAY LATER process.
-    promise_not_charge_customer_fees: "",        // For: I promise I will not charge customer fees for any reason.
-    promise_not_modify_contract_info: "",        // For: I promise I will not modify any contract product information.
-    promise_not_sell_unapproved_phones: "",      // For: I will not sell phones that are not under our company approved phones.
-    promise_not_make_unofficial_commitment: "",  // For: I promise I will not make any non-official/unreasonable/illegal commitment which may cause losses to the company interest or reputation.
-    promise_not_operate_customer_account: "",    // For: I promise I will not operate customer’s personal account without their permissions.
-    promise_accept_fraud_firing: "",             // For: I promise if company found me involved in any fraudulent act, the company should fire me.
-    promise_not_share_company_info: "",          // For: I promise I will not share company’s information with third party; if found involved, I should be terminated.
-    promise_ensure_loan_recovery: "",            // For: I promise I will do my best to ensure the company recover all loan amount from my customers.
-    promise_abide_by_system: "",                 // For: I will strictly abide by the above system; in case of violation, I accept all penalties.
-    direct_sales_rep_name: "",
-    date_signed: "",
+    // Promises for prohibited actions in the sales unit:
+    promise_accept_false_documents: "", // I promise I will not accept false or forged documents and information for the BUY NOW AND PAY LATER process.
+    promise_not_request_unrelated_info: "", // I promise I will not request for information unrelated to the BUY NOW PAY LATER process.
+    promise_not_charge_customer_fees: "", // I promise I will not charge customer fees for any reason.
+    promise_not_modify_contract_info: "", // I promise I will not modify any contract product information.
+    promise_not_sell_unapproved_phones: "", // I will not sell phones that are not under our company approved phones.
+    promise_not_make_unofficial_commitment: "", // I promise I will not make any non-official/unreasonable/illegal commitment that may cause losses to the company’s interest or reputation.
+    promise_not_operate_customer_account: "", // I promise I will not operate customer’s personal account without their permissions.
+    promise_accept_fraud_firing: "", // I promise if the company finds me involved in any fraudulent act, the company should fire me.
+    promise_not_share_company_info: "", // I promise I will not share the company’s information with any third party; if found involved, I should be terminated.
+    promise_ensure_loan_recovery: "", // I promise I will do my best to ensure the company recovers all loan amounts from my customers.
+    promise_abide_by_system: "", // I will strictly abide by the above system; in case of violation, I accept all penalties.
+    direct_sales_rep_name: "", // Name of Direct Sales Rep.
+    date_signed: "",         // Date Signed.
   });
 
   // State for the signature file.
   const [signatureFile, setSignatureFile] = useState(null);
 
-  // Handle input changes.
+  // For navigation after successful submission.
+  const navigate = useNavigate();
+
+  // Handle changes for text and radio inputs.
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -31,10 +36,12 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
     }));
   };
 
-  // Handle file input for signature.
+  // Handle file input for the Direct Sales Rep signature.
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) setSignatureFile(file);
+    if (file) {
+      setSignatureFile(file);
+    }
   };
 
   // Handle form submission.
@@ -44,11 +51,13 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
 
     // Create a FormData object for multipart form data.
     const payload = new FormData();
-    // Append all promise fields.
+
+    // Append all text fields.
     Object.entries(formData).forEach(([key, value]) => {
       payload.append(key, value);
     });
-    // Append the signature file.
+    
+    // Append the signature file (must be provided).
     if (signatureFile) {
       payload.append("signature", signatureFile);
     } else {
@@ -62,7 +71,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         {
           method: "POST",
           headers: {
-            // Do not set Content-Type manually—let the browser do it.
+            // Do not manually set Content-Type header for FormData.
             Authorization: `Bearer ${token}`,
           },
           body: payload,
@@ -70,7 +79,11 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
       );
       const data = await res.json();
       if (res.ok) {
-        alert("Commitment form submitted successfully.");
+        alert(data.message || "Commitment form submitted successfully.");
+        // If the backend returns that all forms are complete, redirect accordingly.
+        if (data.submissionComplete) {
+          navigate("/submission-under-review");
+        }
         if (onSuccess) onSuccess();
         // Reset form state.
         setFormData({
@@ -99,9 +112,9 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl mx-auto p-4 space-y-6 border rounded shadow">
+    <form onSubmit={handleSubmit} className="max-w-2xl mx-auto p-6 space-y-6 border rounded shadow">
       <h2 className="text-2xl font-bold mb-4">Commitment Handbook</h2>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="text-sm text-gray-600 mb-4">
         The following are considered prohibited actions which are not allowed in the sales units.
       </p>
 
@@ -110,7 +123,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will not accept false or forged documents and information for the BUY NOW AND PAY LATER process.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -139,7 +152,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will not request for information unrelated to the BUY NOW PAY LATER process.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -168,7 +181,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will not charge customer fees for any reason.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -197,7 +210,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will not modify any contract product information.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -226,7 +239,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I will not sell phones that are not under our company approved phones.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -253,9 +266,9 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
       {/* Promise 6 */}
       <div className="space-y-2">
         <label className="block font-semibold">
-          I promise I will not make any non-official/unreasonable/illegal commitment which may cause losses to the company’s interest or reputation.
+          I promise I will not make any non-official/unreasonable/illegal commitment which may cause losses to the company's interest or reputation.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -284,7 +297,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will not operate customer’s personal account without their permissions.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -313,7 +326,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise if the company finds me involved in any fraudulent act, the company should fire me.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -342,7 +355,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will not share the company’s information with any third party; if found involved, I should be terminated.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -371,7 +384,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I promise I will do my best to ensure the company recovers all loan amounts from my customers.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -400,7 +413,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <label className="block font-semibold">
           I will strictly abide by the above system; in case of violation, I accept all penalties.
         </label>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <label>
             <input
               type="radio"
@@ -430,11 +443,11 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         <input
           type="text"
           name="direct_sales_rep_name"
+          placeholder="Enter the name of the Direct Sales Rep"
           value={formData.direct_sales_rep_name}
           onChange={handleChange}
           required
           className="border rounded px-4 py-2 w-full"
-          placeholder="Enter the name of the Direct Sales Rep"
         />
       </div>
 

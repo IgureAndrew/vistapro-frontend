@@ -1,3 +1,4 @@
+// src/components/MarketerDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import io from "socket.io-client";
@@ -24,7 +25,7 @@ import MarketerStockPickup from "./MarketerStockPickup";
 import AvatarDropdown from "./AvatarDropdown";
 
 // Initialize the socket connection to your backend URL.
-// Make sure you include HTTPS because your backend is secured.
+// Make sure the URL matches your deployment (using HTTPS if needed).
 const socket = io("https://vistapro-backend.onrender.com");
 
 function MarketerDashboard() {
@@ -34,30 +35,23 @@ function MarketerDashboard() {
   const storedUser = localStorage.getItem("user");
   const [user, setUser] = useState(storedUser ? JSON.parse(storedUser) : null);
 
-  // Set initial active module (e.g., "overview").
+  // State for active module, sidebar, dark mode and greeting.
   const [activeModule, setActiveModule] = useState("overview");
-
-  // State to control sidebar visibility (for small screens).
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // State to toggle dark mode.
   const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Greeting message which may change based on previous visits.
   const [greeting, setGreeting] = useState("Welcome");
 
   // Temporary flag to unlock dashboard during testing.
-  // Set to true to bypass verification locking logic.
   const tempUnlockDashboard = false;
 
-  // If no user is logged in, navigate back to the login page.
+  // Redirect if no user is logged in.
   useEffect(() => {
     if (!user) {
       navigate("/");
     }
   }, [user, navigate]);
 
-  // Set greeting message on component load.
+  // Set greeting based on previous visits.
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedMarketerDashboard");
     if (hasVisited) {
@@ -68,49 +62,54 @@ function MarketerDashboard() {
     }
   }, []);
 
-  // Logout handler clears token and user data from localStorage and redirects.
+  // Logout handler.
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/");
   };
 
-  // Toggle dark mode handler.
+  // Toggle dark mode.
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => !prev);
   };
 
   // Determine if the marketer is verified.
-  // isVerified is true if the temporary flag is on or if the user's overall verification status is "approved".
+  // It becomes true either if the temporary flag is on, or if the user’s overall_verification_status is "approved".
   const isVerified =
     tempUnlockDashboard ||
     (user && user.overall_verification_status === "approved");
 
-  // Integrate Socket.IO functionality.
-  useEffect(() => {
-    // If user exists and has a unique_id, register this socket connection on the backend.
-    if (user && user.unique_id) {
-      socket.emit("register", user.unique_id);
-    }
-
-    // Listen for "verificationApproved" events.
-    socket.on("verificationApproved", (data) => {
-      if (user && data.marketerUniqueId === user.unique_id) {
-        alert(data.message); // Display notification to the user.
-        // Optionally, update the user state to reflect verification (uncomment below if desired):
-        // setUser({ ...user, overall_verification_status: "approved" });
+    useEffect(() => {
+      // Emit the registration event once the component mounts.
+      if (user?.unique_id) {
+        socket.emit("register", user.unique_id);
       }
+
+    // Set up the event listener only once.
+  socket.on("verificationApproved", (data) => {
+    console.log("verificationApproved event received", data, user);
+    // Use a functional update to always work with the latest user state.
+    setUser((prevUser) => {
+      if (prevUser && data.marketerUniqueId === prevUser.unique_id) {
+        const updatedUser = { ...prevUser, overall_verification_status: "approved" };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        alert(data.message); // Display the notification.
+        return updatedUser;
+      }
+      return prevUser;
     });
+  });
 
-    // Cleanup: disconnect the socket on component unmount.
-    return () => {
-      socket.disconnect();
-    };
-  }, [user]);
+  // Cleanup: remove the specific event listener when the component unmounts.
+  return () => {
+    socket.off("verificationApproved");
+  };
+}, []); // empty dependency array: attach the listener once on mount.
 
-  // Render the dashboard module based on activeModule.
-  // If not verified, force the locked state by showing VerificationMarketer.
+  // Render module based on activeModule.
   const renderModule = () => {
+    // If not verified, show the locked state with the verification module.
     if (!isVerified) {
       return (
         <div className="p-6">
@@ -126,7 +125,7 @@ function MarketerDashboard() {
       );
     }
 
-    // Render module based on the activeModule state.
+    // Once verified, render the module corresponding to the activeModule value.
     switch (activeModule) {
       case "overview":
         return <MarketersOverview />;
@@ -147,7 +146,7 @@ function MarketerDashboard() {
     }
   };
 
-  // SidebarItem component for rendering each sidebar option.
+  // SidebarItem component to render each sidebar option.
   const SidebarItem = ({
     label,
     Icon,
@@ -159,7 +158,6 @@ function MarketerDashboard() {
   }) => {
     const isActive = activeModule === moduleName;
     const handleClick = () => {
-      // Prevent navigation to other modules if the dashboard is locked (except for the verification module).
       if (!isVerified && moduleName !== "verification") {
         alert(
           "Your dashboard is locked until your verification is approved. Please complete your verification forms."
@@ -190,7 +188,7 @@ function MarketerDashboard() {
     );
   };
 
-  // Helper function to display user initial for avatar fallback.
+  // Helper to get the user's initial for avatar fallback.
   const getUserInitial = () => {
     if (user) {
       if (user.name) return user.name.charAt(0).toUpperCase();
@@ -228,9 +226,7 @@ function MarketerDashboard() {
             </span>
           </button>
           <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-            {user && user.first_name
-              ? user.first_name.charAt(0).toUpperCase()
-              : "M"}
+            {user && user.first_name ? user.first_name.charAt(0).toUpperCase() : "M"}
           </div>
         </div>
       </header>
@@ -269,7 +265,7 @@ function MarketerDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Replacing old ProfileUpdate with Account Settings */}
+              {/* Replace old ProfileUpdate with Account Settings */}
               <SidebarItem
                 label="Account Settings"
                 Icon={User}
