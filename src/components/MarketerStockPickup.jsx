@@ -46,7 +46,7 @@ function MarketerStockPickup() {
   const fetchStockUpdates = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await api.get("/api/stock/", {
+      const response = await api.get("/api/stock/marketer", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
