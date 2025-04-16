@@ -28,7 +28,7 @@ function MarketerStockPickup() {
     try {
       const token = localStorage.getItem("token");
       // Adjust if your backend uses a different route for dealers
-      const response = await api.get("/api/dealer", {
+      const response = await api.get("/api/master-admin/dealers", {
         headers: {
           Authorization: `Bearer ${token}`,
         },

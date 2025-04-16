@@ -1,33 +1,34 @@
+// src/components/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   User,
-  ShoppingCart,
   ClipboardList,
   Package,
   MessageSquare,
   FileText,
+  ShoppingCart,
   LogOut,
 } from "lucide-react";
 
 // Import module components for each section.
 import ProfileUpdate from "./ProfileUpdate";
-// Removed Product and AssignUsers imports.
-// import Product from "./Product";
 import ManageOrders from "./ManageOrders";
 import StockManagement from "./StockManagement";
 import Messaging from "./Messaging";
 import Submissions from "./Submissions";
-// Keep Verification and Wallet components.
 import Verification from "./Verification";
 import Wallet from "./Wallet";
+import AdminOverview from "./AdminOverview"; // Import the new AdminOverview component
 import AvatarDropdown from "./AvatarDropdown";
+import AssignedMarketers from "./AssignedMarketers";
 
 function AdminDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
-  const [activeModule, setActiveModule] = useState("profile");
+  // Set default active module to "overview" (AdminOverview)
+  const [activeModule, setActiveModule] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
@@ -61,25 +62,63 @@ function AdminDashboard() {
   // Renders the currently selected module.
   const renderModule = () => {
     switch (activeModule) {
+      case "overview":
+        return <AdminOverview />;
       case "profile":
         return <ProfileUpdate />;
-      // Removed "product" case.
       case "manage-orders":
         return <ManageOrders />;
       case "stock":
         return <StockManagement />;
+      case "marketers":
+        return <AssignedMarketers />;
       case "messages":
         return <Messaging />;
       case "submissions":
         return <Submissions />;
-      // Removed "assign" case.
       case "verification":
         return <Verification />;
       case "wallet":
         return <Wallet />;
       default:
-        return <ProfileUpdate />;
+        return <AdminOverview />;
     }
+  };
+
+  // SidebarItem component for each sidebar option.
+  const SidebarItem = ({
+    label,
+    Icon,
+    moduleName,
+    activeModule,
+    setActiveModule,
+    setSidebarOpen,
+    isDarkMode,
+  }) => {
+    const isActive = activeModule === moduleName;
+    const handleClick = () => {
+      setActiveModule(moduleName);
+      setSidebarOpen(false);
+    };
+    return (
+      <li>
+        <button
+          onClick={handleClick}
+          className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
+            isActive
+              ? isDarkMode
+                ? "bg-gray-700 font-semibold text-white"
+                : "bg-blue-100 font-semibold text-black"
+              : isDarkMode
+              ? "hover:bg-gray-700 text-white"
+              : "hover:bg-gray-50 text-black"
+          }`}
+        >
+          {Icon && <Icon size={16} />}
+          <span>{label}</span>
+        </button>
+      </li>
+    );
   };
 
   // Helper to return the user's initial for the avatar.
@@ -140,6 +179,15 @@ function AdminDashboard() {
           <nav className="p-3">
             <ul className="list-none space-y-2 text-sm">
               <SidebarItem
+                label="Overview"
+                Icon={ClipboardList} // You can change this icon as desired.
+                moduleName="overview"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+              />
+              <SidebarItem
                 label="Profile"
                 Icon={User}
                 moduleName="profile"
@@ -148,7 +196,6 @@ function AdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Removed the Product sidebar item */}
               <SidebarItem
                 label="Manage Orders"
                 Icon={ClipboardList}
@@ -176,6 +223,16 @@ function AdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
+            
+              <SidebarItem
+                label="Marketers"
+                Icon={User} // Use an appropriate icon
+                moduleName="marketers"
+                activeModule={activeModule}
+                setActiveModule={setActiveModule}
+                setSidebarOpen={setSidebarOpen}
+                isDarkMode={isDarkMode}
+               />
               <SidebarItem
                 label="Submissions"
                 Icon={FileText}
@@ -185,7 +242,6 @@ function AdminDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Removed "Assign" sidebar item */}
               <SidebarItem
                 label="Verification"
                 Icon={FileText}

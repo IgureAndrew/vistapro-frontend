@@ -1,42 +1,61 @@
 // src/components/AdminOverview.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../api"; // Your custom axios instance
-// import io from "socket.io-client"; // Uncomment if using Socket.IO for real-time updates
 
 /**
  * AdminOverview Component
  *
- * This component fetches and displays real-time dashboard summary data.
- * It shows an overview of key metrics like total users, orders,
- * pending approvals, active sessions, and total sales.
+ * This component fetches and displays real-time dashboard summary data for the admin.
+ * The displayed metrics include:
+ * - Total Sales
+ * - Assigned Marketers (to the admin)
+ * - Verified Marketers (of the assigned marketers)
+ * - Confirmed Orders
+ * - Pending Orders
+ * - Stock Taken Orders
  *
- * Two approaches are demonstrated:
- * 1. Polling: an API request is made every 10 seconds to refresh summary data.
- * 2. Socket.IO (commented out): real-time updates via a WebSocket event.
+ * The component uses polling (every 10 seconds) to keep the data up-to-date.
  */
 const AdminOverview = () => {
-  // State to hold the dashboard summary data
+  // State to hold the dashboard summary data.
   const [dashboardSummary, setDashboardSummary] = useState({
-    totalUsers: 0,
-    totalOrders: 0,
-    pendingApprovals: 0,
-    activeSessions: 0,
     totalSales: 0,
+    assignedMarketers: 0,
+    verifiedMarketers: 0,
+    confirmedOrders: 0,
+    pendingOrders: 0,
+    stockTakenOrders: 0,
   });
 
-  // --------------- Approach 1: Polling via API ----------------
+  // Function to fetch the dashboard summary from the backend.
   const fetchDashboardSummary = async () => {
     try {
       const token = localStorage.getItem("token");
-      // Ensure your backend route returns an object with keys:
-      // totalUsers, totalOrders, pendingApprovals, activeSessions, totalSales
+      // Expect your backend endpoint to return an object with these keys:
+      // totalSales, assignedMarketers, verifiedMarketers, confirmedOrders, pendingOrders, stockTakenOrders
       const response = await api.get("/api/admin/dashboard-summary", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       if (response.data) {
-        setDashboardSummary(response.data);
+        // We only care about the necessary metrics here.
+        const {
+          totalSales,
+          assignedMarketers,
+          verifiedMarketers,
+          confirmedOrders,
+          pendingOrders,
+          stockTakenOrders,
+        } = response.data;
+        setDashboardSummary({
+          totalSales,
+          assignedMarketers,
+          verifiedMarketers,
+          confirmedOrders,
+          pendingOrders,
+          stockTakenOrders,
+        });
       }
     } catch (error) {
       console.error("Error fetching dashboard summary:", error);
@@ -51,54 +70,33 @@ const AdminOverview = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  // --------------- Approach 2: Socket.IO for Real-Time Updates ---------------
-  // Uncomment this section if you prefer using Socket.IO for real-time updates.
-  /*
-  const socketRef = useRef();
-  useEffect(() => {
-    // Initialize the socket connection with your backend URL.
-    // Make sure to include "https" if your backend is secure.
-    socketRef.current = io("https://vistapro-backend.onrender.com", {
-      transports: ["websocket", "polling"],
-    });
-
-    // Listen for a "dashboardSummaryUpdated" event from the backend.
-    socketRef.current.on("dashboardSummaryUpdated", (data) => {
-      if (data) {
-        setDashboardSummary(data);
-      }
-    });
-
-    // Clean up the socket when the component unmounts.
-    return () => {
-      socketRef.current.disconnect();
-    };
-  }, []);
-  */
-
   return (
     <div className="p-4">
       <h1 className="text-3xl font-bold mb-6">Admin Dashboard Overview</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white shadow p-4 rounded">
-          <h2 className="text-xl font-semibold">Total Users</h2>
-          <p className="text-3xl">{dashboardSummary.totalUsers}</p>
-        </div>
-        <div className="bg-white shadow p-4 rounded">
-          <h2 className="text-xl font-semibold">Total Orders</h2>
-          <p className="text-3xl">{dashboardSummary.totalOrders}</p>
-        </div>
-        <div className="bg-white shadow p-4 rounded">
-          <h2 className="text-xl font-semibold">Pending Approvals</h2>
-          <p className="text-3xl">{dashboardSummary.pendingApprovals}</p>
-        </div>
-        <div className="bg-white shadow p-4 rounded">
-          <h2 className="text-xl font-semibold">Active Sessions</h2>
-          <p className="text-3xl">{dashboardSummary.activeSessions}</p>
-        </div>
-        <div className="bg-white shadow p-4 rounded">
           <h2 className="text-xl font-semibold">Total Sales</h2>
           <p className="text-3xl">₦{dashboardSummary.totalSales}</p>
+        </div>
+        <div className="bg-white shadow p-4 rounded">
+          <h2 className="text-xl font-semibold">Assigned Marketers</h2>
+          <p className="text-3xl">{dashboardSummary.assignedMarketers}</p>
+        </div>
+        <div className="bg-white shadow p-4 rounded">
+          <h2 className="text-xl font-semibold">Verified Marketers</h2>
+          <p className="text-3xl">{dashboardSummary.verifiedMarketers}</p>
+        </div>
+        <div className="bg-white shadow p-4 rounded">
+          <h2 className="text-xl font-semibold">Confirmed Orders</h2>
+          <p className="text-3xl">{dashboardSummary.confirmedOrders}</p>
+        </div>
+        <div className="bg-white shadow p-4 rounded">
+          <h2 className="text-xl font-semibold">Pending Orders</h2>
+          <p className="text-3xl">{dashboardSummary.pendingOrders}</p>
+        </div>
+        <div className="bg-white shadow p-4 rounded">
+          <h2 className="text-xl font-semibold">Stock Taken Orders</h2>
+          <p className="text-3xl">{dashboardSummary.stockTakenOrders}</p>
         </div>
       </div>
     </div>

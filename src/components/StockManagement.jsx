@@ -61,12 +61,7 @@ function StockManagement() {
       <h2 className="text-2xl font-bold mb-4">Stock Management</h2>
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {/* Button to update stale stock – this triggers the countdown-based update */}
-      <button 
-        onClick={handleUpdateStaleStock}
-        className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-      >
-        Update Stale Stock
-      </button>
+      
       <table className="min-w-full border">
         <thead>
           <tr className="bg-gray-200">
