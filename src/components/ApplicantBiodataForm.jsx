@@ -3,10 +3,43 @@ import React, { useState } from "react";
 
 // List of Nigerian states.
 const NIGERIAN_STATES = [
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
-  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa",
-  "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger",
-  "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara", "FCT"
+  "Abia",
+  "Adamawa",
+  "Akwa Ibom",
+  "Anambra",
+  "Bauchi",
+  "Bayelsa",
+  "Benue",
+  "Borno",
+  "Cross River",
+  "Delta",
+  "Ebonyi",
+  "Edo",
+  "Ekiti",
+  "Enugu",
+  "Gombe",
+  "Imo",
+  "Jigawa",
+  "Kaduna",
+  "Kano",
+  "Katsina",
+  "Kebbi",
+  "Kogi",
+  "Kwara",
+  "Lagos",
+  "Nasarawa",
+  "Niger",
+  "Ogun",
+  "Ondo",
+  "Osun",
+  "Oyo",
+  "Plateau",
+  "Rivers",
+  "Sokoto",
+  "Taraba",
+  "Yobe",
+  "Zamfara",
+  "FCT"
 ];
 
 // Options for Means of Identification.
@@ -22,14 +55,14 @@ function ApplicantBiodataForm({ onSuccess }) {
     name: "",
     address: "",
     phone: "",
-    religion: "",           // Dropdown: "Christian" or "Muslim"
+    religion: "", // e.g., "Christian" or "Muslim"
     date_of_birth: "",
-    marital_status: "",     // Dropdown: "Single" or "Married"
+    marital_status: "", // e.g., "Single" or "Married"
     state_of_origin: "",
     state_of_residence: "",
     mothers_maiden_name: "",
     school_attended: "",
-    means_of_identification: "", // Dropdown selection
+    means_of_identification: "",
     last_place_of_work: "",
     job_description: "",
     reason_for_quitting: "",
@@ -47,13 +80,13 @@ function ApplicantBiodataForm({ onSuccess }) {
   const [passportPhoto, setPassportPhoto] = useState(null);
   const [identificationFile, setIdentificationFile] = useState(null);
 
-  // Handle changes for text/select inputs.
+  // Handler for text and select input changes.
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // File change handler for passport photo.
+  // Handler for file input changes.
   const handlePassportPhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -61,7 +94,6 @@ function ApplicantBiodataForm({ onSuccess }) {
     }
   };
 
-  // File change handler for identification file.
   const handleIdentificationFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -87,25 +119,23 @@ function ApplicantBiodataForm({ onSuccess }) {
       return;
     }
 
-    // Create a FormData object to send both text fields and file uploads.
+    // Create a FormData object to bundle text fields and file uploads.
     const payload = new FormData();
-    // Append all text fields.
     for (const key in formData) {
       payload.append(key, formData[key]);
     }
-    // Append file uploads.
-    // Append "passport_photo" (this key matches what your backend expects).
+    // Append passport photo.
     if (passportPhoto) {
       payload.append("passport_photo", passportPhoto);
     }
-    // Append "id_document" only if a means of identification is selected.
+    // Append identification file if a means of identification is selected.
     if (formData.means_of_identification && identificationFile) {
       payload.append("id_document", identificationFile);
     }
 
     try {
       const token = localStorage.getItem("token");
-      // Do not set the "Content-Type" header manually; let the browser set it for FormData.
+      // Let the browser set the correct Content-Type when using FormData.
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/verification/bio-data`,
         {
@@ -160,7 +190,7 @@ function ApplicantBiodataForm({ onSuccess }) {
     <div className="max-w-3xl mx-auto p-6 bg-white shadow rounded">
       <h2 className="text-2xl font-bold mb-4">APPLICANT BIO-DATA FORM</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Personal Details Section */}
+        {/* Personal Details */}
         <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">NAME:</label>
@@ -192,8 +222,8 @@ function ApplicantBiodataForm({ onSuccess }) {
               value={formData.phone}
               onChange={handleChange}
               className="mt-1 block w-full border rounded p-2"
-              required
               placeholder="e.g., 08012345678"
+              required
               pattern="\d{11}"
             />
           </div>
@@ -291,8 +321,8 @@ function ApplicantBiodataForm({ onSuccess }) {
               value={formData.school_attended}
               onChange={handleChange}
               className="mt-1 block w-full border rounded p-2"
-              required
               placeholder="e.g., XYZ University (2005-2009)"
+              required
             />
           </div>
         </div>
@@ -335,7 +365,7 @@ function ApplicantBiodataForm({ onSuccess }) {
           )}
         </div>
 
-        {/* Work and Other Details Section */}
+        {/* Work and Other Details */}
         <div className="border-t pt-4 grid grid-cols-1 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">LAST PLACE OF WORK:</label>
@@ -383,7 +413,7 @@ function ApplicantBiodataForm({ onSuccess }) {
           </div>
         </div>
 
-        {/* Next of Kin Details Section */}
+        {/* Next of Kin Details */}
         <div className="border-t pt-4 grid grid-cols-1 gap-4">
           <h3 className="text-xl font-semibold">NEXT OF KIN</h3>
           <div>
@@ -432,9 +462,9 @@ function ApplicantBiodataForm({ onSuccess }) {
           </div>
         </div>
 
-        {/* Account Details Section */}
+        {/* Account Details */}
         <div className="border-t pt-4 grid grid-cols-1 gap-4">
-          <h3 className="text-xl font-semibold">ACCOUNT DETAIL</h3>
+          <h3 className="text-xl font-semibold">ACCOUNT DETAILS</h3>
           <div>
             <label className="block text-sm font-medium text-gray-700">BANK NAME:</label>
             <input
@@ -472,7 +502,7 @@ function ApplicantBiodataForm({ onSuccess }) {
           </div>
         </div>
 
-        {/* Upload Passport Photo Section */}
+        {/* Upload Passport Photo */}
         <div className="border-t pt-4">
           <h3 className="text-xl font-semibold mb-2">Upload Passport Photo</h3>
           <input

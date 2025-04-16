@@ -24,8 +24,7 @@ import Wallet from "./Wallet";
 import MarketerStockPickup from "./MarketerStockPickup";
 import AvatarDropdown from "./AvatarDropdown";
 
-// Initialize the socket connection to your backend URL.
-// Make sure the URL matches your deployment (using HTTPS if needed).
+// Initialize the socket connection to your backend URL (ensure HTTPS if needed).
 const socket = io("https://vistapro-backend.onrender.com");
 
 function MarketerDashboard() {
@@ -41,17 +40,17 @@ function MarketerDashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome");
 
-  // Temporary flag to unlock dashboard during testing.
+  // Temporary flag for testing (set to false for production).
   const tempUnlockDashboard = false;
 
-  // Redirect if no user is logged in.
+  // Redirect to login if no user is logged in.
   useEffect(() => {
     if (!user) {
       navigate("/");
     }
   }, [user, navigate]);
 
-  // Set greeting based on previous visits.
+  // Set a greeting based on previous visits.
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedMarketerDashboard");
     if (hasVisited) {
@@ -75,41 +74,67 @@ function MarketerDashboard() {
   };
 
   // Determine if the marketer is verified.
-  // It becomes true either if the temporary flag is on, or if the user’s overall_verification_status is "approved".
+  // Note: The dashboard is considered unlocked only when overall_verification_status is "approved"
+  // OR a temporary flag is set.
   const isVerified =
     tempUnlockDashboard ||
     (user && user.overall_verification_status === "approved");
 
-    useEffect(() => {
-      // Emit the registration event once the component mounts.
-      if (user?.unique_id) {
-        socket.emit("register", user.unique_id);
-      }
+  // Set up Socket.IO listeners to handle events from the backend.
+  useEffect(() => {
+    if (user?.unique_id) {
+      // Register for events using the marketer's unique ID.
+      socket.emit("register", user.unique_id);
+    }
 
-    // Set up the event listener only once.
-  socket.on("verificationApproved", (data) => {
-    console.log("verificationApproved event received", data, user);
-    // Use a functional update to always work with the latest user state.
-    setUser((prevUser) => {
-      if (prevUser && data.marketerUniqueId === prevUser.unique_id) {
-        const updatedUser = { ...prevUser, overall_verification_status: "approved" };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        alert(data.message); // Display the notification.
-        return updatedUser;
-      }
-      return prevUser;
+    // Listener for the final approval event.
+    socket.on("verificationApproved", (data) => {
+      console.log("verificationApproved event received:", data, user);
+      setUser((prevUser) => {
+        if (prevUser && data.marketerUniqueId === prevUser.unique_id) {
+          // Update overall status to "approved" if the marketer is approved.
+          const updatedUser = { ...prevUser, overall_verification_status: "approved" };
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          alert(data.message);
+          return updatedUser;
+        }
+        return prevUser;
+      });
     });
+
+    // Listener for a form reset.
+  socket.on("formReset", (data) => {
+    console.log("formReset event received:", data, user);
+    if (user && data.formType) {
+      const form = data.formType.toLowerCase();
+      const updatedUser = { ...user };
+      if (form === "biodata") {
+        updatedUser.bio_submitted = false;
+      } else if (form === "guarantor") {
+        updatedUser.guarantor_submitted = false;
+      } else if (form === "commitment") {
+        updatedUser.commitment_submitted = false;
+      }
+      // Do not change flags for forms that remain valid.
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      // Save a reset flag so that VerificationMarketer shows the correct form.
+      localStorage.setItem("resetFormType", form);
+      alert(data.message || `Your ${data.formType} form has been reset. Please refill it.`);
+    }
   });
 
-  // Cleanup: remove the specific event listener when the component unmounts.
-  return () => {
-    socket.off("verificationApproved");
-  };
-}, []); // empty dependency array: attach the listener once on mount.
 
-  // Render module based on activeModule.
+    // Clean up Socket.IO event listeners when the component unmounts.
+    return () => {
+      socket.off("verificationApproved");
+      socket.off("formReset");
+    };
+  }, [user]);
+
+  // Render the module based on the activeModule state.
   const renderModule = () => {
-    // If not verified, show the locked state with the verification module.
+    // If not verified, force the display of the VerificationMarketer component.
     if (!isVerified) {
       return (
         <div className="p-6">
@@ -125,7 +150,7 @@ function MarketerDashboard() {
       );
     }
 
-    // Once verified, render the module corresponding to the activeModule value.
+    // Otherwise, show the selected module.
     switch (activeModule) {
       case "overview":
         return <MarketersOverview />;
@@ -146,7 +171,7 @@ function MarketerDashboard() {
     }
   };
 
-  // SidebarItem component to render each sidebar option.
+  // SidebarItem component renders each sidebar option.
   const SidebarItem = ({
     label,
     Icon,
@@ -188,7 +213,7 @@ function MarketerDashboard() {
     );
   };
 
-  // Helper to get the user's initial for avatar fallback.
+  // Helper function to get the user's initial for avatar fallback.
   const getUserInitial = () => {
     if (user) {
       if (user.name) return user.name.charAt(0).toUpperCase();
@@ -265,7 +290,6 @@ function MarketerDashboard() {
                 setSidebarOpen={setSidebarOpen}
                 isDarkMode={isDarkMode}
               />
-              {/* Replace old ProfileUpdate with Account Settings */}
               <SidebarItem
                 label="Account Settings"
                 Icon={User}

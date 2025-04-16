@@ -5,38 +5,34 @@ import { useNavigate } from "react-router-dom";
 const ApplicantCommitmentForm = ({ onSuccess }) => {
   // State for all promise fields and additional fields.
   const [formData, setFormData] = useState({
-    // Promises for prohibited actions in the sales unit:
-    promise_accept_false_documents: "", // I promise I will not accept false or forged documents and information for the BUY NOW AND PAY LATER process.
-    promise_not_request_unrelated_info: "", // I promise I will not request for information unrelated to the BUY NOW PAY LATER process.
-    promise_not_charge_customer_fees: "", // I promise I will not charge customer fees for any reason.
-    promise_not_modify_contract_info: "", // I promise I will not modify any contract product information.
-    promise_not_sell_unapproved_phones: "", // I will not sell phones that are not under our company approved phones.
-    promise_not_make_unofficial_commitment: "", // I promise I will not make any non-official/unreasonable/illegal commitment that may cause losses to the company’s interest or reputation.
-    promise_not_operate_customer_account: "", // I promise I will not operate customer’s personal account without their permissions.
-    promise_accept_fraud_firing: "", // I promise if the company finds me involved in any fraudulent act, the company should fire me.
-    promise_not_share_company_info: "", // I promise I will not share the company’s information with any third party; if found involved, I should be terminated.
-    promise_ensure_loan_recovery: "", // I promise I will do my best to ensure the company recovers all loan amounts from my customers.
-    promise_abide_by_system: "", // I will strictly abide by the above system; in case of violation, I accept all penalties.
-    direct_sales_rep_name: "", // Name of Direct Sales Rep.
-    date_signed: "",         // Date Signed.
+    promise_accept_false_documents: "",
+    promise_not_request_unrelated_info: "",
+    promise_not_charge_customer_fees: "",
+    promise_not_modify_contract_info: "",
+    promise_not_sell_unapproved_phones: "",
+    promise_not_make_unofficial_commitment: "",
+    promise_not_operate_customer_account: "",
+    promise_accept_fraud_firing: "",
+    promise_not_share_company_info: "",
+    promise_ensure_loan_recovery: "",
+    promise_abide_by_system: "",
+    direct_sales_rep_name: "",
+    date_signed: "",
   });
 
   // State for the signature file.
   const [signatureFile, setSignatureFile] = useState(null);
 
-  // For navigation after successful submission.
+  // For navigation after a successful submission.
   const navigate = useNavigate();
 
-  // Handle changes for text and radio inputs.
+  // Handler for text and radio input changes.
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle file input for the Direct Sales Rep signature.
+  // Handler for file input changes.
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -47,31 +43,28 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
   // Handle form submission.
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
 
-    // Create a FormData object for multipart form data.
-    const payload = new FormData();
-
-    // Append all text fields.
-    Object.entries(formData).forEach(([key, value]) => {
-      payload.append(key, value);
-    });
-    
-    // Append the signature file (must be provided).
-    if (signatureFile) {
-      payload.append("signature", signatureFile);
-    } else {
+    // Ensure the signature file is provided.
+    if (!signatureFile) {
       alert("Direct Sales Rep signature file is required.");
       return;
     }
 
+    // Prepare FormData so that both text fields and file uploads can be sent.
+    const payload = new FormData();
+    Object.entries(formData).forEach(([key, value]) => {
+      payload.append(key, value);
+    });
+    payload.append("signature", signatureFile);
+
     try {
+      const token = localStorage.getItem("token");
+      // Do not manually set Content-Type when sending FormData.
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/api/verification/commitment-handbook`,
         {
           method: "POST",
           headers: {
-            // Do not manually set Content-Type header for FormData.
             Authorization: `Bearer ${token}`,
           },
           body: payload,
@@ -80,7 +73,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
       const data = await res.json();
       if (res.ok) {
         alert(data.message || "Commitment form submitted successfully.");
-        // If the backend returns that all forms are complete, redirect accordingly.
+        // If all forms are complete and the backend indicates so, navigate appropriately.
         if (data.submissionComplete) {
           navigate("/submission-under-review");
         }
@@ -482,12 +475,15 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         )}
       </div>
 
-      <button
-        type="submit"
-        className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700"
-      >
-        Submit Commitment Form
-      </button>
+      {/* Submit Button */}
+      <div className="flex justify-end pt-4">
+        <button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded"
+        >
+          Submit Commitment Form
+        </button>
+      </div>
     </form>
   );
 };

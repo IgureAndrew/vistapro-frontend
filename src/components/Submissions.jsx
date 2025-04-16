@@ -21,7 +21,8 @@ function DeleteFormModal({ marketer, onClose, onDelete }) {
           &times;
         </button>
         <h2 className="text-xl font-bold mb-4">
-          Delete a Specific Form for {marketer.name || marketer.marketer_unique_id}
+          Delete a Specific Form for{" "}
+          {marketer.name || marketer.marketer_unique_id}
         </h2>
         <p className="mb-2">Select which submission entry to delete:</p>
         <select
@@ -58,7 +59,11 @@ function DeleteFormModal({ marketer, onClose, onDelete }) {
 }
 
 // ResetFormModal Component: Allows Master Admin to select which form type to reset.
+// This version always shows the three form types regardless of the marketer's submission state.
 function ResetFormModal({ marketer, onClose, onReset }) {
+  // Define a constant array with the three fixed form types.
+  const FORM_TYPES = ["Biodata", "Guarantor", "Commitment"];
+
   const [selectedType, setSelectedType] = useState("");
 
   const handleSubmit = () => {
@@ -86,7 +91,7 @@ function ResetFormModal({ marketer, onClose, onReset }) {
           className="border rounded px-3 py-2 w-full mb-4"
         >
           <option value="">-- Select Form Type --</option>
-          {marketer.types.map((type) => (
+          {FORM_TYPES.map((type) => (
             <option key={type} value={type}>
               {type}
             </option>
@@ -103,6 +108,7 @@ function ResetFormModal({ marketer, onClose, onReset }) {
   );
 }
 
+
 export default function Submissions() {
   // State for raw submissions fetched from the API.
   const [submissions, setSubmissions] = useState([]);
@@ -113,6 +119,7 @@ export default function Submissions() {
 
   // Modal state for detailed view.
   const [modalOpen, setModalOpen] = useState(false);
+  // For modal details, we store an array of submissions for that marketer.
   const [modalData, setModalData] = useState([]);
 
   // Modal state for resetting a form.
@@ -149,6 +156,7 @@ export default function Submissions() {
       if (!acc[key]) {
         acc[key] = {
           marketer_unique_id: key,
+          // Use the marketer's name and location from the submission (or fallback)
           name: submission.name || submission.marketer_name || "N/A",
           location: submission.location || submission.marketer_location || "N/A",
           types: [submission.type],
@@ -182,7 +190,9 @@ export default function Submissions() {
           throw new Error(errorData.message || "Failed to fetch submissions");
         }
         const data = await res.json();
+        // Expected structure: data.submissions contains keys: biodata, guarantor, commitment.
         const { biodata = [], guarantor = [], commitment = [] } = data.submissions;
+        // Tag each submission with its form type.
         const taggedBiodata = biodata.map((i) => ({ ...i, type: "Biodata" }));
         const taggedGuarantor = guarantor.map((i) => ({ ...i, type: "Guarantor" }));
         const taggedCommitment = commitment.map((i) => ({ ...i, type: "Commitment" }));
@@ -230,7 +240,8 @@ export default function Submissions() {
 
   // Handler for deleting a specific form submission.
   const handleDeleteSpecificForm = async (type, submissionId) => {
-    if (!window.confirm(`Are you sure you want to delete this ${type} submission?`)) return;
+    if (!window.confirm(`Are you sure you want to delete this ${type} submission?`))
+      return;
     try {
       const token = localStorage.getItem("token");
       let endpoint = "";
@@ -268,7 +279,8 @@ export default function Submissions() {
 
   // Handler for resetting a form submission.
   const handleResetFormType = async (marketerUniqueId, formType) => {
-    if (!window.confirm(`Allow refill for the ${formType} form for this marketer?`)) return;
+    if (!window.confirm(`Allow refill for the ${formType} form for this marketer?`))
+      return;
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/allow-refill`, {
@@ -405,7 +417,7 @@ export default function Submissions() {
         </table>
       </div>
 
-      {/* Modal for Detailed View */}
+      {/* Responsive Modal for Detailed View */}
       {modalOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
           <div className="bg-white rounded-lg shadow-lg max-w-xl w-full p-6 relative">

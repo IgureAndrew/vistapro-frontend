@@ -9,7 +9,7 @@ const IDENTIFICATION_OPTIONS = [
 ];
 
 const ApplicantGuarantorForm = ({ onSuccess }) => {
-  // Form state for text and selection inputs.
+  // Form state for text and radio inputs.
   const [formData, setFormData] = useState({
     is_candidate_known: "",   // "yes" or "no"
     relationship: "",
@@ -21,35 +21,27 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
     guarantor_office_address: "",
     guarantor_email: "",
     guarantor_phone: "",
-    candidate_name: "",       // Optional field
+    candidate_name: ""        // Optional field
   });
 
-  // Separate state for file uploads.
-  // File for the selected identification document.
+  // Separate state for file inputs.
   const [identificationFile, setIdentificationFile] = useState(null);
-  // File for the guarantor's signature.
   const [signatureFile, setSignatureFile] = useState(null);
 
-  // Handle changes for text and radio inputs.
+  // Handle change for general text and radio inputs.
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle changes when the means_of_identification dropdown is changed.
-  // Clear any previously selected identification file.
+  // Handle dropdown change for Means of Identification.
+  // Clears any previously selected identification file.
   const handleMeansChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      means_of_identification: e.target.value,
-    }));
+    setFormData(prev => ({ ...prev, means_of_identification: e.target.value }));
     setIdentificationFile(null);
   };
 
-  // File input change for the identification file.
+  // Handle file input changes.
   const handleIdentificationFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -57,7 +49,6 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
     }
   };
 
-  // File input change for the signature image.
   const handleSignatureFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -69,20 +60,18 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Create a FormData object to combine text fields and file uploads.
+    // Create a FormData instance to send text and file data.
     const payload = new FormData();
-
-    // Append all text fields.
+    // Append each text field.
     for (const key in formData) {
       payload.append(key, formData[key]);
     }
 
-    // Append file fields with the names expected by the backend.
-    // For the identification file upload, use the field name "identification_file".
+    // Append file fields if available.
+    // Only append identification file if a means is selected.
     if (formData.means_of_identification && identificationFile) {
       payload.append("identification_file", identificationFile);
     }
-    // Append the signature image file under the field "signature".
     if (signatureFile) {
       payload.append("signature", signatureFile);
     }
@@ -93,19 +82,18 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
         `${import.meta.env.VITE_API_URL}/api/verification/guarantor`,
         {
           method: "POST",
-          // When using FormData, do not manually set Content-Type.
+          // Do not override the Content-Type header for FormData.
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${token}`
           },
           body: payload,
         }
       );
-
       const result = await res.json();
       if (res.ok) {
         alert("Guarantor form submitted successfully!");
         if (onSuccess) onSuccess();
-        // Reset form state.
+        // Reset the form states.
         setFormData({
           is_candidate_known: "",
           relationship: "",
@@ -117,7 +105,7 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
           guarantor_office_address: "",
           guarantor_email: "",
           guarantor_phone: "",
-          candidate_name: "",
+          candidate_name: ""
         });
         setIdentificationFile(null);
         setSignatureFile(null);
@@ -126,25 +114,24 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
       }
     } catch (error) {
       console.error("Error submitting guarantor form:", error);
-      alert("Error submitting form.");
+      alert("Error submitting the guarantor form.");
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-4 space-y-6 border rounded shadow">
+    <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded">
       <h2 className="text-2xl font-bold mb-4">Guarantor Form for Employment</h2>
       <p className="text-sm text-gray-600 mb-4">
-        Acceptable Guarantors: Lecturer, Architects, Engineers, Teachers, Doctors,
-        Lawyers, Nurses, Bankers, Accountant, Managers/Directors of reputable companies,
-        Traditional rulers and Clergy from well-recognized churches/mosques, Senior Civil
-        Servants not lower than Level 8 (excluding uniform personnel). Any other levels are not accepted.
+        Acceptable Guarantors: Lecturer, Architects, Engineers, Teachers, Doctors, Lawyers, Nurses,
+        Bankers, Accountants, Managers/Directors of reputable companies, Traditional rulers, Clergy,
+        and Senior Civil Servants (minimum Level 8, excluding uniform personnel).
       </p>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Candidate Known */}
         <div>
           <label className="block font-semibold">Is the candidate well known to you?</label>
-          <div className="mt-1">
-            <label className="mr-4">
+          <div className="mt-1 flex gap-4">
+            <label>
               <input
                 type="radio"
                 name="is_candidate_known"
@@ -202,7 +189,7 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
             className="w-full border rounded p-2"
           />
         </div>
-        {/* Means of Identification Dropdown */}
+        {/* Means of Identification */}
         <div>
           <label className="block font-semibold">Means of Identification:</label>
           <select
@@ -220,7 +207,7 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
             ))}
           </select>
         </div>
-        {/* Identification File Upload (shown only if an identification type is selected) */}
+        {/* Identification File Upload (conditional) */}
         {formData.means_of_identification && (
           <div>
             <label className="block font-semibold">
@@ -306,7 +293,7 @@ const ApplicantGuarantorForm = ({ onSuccess }) => {
             className="w-full border rounded p-2"
           />
         </div>
-        {/* File Upload for Guarantor Signature */}
+        {/* Signature File Upload */}
         <div>
           <label className="block font-semibold">Upload Guarantor Signature:</label>
           <input
