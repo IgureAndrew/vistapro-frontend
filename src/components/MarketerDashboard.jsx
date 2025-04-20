@@ -15,17 +15,17 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import MarketersOverview             from "./MarketersOverview";
-import MarketerAccountSettings       from "./MarketerAccountSettings";
-import Order                         from "./Order";
-import Messaging                     from "./Messaging";
-import VerificationMarketer          from "./VerificationMarketer";
-import Wallet                        from "./Wallet";
-import MarketerStockPickup           from "./MarketerStockPickup";
-import AvatarDropdown                from "./AvatarDropdown";
-import NotificationBell              from "./NotificationBell";
+import MarketersOverview    from "./MarketersOverview";
+import MarketerAccountSettings from "./MarketerAccountSettings";
+import Order                from "./Order";
+import Messaging            from "./Messaging";
+import VerificationMarketer from "./VerificationMarketer";
+import Wallet               from "./Wallet";
+import MarketerStockPickup  from "./MarketerStockPickup";
+import AvatarDropdown       from "./AvatarDropdown";
+import NotificationBell     from "./NotificationBell";
 
-// initialize socket
+// init socket
 const socket = io("https://vistapro-backend.onrender.com");
 
 export default function MarketerDashboard() {
@@ -41,23 +41,26 @@ export default function MarketerDashboard() {
 
   const isVerified = user?.overall_verification_status === "approved";
 
-  // redirect if not logged in
+  // redirect
   useEffect(() => {
-    if (!user) navigate("/login");
+    if (!user) navigate("/", { replace: true });
   }, [user, navigate]);
 
-  // greeting once per session
+  // greeting once
   useEffect(() => {
-    const visited = localStorage.getItem("hasVisitedMarketerDashboard");
-    if (visited) setGreeting("Welcome back");
-    else localStorage.setItem("hasVisitedMarketerDashboard", "true");
+    if (localStorage.getItem("hasVisitedMarketerDashboard")) {
+      setGreeting("Welcome back");
+    } else {
+      localStorage.setItem("hasVisitedMarketerDashboard", "true");
+    }
   }, []);
 
-  // socket listeners
+  // sockets
   useEffect(() => {
     if (user?.unique_id) socket.emit("register", user.unique_id);
-    socket.on("notification",       ({ count })  => setNotifCount(count));
-    socket.on("verificationApproved", data       => {
+
+    socket.on("notification", ({ count }) => setNotifCount(count));
+    socket.on("verificationApproved", data => {
       if (data.marketerUniqueId === user.unique_id) {
         const updated = { ...user, overall_verification_status: "approved" };
         setUser(updated);
@@ -68,10 +71,14 @@ export default function MarketerDashboard() {
     socket.on("formReset", data => {
       if (data.marketerUniqueId === user.unique_id) {
         const key = data.formType.toLowerCase() + "_submitted";
-        setUser(u => ({ ...u, [key]: false }));
+        const updatedUser = { ...user, [key]: false };
+        setUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        localStorage.setItem("resetFormType", data.formType.toLowerCase());
         alert(data.message);
       }
     });
+
     return () => {
       socket.off("notification");
       socket.off("verificationApproved");
@@ -79,10 +86,12 @@ export default function MarketerDashboard() {
     };
   }, [user]);
 
-  const handleLogout   = () => { localStorage.clear(); navigate("/", { replace: true })};
-  const toggleDarkMode = ()  => setIsDarkMode(d => !d);
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/", { replace: true });
+  };
+  const toggleDarkMode = () => setIsDarkMode(d => !d);
 
-  // choose which content to render
   const renderModule = () => {
     if (!isVerified) {
       return (
@@ -105,10 +114,9 @@ export default function MarketerDashboard() {
     }
   };
 
-  // sidebar button
-  const SidebarItem = ({ label, Icon, moduleName, disabled }) => {
-    const active = activeModule === moduleName;
-    const base   = active
+  function SidebarItem({ label, Icon, moduleName, disabled }) {
+    const isActive = activeModule === moduleName;
+    const base = isActive
       ? isDarkMode ? "bg-gray-700 text-white" : "bg-blue-100 text-black"
       : isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black";
 
@@ -123,61 +131,57 @@ export default function MarketerDashboard() {
           }}
           className={`flex items-center gap-2 px-3 py-2 w-full rounded ${base}`}
         >
-          <Icon size={16}/> <span>{label}</span>
+          <Icon size={16} />
+          <span>{label}</span>
         </button>
       </li>
     );
-  };
+  }
 
   return (
-    <div className={`min-h-screen flex flex-col ${isDarkMode?"bg-gray-900 text-white":"bg-white text-gray-800"}`}>
-
-      {/* mobile top bar */}
+    <div className={`min-h-screen flex flex-col ${isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"}`}>
+      {/* Mobile header */}
       <header className="md:hidden flex items-center justify-between px-4 h-16 border-b">
-        <button onClick={()=>setSidebarOpen(o=>!o)}>
+        <button onClick={()=>setSidebarOpen(v=>!v)} className="p-2">
           {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
         </button>
         <h2 className="text-lg font-bold">Vistapro</h2>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <NotificationBell count={notifCount}/>
           <AvatarDropdown
-            user={user} handleLogout={handleLogout}
-            toggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode}
+            user={user}
+            handleLogout={handleLogout}
+            toggleDarkMode={toggleDarkMode}
+            isDarkMode={isDarkMode}
             setActiveModule={setActiveModule}
           />
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* overlay */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-            onClick={()=>setSidebarOpen(false)}
-          />
-        )}
-
-        {/* sidebar/drawer */}
-        <aside className={`
-          fixed top-0 left-0 bottom-0 w-64 z-50
-          transform transition-transform duration-200 ease-in-out
-          ${sidebarOpen?"translate-x-0":"-translate-x-full"}
-          md:relative md:translate-x-0 md:w-64
-          border-r ${isDarkMode?"bg-gray-800 border-gray-700":"bg-white border-gray-200"}
-        `}>
-          <div className="flex items-center justify-between p-4 md:hidden">
-            <h2 className="text-xl font-bold">Vistapro</h2>
-            <button onClick={()=>setSidebarOpen(false)}><X size={24}/></button>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside
+          className={`
+            fixed inset-y-0 left-0 z-40 
+            w-3/4 max-w-xs sm:w-64 sm:max-w-none 
+            transform transition-transform duration-200
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            md:relative md:translate-x-0
+            border-r ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}
+          `}
+        >
+          <div className="p-4 text-center font-bold text-xl border-b">
+            Vistapro
           </div>
           <ul className="p-4 space-y-2 text-sm">
-            <SidebarItem label="Overview"       Icon={Home}          moduleName="overview"        disabled={!isVerified}/>
-            <SidebarItem label="Orders"         Icon={ShoppingCart}  moduleName="order"           disabled={!isVerified}/>
-            <SidebarItem label="Account"        Icon={User}          moduleName="account-settings"disabled={!isVerified}/>
-            <SidebarItem label="Messages"       Icon={MessageSquare} moduleName="messages"        disabled={!isVerified}/>
-            <SidebarItem label="Verification"   Icon={Bell}          moduleName="verification"    disabled={false}/>
-            <SidebarItem label="Wallet"         Icon={CreditCard}    moduleName="wallet"          disabled={!isVerified}/>
-            <SidebarItem label="Stock Pickup"   Icon={ShoppingCart}  moduleName="stock-pickup"    disabled={!isVerified}/>
-            {activeModule!=="overview"&&(
+            <SidebarItem label="Overview"     Icon={Home}         moduleName="overview"        disabled={!isVerified}/>
+            <SidebarItem label="Orders"       Icon={ShoppingCart} moduleName="order"           disabled={!isVerified}/>
+            <SidebarItem label="Account"      Icon={User}         moduleName="account-settings"disabled={!isVerified}/>
+            <SidebarItem label="Messages"     Icon={MessageSquare}moduleName="messages"        disabled={!isVerified}/>
+            <SidebarItem label="Verification" Icon={Bell}         moduleName="verification"    disabled={false}/>
+            <SidebarItem label="Wallet"       Icon={CreditCard}   moduleName="wallet"          disabled={!isVerified}/>
+            <SidebarItem label="Stock Pickup" Icon={ShoppingCart} moduleName="stock-pickup"    disabled={!isVerified}/>
+            {activeModule !== "overview" && (
               <li>
                 <button
                   onClick={()=>setActiveModule("overview")}
@@ -198,27 +202,27 @@ export default function MarketerDashboard() {
           </ul>
         </aside>
 
-        {/* main */}
+        {/* Main content */}
         <div className="flex-1 flex flex-col">
-          {/* desktop top bar */}
+          {/* Desktop header */}
           <header className="hidden md:flex items-center justify-between px-6 h-16 border-b">
             <div>
-              <h2 className="text-xl font-bold">
-                {greeting}, {user?.first_name}!
-              </h2>
+              <h2 className="text-xl font-bold">{greeting}, {user?.first_name}!</h2>
               <p className="text-sm text-gray-500">ID: {user?.unique_id}</p>
             </div>
             <div className="flex items-center gap-4">
               <NotificationBell count={notifCount}/>
               <AvatarDropdown
-                user={user} handleLogout={handleLogout}
-                toggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode}
+                user={user}
+                handleLogout={handleLogout}
+                toggleDarkMode={toggleDarkMode}
+                isDarkMode={isDarkMode}
                 setActiveModule={setActiveModule}
               />
             </div>
           </header>
 
-          {/* content */}
+          {/* Page body */}
           <main className="flex-1 overflow-auto p-6 bg-gray-50">
             {renderModule()}
           </main>
@@ -227,4 +231,3 @@ export default function MarketerDashboard() {
     </div>
   );
 }
-
