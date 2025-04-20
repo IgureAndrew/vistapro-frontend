@@ -1,7 +1,7 @@
 // src/components/MarketerDashboard.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import io from "socket.io-client";
+import { useNavigate }               from "react-router-dom";
+import io                            from "socket.io-client";
 import {
   Home,
   ShoppingCart,
@@ -12,148 +12,118 @@ import {
   X,
   ArrowLeft,
   MessageSquare,
+  CreditCard,
 } from "lucide-react";
 
-// Import your dashboard modules for marketers.
-import MarketersOverview from "./MarketersOverview"; // Overview module for marketers
-import MarketerAccountSettings from "./MarketerAccountSettings";
-import Order from "./Order";
-import Messaging from "./Messaging";
-import VerificationMarketer from "./VerificationMarketer";
-import Wallet from "./Wallet";
-import MarketerStockPickup from "./MarketerStockPickup";
-import AvatarDropdown from "./AvatarDropdown";
+import MarketersOverview             from "./MarketersOverview";
+import MarketerAccountSettings       from "./MarketerAccountSettings";
+import Order                         from "./Order";
+import Messaging                     from "./Messaging";
+import VerificationMarketer          from "./VerificationMarketer";
+import Wallet                        from "./Wallet";
+import MarketerStockPickup           from "./MarketerStockPickup";
+import AvatarDropdown                from "./AvatarDropdown";
 
-// Initialize the socket connection to your backend URL (ensure HTTPS if needed).
+// Init socket
 const socket = io("https://vistapro-backend.onrender.com");
 
-function MarketerDashboard() {
+function NotificationBell({ count = 0, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+    >
+      <Bell size={18} />
+      {count > 0 && (
+        <span className="absolute top-0 right-0 bg-red-500 text-white text-xs px-1 rounded-full">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+export default function MarketerDashboard() {
   const navigate = useNavigate();
+  const stored   = localStorage.getItem("user");
+  const [user, setUser] = useState(stored ? JSON.parse(stored) : null);
 
-  // Retrieve stored user from localStorage.
-  const storedUser = localStorage.getItem("user");
-  const [user, setUser] = useState(storedUser ? JSON.parse(storedUser) : null);
-
-  // State for active module, sidebar, dark mode and greeting.
   const [activeModule, setActiveModule] = useState("overview");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [greeting, setGreeting] = useState("Welcome");
+  const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [isDarkMode,   setIsDarkMode]   = useState(false);
+  const [greeting,     setGreeting]     = useState("Welcome");
+  const [notifCount,   setNotifCount]   = useState(0);
 
-  // Temporary flag for testing (set to false for production).
-  const tempUnlockDashboard = false;
+  // Only show wallet when marketer is verified
+  const isVerified =
+    user && user.overall_verification_status === "approved";
 
-  // Redirect to login if no user is logged in.
+  // redirect if not logged in
   useEffect(() => {
-    if (!user) {
-      navigate("/");
-    }
+    if (!user) navigate("/login");
   }, [user, navigate]);
 
-  // Set a greeting based on previous visits.
+  // greeting once per session
   useEffect(() => {
-    const hasVisited = localStorage.getItem("hasVisitedMarketerDashboard");
-    if (hasVisited) {
+    if (localStorage.getItem("hasVisitedMarketerDashboard")) {
       setGreeting("Welcome back");
     } else {
-      setGreeting("Welcome");
       localStorage.setItem("hasVisitedMarketerDashboard", "true");
     }
   }, []);
 
-  // Logout handler.
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/");
-  };
-
-  // Toggle dark mode.
-  const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
-  };
-
-  // Determine if the marketer is verified.
-  // Note: The dashboard is considered unlocked only when overall_verification_status is "approved"
-  // OR a temporary flag is set.
-  const isVerified =
-    tempUnlockDashboard ||
-    (user && user.overall_verification_status === "approved");
-
-  // Set up Socket.IO listeners to handle events from the backend.
+  // socket listeners
   useEffect(() => {
-    if (user?.unique_id) {
-      // Register for events using the marketer's unique ID.
-      socket.emit("register", user.unique_id);
-    }
+    if (user?.unique_id) socket.emit("register", user.unique_id);
 
-    // Listener for the final approval event.
+    socket.on("notification", ({ count }) => setNotifCount(count));
     socket.on("verificationApproved", (data) => {
-      console.log("verificationApproved event received:", data, user);
-      setUser((prevUser) => {
-        if (prevUser && data.marketerUniqueId === prevUser.unique_id) {
-          // Update overall status to "approved" if the marketer is approved.
-          const updatedUser = { ...prevUser, overall_verification_status: "approved" };
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-          alert(data.message);
-          return updatedUser;
-        }
-        return prevUser;
-      });
+      if (data.marketerUniqueId === user.unique_id) {
+        const updated = { ...user, overall_verification_status: "approved" };
+        setUser(updated);
+        localStorage.setItem("user", JSON.stringify(updated));
+        alert(data.message);
+      }
+    });
+    socket.on("formReset", (data) => {
+      if (data.marketerUniqueId === user.unique_id) {
+        const formKey = data.formType.toLowerCase() + "_submitted";
+        setUser(u => ({ ...u, [formKey]: false }));
+        alert(data.message || `${data.formType} form reset.`);
+      }
     });
 
-    // Listener for a form reset.
-  socket.on("formReset", (data) => {
-    console.log("formReset event received:", data, user);
-    if (user && data.formType) {
-      const form = data.formType.toLowerCase();
-      const updatedUser = { ...user };
-      if (form === "biodata") {
-        updatedUser.bio_submitted = false;
-      } else if (form === "guarantor") {
-        updatedUser.guarantor_submitted = false;
-      } else if (form === "commitment") {
-        updatedUser.commitment_submitted = false;
-      }
-      // Do not change flags for forms that remain valid.
-      setUser(updatedUser);
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      // Save a reset flag so that VerificationMarketer shows the correct form.
-      localStorage.setItem("resetFormType", form);
-      alert(data.message || `Your ${data.formType} form has been reset. Please refill it.`);
-    }
-  });
-
-
-    // Clean up Socket.IO event listeners when the component unmounts.
     return () => {
+      socket.off("notification");
       socket.off("verificationApproved");
       socket.off("formReset");
     };
   }, [user]);
 
-  // Render the module based on the activeModule state.
-  const renderModule = () => {
-    // If not verified, force the display of the VerificationMarketer component.
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
+  const toggleDarkMode = () => setIsDarkMode(d => !d);
+
+  // Renders main content or locked view
+  const renderContent = () => {
     if (!isVerified) {
       return (
         <div className="p-6">
-          <h2 className="text-2xl font-bold mb-4">
-            Your Dashboard is Currently Locked.
-          </h2>
-          <p className="mb-4 text-md">
-            You must complete and submit all verification forms. Once your
-            information is reviewed and approved, your dashboard will be unlocked.
+          <h2 className="text-2xl font-bold mb-4">Dashboard Locked</h2>
+          <p className="mb-4">
+            Complete all verification forms to unlock your dashboard.
           </p>
           <VerificationMarketer />
         </div>
       );
     }
-
-    // Otherwise, show the selected module.
     switch (activeModule) {
       case "overview":
-        return <MarketersOverview />;
+        return <MarketersOverview onNewOrder={() => setActiveModule("order")} />;
       case "order":
         return <Order />;
       case "account-settings":
@@ -171,213 +141,124 @@ function MarketerDashboard() {
     }
   };
 
-  // SidebarItem component renders each sidebar option.
-  const SidebarItem = ({
-    label,
-    Icon,
-    moduleName,
-    activeModule,
-    setActiveModule,
-    setSidebarOpen,
-    isDarkMode,
-  }) => {
+  function SidebarItem({ label, Icon, moduleName, disabled }) {
     const isActive = activeModule === moduleName;
-    const handleClick = () => {
-      if (!isVerified && moduleName !== "verification") {
-        alert(
-          "Your dashboard is locked until your verification is approved. Please complete your verification forms."
-        );
-        return;
-      }
-      setActiveModule(moduleName);
-      setSidebarOpen(false);
-    };
+    const base = isActive
+      ? isDarkMode ? "bg-gray-700 text-white" : "bg-blue-100 text-black"
+      : isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black";
+
     return (
       <li>
         <button
-          onClick={handleClick}
-          className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-            isActive
-              ? isDarkMode
-                ? "bg-gray-700 font-semibold text-white"
-                : "bg-blue-100 font-semibold text-black"
-              : isDarkMode
-              ? "hover:bg-gray-700 text-white"
-              : "hover:bg-gray-50 text-black"
-          }`}
+          onClick={() => {
+            if (disabled) return alert("Complete verification to access this.");
+            setActiveModule(moduleName);
+            setSidebarOpen(false);
+          }}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded ${base}`}
         >
-          {Icon && <Icon size={16} />}
+          <Icon size={16} />
           <span>{label}</span>
         </button>
       </li>
     );
-  };
-
-  // Helper function to get the user's initial for avatar fallback.
-  const getUserInitial = () => {
-    if (user) {
-      if (user.name) return user.name.charAt(0).toUpperCase();
-      if (user.first_name) return user.first_name.charAt(0).toUpperCase();
-    }
-    return "M";
-  };
+  }
 
   return (
-    <div
-      className={`min-h-screen flex flex-col transition-colors duration-300 ${
-        isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
-      }`}
-    >
-      {/* Top Navbar for small screens */}
+    <div className={`min-h-screen flex ${isDarkMode ? "bg-gray-900" : "bg-white text-gray-800"}`}>
+      {/* Mobile Navbar */}
       <header
-        className={`h-16 flex items-center justify-between px-4 border-b md:hidden transition-colors duration-300 ${
+        className={`h-16 flex items-center justify-between px-4 border-b md:hidden ${
           isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
         }`}
       >
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-          <h2 className="text-lg font-bold">Vistapro</h2>
-        </div>
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+        <h2 className="text-lg font-bold">Vistapro</h2>
         <div className="flex items-center gap-4">
-          <button className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-            <Bell size={18} />
-            <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-              3
-            </span>
-          </button>
-          <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-            {user && user.first_name ? user.first_name.charAt(0).toUpperCase() : "M"}
-          </div>
+          <NotificationBell
+            count={notifCount}
+            onClick={() => alert("Show notifications…")}
+          />
+          <AvatarDropdown
+            user={user}
+            handleLogout={handleLogout}
+            toggleDarkMode={toggleDarkMode}
+            isDarkMode={isDarkMode}
+            setActiveModule={setActiveModule}
+          />
         </div>
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row">
         {/* Sidebar */}
         <aside
-          className={`${
-            sidebarOpen ? "block" : "hidden"
-          } md:block w-full md:w-64 flex-shrink-0 transition-colors duration-300 ${
-            isDarkMode
-              ? "bg-gray-800 border-r border-gray-700"
-              : "bg-white border-r border-gray-200"
+          className={`${sidebarOpen ? "block" : "hidden"} md:block w-full md:w-64 border-r ${
+            isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
           }`}
         >
-          <div className="p-4 text-center font-bold text-xl md:text-2xl border-b transition-colors duration-300">
+          <div className="p-4 text-center font-bold text-xl border-b">
             Vistapro
           </div>
-          <nav className="p-3">
-            <ul className="list-none space-y-2 text-sm">
-              <SidebarItem
-                label="Overview"
-                Icon={Home}
-                moduleName="overview"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Order"
-                Icon={ShoppingCart}
-                moduleName="order"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Account Settings"
-                Icon={User}
-                moduleName="account-settings"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Messages"
-                Icon={MessageSquare}
-                moduleName="messages"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Verification"
-                Icon={Bell}
-                moduleName="verification"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Wallet"
-                Icon={ShoppingCart}
-                moduleName="wallet"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Stock Pickup"
-                Icon={ShoppingCart}
-                moduleName="stock-pickup"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              {activeModule !== "overview" && (
-                <li>
-                  <button
-                    onClick={() => setActiveModule("overview")}
-                    className="w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors hover:bg-gray-50"
-                  >
-                    <ArrowLeft size={16} />
-                    <span>Return</span>
-                  </button>
-                </li>
-              )}
+          <ul className="p-3 space-y-2 text-sm">
+            <SidebarItem label="Overview"        Icon={Home}         moduleName="overview"       disabled={!isVerified}/>
+            <SidebarItem label="Orders"          Icon={ShoppingCart} moduleName="order"          disabled={!isVerified}/>
+            <SidebarItem label="Account"         Icon={User}         moduleName="account-settings"disabled={!isVerified}/>
+            <SidebarItem label="Messages"        Icon={MessageSquare}moduleName="messages"        disabled={!isVerified}/>
+            <SidebarItem label="Verification"    Icon={Bell}         moduleName="verification"    disabled={false}/>
+            <SidebarItem
+              label="Wallet"
+              Icon={CreditCard}
+              moduleName="wallet"
+              disabled={!isVerified}
+            />
+            <SidebarItem label="Stock Pickup"    Icon={ShoppingCart} moduleName="stock-pickup"    disabled={!isVerified}/>
+            {activeModule !== "overview" && (
               <li>
                 <button
-                  onClick={handleLogout}
-                  className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-                    isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black"
-                  }`}
+                  onClick={() => setActiveModule("overview")}
+                  className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50"
                 >
-                  <LogOut size={16} />
-                  Logout
+                  <ArrowLeft size={16} />
+                  Return
                 </button>
               </li>
-            </ul>
-          </nav>
+            )}
+            <li>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50"
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            </li>
+          </ul>
         </aside>
 
-        {/* Main Content Area */}
+        {/* Main Content */}
         <div className="flex-1 flex flex-col">
-          {/* Top Bar for larger screens */}
+          {/* Desktop Navbar */}
           <header
-            className={`hidden md:flex h-16 border-b px-4 md:px-6 items-center justify-between transition-colors duration-300 ${
-              isDarkMode ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-200 text-gray-800"
+            className={`hidden md:flex h-16 items-center justify-between px-6 border-b ${
+              isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
             }`}
           >
             <div>
-              <h2 className="text-lg md:text-xl font-bold">
-                {greeting}, {user ? `${user.first_name} ${user.last_name}` : "Marketer"}!
+              <h2 className="text-xl font-bold">
+                {greeting}, {user?.first_name}!
               </h2>
-              <p className="text-xs md:text-sm text-gray-500">
-                Unique ID: {user ? user.unique_id : ""}
-              </p>
+              <p className="text-sm text-gray-500">ID: {user?.unique_id}</p>
             </div>
             <div className="flex items-center gap-4">
+              <NotificationBell
+                count={notifCount}
+                onClick={() => alert("Show notifications…")}
+              />
               <AvatarDropdown
                 user={user}
                 handleLogout={handleLogout}
@@ -388,49 +269,11 @@ function MarketerDashboard() {
             </div>
           </header>
 
-          <main className="p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300">
-            {renderModule()}
+          <main className="flex-1 overflow-auto p-6">
+            {renderContent()}
           </main>
         </div>
       </div>
     </div>
-  );
-}
-
-export default MarketerDashboard;
-
-// SidebarItem component renders each item in the sidebar.
-function SidebarItem({
-  label,
-  Icon,
-  moduleName,
-  activeModule,
-  setActiveModule,
-  setSidebarOpen,
-  isDarkMode,
-}) {
-  const isActive = activeModule === moduleName;
-  const handleClick = () => {
-    setActiveModule(moduleName);
-    setSidebarOpen(false);
-  };
-  return (
-    <li>
-      <button
-        onClick={handleClick}
-        className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-          isActive
-            ? isDarkMode
-              ? "bg-gray-700 font-semibold text-white"
-              : "bg-blue-100 font-semibold text-black"
-            : isDarkMode
-            ? "hover:bg-gray-700 text-white"
-            : "hover:bg-gray-50 text-black"
-        }`}
-      >
-        {Icon && <Icon size={16} />}
-        <span>{label}</span>
-      </button>
-    </li>
   );
 }
