@@ -15,15 +15,15 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import MarketersOverview    from "./MarketersOverview";
-import MarketerAccountSettings from "./MarketerAccountSettings";
-import Order                from "./Order";
-import Messaging            from "./Messaging";
-import VerificationMarketer from "./VerificationMarketer";
-import Wallet               from "./Wallet";
-import MarketerStockPickup  from "./MarketerStockPickup";
-import AvatarDropdown       from "./AvatarDropdown";
-import NotificationBell     from "./NotificationBell";
+import MarketersOverview             from "./MarketersOverview";
+import MarketerAccountSettings       from "./MarketerAccountSettings";
+import Order                         from "./Order";
+import Messaging                     from "./Messaging";
+import VerificationMarketer          from "./VerificationMarketer";
+import Wallet                        from "./Wallet";
+import MarketerStockPickup           from "./MarketerStockPickup";
+import AvatarDropdown                from "./AvatarDropdown";
+import NotificationBell              from "./NotificationBell";
 
 // init socket
 const socket = io("https://vistapro-backend.onrender.com");
@@ -143,7 +143,7 @@ export default function MarketerDashboard() {
       {/* Mobile header */}
       <header className="md:hidden flex items-center justify-between px-4 h-16 border-b">
         <button onClick={()=>setSidebarOpen(v=>!v)} className="p-2">
-          {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
+          {sidebarOpen ? <X size={20}/> : <Menu size={20}/> }
         </button>
         <h2 className="text-lg font-bold">Vistapro</h2>
         <div className="flex items-center gap-3">
@@ -159,19 +159,33 @@ export default function MarketerDashboard() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Overlay (under drawer) */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar / Drawer */}
         <aside
           className={`
-            fixed inset-y-0 left-0 z-40 
-            w-3/4 max-w-xs sm:w-64 sm:max-w-none 
+            fixed inset-y-0 left-0 z-50
+            w-full               /* xs: full width */
+            sm:w-3/4             /* ≥640px: 75% */
+            md:w-64              /* ≥768px: 16rem */
             transform transition-transform duration-200
             ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
             md:relative md:translate-x-0
             border-r ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}
           `}
         >
-          <div className="p-4 text-center font-bold text-xl border-b">
-            Vistapro
+          {/* Close button on mobile */}
+          <div className="flex items-center justify-between p-4 md:hidden border-b">
+            <h2 className="text-xl font-bold">Vistapro</h2>
+            <button onClick={() => setSidebarOpen(false)}>
+              <X size={24} />
+            </button>
           </div>
           <ul className="p-4 space-y-2 text-sm">
             <SidebarItem label="Overview"     Icon={Home}         moduleName="overview"        disabled={!isVerified}/>
