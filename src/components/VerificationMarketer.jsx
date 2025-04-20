@@ -27,7 +27,7 @@ const VerificationMarketer = ({ onComplete }) => {
     return arr;
   };
 
-  // 2) On mount or when user changes: handle Admin override or resume logic
+  // 2) On mount / user change: handle Admin‐override or resume logic
   useEffect(() => {
     if (!user) return;
 
@@ -110,27 +110,23 @@ const VerificationMarketer = ({ onComplete }) => {
       return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
     }
 
-    // Otherwise follow the step sequence
+    // Otherwise follow the normal step sequence
     if (step === 1) {
       return <ApplicantBiodataForm
-        onSuccess={() => setStep(2)}
+        onSuccess={() => handleFormSuccess("biodata")}
       />;
     }
     if (step === 2) {
       return <ApplicantGuarantorForm
-        onSuccess={() => setStep(3)}
+        onSuccess={() => handleFormSuccess("guarantor")}
       />;
     }
     if (step === 3) {
       return <ApplicantCommitmentForm
-        onSuccess={() => {
-          localStorage.removeItem("verificationStep");
-          onComplete?.();
-        }}
+        onSuccess={() => handleFormSuccess("commitment")}
       />;
     }
 
-    // fallback
     return null;
   };
 
