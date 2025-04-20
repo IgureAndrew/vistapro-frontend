@@ -79,7 +79,7 @@ export default function MarketerDashboard() {
     };
   }, [user]);
 
-  const handleLogout   = () => { localStorage.clear(); navigate("/login"); };
+  const handleLogout   = () => { localStorage.clear(); navigate("/", { replace: true })};
   const toggleDarkMode = ()  => setIsDarkMode(d => !d);
 
   // choose which content to render

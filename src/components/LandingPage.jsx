@@ -51,7 +51,8 @@ function LandingPage() {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+          //data.user should now include bio_submitted, guarantor_submitted, commitment_submitted
+           localStorage.setItem("user", JSON.stringify(data.user));
         // Redirect based on the user's role.
         switch (data.user.role) {
           case "SuperAdmin":

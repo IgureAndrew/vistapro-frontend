@@ -1,3 +1,4 @@
+// src/components/VerificationMarketer.jsx
 import React, { useState, useEffect } from "react";
 import ApplicantBiodataForm from "./ApplicantBiodataForm";
 import ApplicantGuarantorForm from "./ApplicantGuarantorForm";
@@ -8,13 +9,16 @@ const VerificationMarketer = ({ onComplete }) => {
   const storedUser = localStorage.getItem("user");
   const [user, setUser] = useState(storedUser ? JSON.parse(storedUser) : null);
 
+  // resetForm holds a single form type if Admin forced a reset
   const [resetForm, setResetForm] = useState(null);
+
+  // step is 1,2,3 in normal flow
   const [step, setStep] = useState(() => {
     const s = localStorage.getItem("verificationStep");
     return s ? Number(s) : 1;
   });
 
-  // Helper to list which forms are still incomplete
+  // Utility to see which remain un‑submitted
   const getIncompleteForms = u => {
     const arr = [];
     if (!u.bio_submitted)       arr.push("biodata");
@@ -23,14 +27,14 @@ const VerificationMarketer = ({ onComplete }) => {
     return arr;
   };
 
-  // 2) On mount / user change: handle admin resets or resume logic
+  // 2) On mount or when user changes: handle Admin override or resume logic
   useEffect(() => {
     if (!user) return;
 
-    // Admin may have forced a reset of one form
-    const adminReset = localStorage.getItem("resetFormType");
-    if (adminReset) {
-      setResetForm(adminReset);
+    // A) Admin may have injected a reset flag via localStorage
+    const adminOverride = localStorage.getItem("resetFormType");
+    if (adminOverride) {
+      setResetForm(adminOverride);
       localStorage.removeItem("verificationStep");
       localStorage.removeItem("resetFormType");
       return;
@@ -39,29 +43,31 @@ const VerificationMarketer = ({ onComplete }) => {
     // No override → clear resetForm
     setResetForm(null);
 
-    // Check which remain
+    // B) Check what’s left
     const incomplete = getIncompleteForms(user);
+
     if (incomplete.length === 0) {
-      // All done
+      // All done → clear step & notify parent
       localStorage.removeItem("verificationStep");
       onComplete?.();
-    } else if (incomplete.length === 1) {
-      // Exactly one left: force that form
+    }
+    else if (incomplete.length === 1) {
+      // Exactly one left → force that form
       setResetForm(incomplete[0]);
     }
-    // else: more than one left → leave `step` intact so we resume normal sequence
+    // else: more than one left → continue at saved step
+
   }, [user, onComplete]);
 
-  // 3) Persist step whenever it changes (unless admin override is active)
+  // 3) Persist step whenever it changes (unless Admin override is active)
   useEffect(() => {
     if (!resetForm) {
       localStorage.setItem("verificationStep", step);
     }
   }, [step, resetForm]);
 
-  // 4) When each form finishes, update flags & advance
+  // 4) When a form completes, flip its flag, update user & advance
   const handleFormSuccess = formType => {
-    // flip the corresponding flag
     const flagMap = {
       biodata:    "bio_submitted",
       guarantor:  "guarantor_submitted",
@@ -72,7 +78,7 @@ const VerificationMarketer = ({ onComplete }) => {
     setUser(updated);
     localStorage.setItem("user", JSON.stringify(updated));
 
-    // clear any admin override
+    // clear any override
     if (resetForm === formType) {
       setResetForm(null);
     }
@@ -82,18 +88,18 @@ const VerificationMarketer = ({ onComplete }) => {
     if (incomplete.length === 0) {
       localStorage.removeItem("verificationStep");
       onComplete?.();
-    } else if (incomplete.length === 1) {
-      // only one left → force it
+    }
+    else if (incomplete.length === 1) {
       setResetForm(incomplete[0]);
-    } else {
-      // multiple left → next step
+    }
+    else {
       setStep(prev => prev + 1);
     }
   };
 
-  // 5) Render logic
+  // 5) Choose which form to render
   const renderForm = () => {
-    // A) admin override
+    // Admin override always wins
     if (resetForm === "biodata") {
       return <ApplicantBiodataForm  onSuccess={() => handleFormSuccess("biodata")} />;
     }
@@ -104,28 +110,27 @@ const VerificationMarketer = ({ onComplete }) => {
       return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
     }
 
-    // B) normal step flow
+    // Otherwise follow the step sequence
     if (step === 1) {
       return <ApplicantBiodataForm
-        onSuccess={() => { alert("Biodata submitted!"); setStep(2); }}
+        onSuccess={() => setStep(2)}
       />;
     }
     if (step === 2) {
       return <ApplicantGuarantorForm
-        onSuccess={() => { alert("Guarantor form done!"); setStep(3); }}
+        onSuccess={() => setStep(3)}
       />;
     }
     if (step === 3) {
       return <ApplicantCommitmentForm
         onSuccess={() => {
-          alert("Commitment complete! Awaiting review.");
           localStorage.removeItem("verificationStep");
           onComplete?.();
         }}
       />;
     }
 
-    // fallback (shouldn’t happen)
+    // fallback
     return null;
   };
 
