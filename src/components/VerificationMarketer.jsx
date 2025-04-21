@@ -5,127 +5,116 @@ import ApplicantGuarantorForm from "./ApplicantGuarantorForm";
 import ApplicantCommitmentForm from "./ApplicantCommitmentForm";
 import FormStepper from "./FormStepper";
 import api from "../api";
-
+import socket from "../utils/socket"; // wherever you init your io()
 
 const FORM_KEYS = ["biodata", "guarantor", "commitment"];
 const FLAG_MAP = {
-  biodata: "bio_submitted",
-  guarantor: "guarantor_submitted",
+  biodata:    "bio_submitted",
+  guarantor:  "guarantor_submitted",
   commitment: "commitment_submitted",
 };
 
 export default function VerificationMarketer({ onComplete }) {
-  const [user, setUser] = useState(null);
-  const [step, setStep] = useState(() => {
-    const s = localStorage.getItem("verificationStep");
-    return s ? Number(s) : 1;
-  });
-  const [resetForm, setResetForm] = useState(null);
+  const [user, setUser]       = useState(null);
+  const [step, setStep]       = useState(1);
+  const [resetForm, setReset] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper: which forms remain?
-  const getIncomplete = (u) =>
-    FORM_KEYS.filter((k) => !u[FLAG_MAP[k]]);
+  // helper to know which keys remain
+  const getIncomplete = u =>
+    FORM_KEYS.filter(k => !u?.[FLAG_MAP[k]]);
 
-  // 1) On mount, fetch fresh user & flags
+  // 1) fetch user
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get("/auth/me");
         setUser(data.user);
-        // decide if only one incomplete → force‐show that
-        const incomplete = getIncomplete(data.user);
-        if (incomplete.length === 0) {
-          onComplete?.();
-        } else if (incomplete.length === 1) {
-          setResetForm(incomplete[0]);
-        }
-      } catch (err) {
-        console.error("Couldn't fetch user:", err);
+        // if only one left, jump straight to it
+        const inc = getIncomplete(data.user);
+        if (inc.length === 1) setReset(inc[0]);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     })();
-  }, [onComplete]);
+  }, []);
 
-  // 2) Check for any admin‐injected override
+  // 2) pick up any formReset override
   useEffect(() => {
-    const admin = localStorage.getItem("resetFormType");
-    if (admin) {
-      setResetForm(admin);
+    const forced = localStorage.getItem("resetFormType");
+    if (forced) {
+      setReset(forced);
       localStorage.removeItem("resetFormType");
-      localStorage.removeItem("verificationStep");
     }
   }, []);
 
-  // 3) Persist step (unless override)
+  // 3) socket listener for the master‑admin “unlock” and formReset
   useEffect(() => {
-    if (!resetForm) {
-      localStorage.setItem("verificationStep", step);
-    }
-  }, [step, resetForm]);
+    if (!user) return;
 
-  // 4) When any form completes
-  const handleFormSuccess = async (key) => {
-    // 4a) Tell backend we succeeded
+    socket.emit("register", user.unique_id);
+
+    socket.on("formReset", data => {
+      if (data.marketerUniqueId === user.unique_id) {
+        // flip the flag locally
+        const flagKey = FLAG_MAP[data.formType];
+        const updated = { ...user, [flagKey]: false };
+        setUser(updated);
+        // force that form on next render
+        localStorage.setItem("resetFormType", data.formType);
+        setReset(data.formType);
+        alert(data.message);
+      }
+    });
+
+    socket.on("verificationApproved", data => {
+      if (data.marketerUniqueId === user.unique_id) {
+        alert(data.message);
+        onComplete?.();
+      }
+    });
+
+    return () => {
+      socket.off("formReset");
+      socket.off("verificationApproved");
+    };
+  }, [user, onComplete]);
+
+  // 4) handle submit success
+  const handleSuccess = async key => {
     await api.patch(`/verification/${key}-success`);
-
-    // 4b) Flip local flag
     const updated = { ...user, [FLAG_MAP[key]]: true };
     setUser(updated);
-    localStorage.setItem("user", JSON.stringify(updated));
+    // clear override if we were forced here
+    if (resetForm === key) setReset(null);
 
-    // 4c) Clear any override
-    if (resetForm === key) setResetForm(null);
-
-    // 4d) Decide next
-    const incomplete = getIncomplete(updated);
-    if (incomplete.length === 0) {
-      localStorage.removeItem("verificationStep");
-      onComplete?.();
-    } else if (incomplete.length === 1) {
-      setResetForm(incomplete[0]);
-    } else {
-      setStep((s) => Math.min(s + 1, FORM_KEYS.length));
+    // if more than one left, advance; otherwise do nothing
+    const inc = getIncomplete(updated);
+    if (inc.length > 1) {
+      setStep(s => Math.min(s + 1, FORM_KEYS.length));
     }
-  };
-
-  // Pick the right form to show
-  const renderForm = () => {
-    // Override always wins
-    if (resetForm) {
-      switch (resetForm) {
-        case "biodata":
-          return <ApplicantBiodataForm onSuccess={() => handleFormSuccess("biodata")} />;
-        case "guarantor":
-          return <ApplicantGuarantorForm onSuccess={() => handleFormSuccess("guarantor")} />;
-        case "commitment":
-          return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
-        default:
-          return null;
-      }
-    }
-
-    // Otherwise follow step sequence
-    switch (step) {
-      case 1:
-        return <ApplicantBiodataForm onSuccess={() => handleFormSuccess("biodata")} />;
-      case 2:
-        return <ApplicantGuarantorForm onSuccess={() => handleFormSuccess("guarantor")} />;
-      case 3:
-        return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
-      default:
-        return null;
-    }
+    // when zero left, we simply wait for master‑admin via socket
   };
 
   if (loading) return <p>Loading…</p>;
 
-  // Build data for the stepper
-  const completed = FORM_KEYS.map((k) => Boolean(user?.[FLAG_MAP[k]]));
+  // build completed & doneCount
+  const completed = FORM_KEYS.map(k => Boolean(user[FLAG_MAP[k]]));
+  const doneCount = completed.filter(Boolean).length;
   const activeIndex = resetForm
     ? FORM_KEYS.indexOf(resetForm)
     : step - 1;
+
+  // choose which form to render
+  const renderForm = () => {
+    const show = resetForm || FORM_KEYS[step - 1];
+    if (show === "biodata")    return <ApplicantBiodataForm    onSuccess={() => handleSuccess("biodata")} />;
+    if (show === "guarantor")  return <ApplicantGuarantorForm  onSuccess={() => handleSuccess("guarantor")} />;
+    if (show === "commitment") return <ApplicantCommitmentForm onSuccess={() => handleSuccess("commitment")} />;
+    return null;
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -133,18 +122,17 @@ export default function VerificationMarketer({ onComplete }) {
 
       <FormStepper
         steps={[
-          { key: "biodata", label: "Biodata" },
-          { key: "guarantor", label: "Guarantor" },
+          { key: "biodata",    label: "Biodata" },
+          { key: "guarantor",  label: "Guarantor" },
           { key: "commitment", label: "Commitment" },
         ]}
         activeIndex={activeIndex}
         completed={completed}
         onStepClick={(idx, key) => {
-          // only allow clicking on a step that's already done, or the very next one
-          const doneCount = completed.filter(Boolean).length;
-          if (completed[idx] || idx === doneCount) {
+          // only allow clicks up to doneCount
+          if (idx <= doneCount) {
             setStep(idx + 1);
-            setResetForm(null);
+            setReset(null);
           }
         }}
       />
