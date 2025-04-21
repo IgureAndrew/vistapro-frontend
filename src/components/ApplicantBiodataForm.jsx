@@ -1,45 +1,14 @@
 // src/components/ApplicantBiodataForm.jsx
 import React, { useState } from "react";
+import api from "../api";
+import FormStepper from "./FormStepper";
 
 // List of Nigerian states.
 const NIGERIAN_STATES = [
-  "Abia",
-  "Adamawa",
-  "Akwa Ibom",
-  "Anambra",
-  "Bauchi",
-  "Bayelsa",
-  "Benue",
-  "Borno",
-  "Cross River",
-  "Delta",
-  "Ebonyi",
-  "Edo",
-  "Ekiti",
-  "Enugu",
-  "Gombe",
-  "Imo",
-  "Jigawa",
-  "Kaduna",
-  "Kano",
-  "Katsina",
-  "Kebbi",
-  "Kogi",
-  "Kwara",
-  "Lagos",
-  "Nasarawa",
-  "Niger",
-  "Ogun",
-  "Ondo",
-  "Osun",
-  "Oyo",
-  "Plateau",
-  "Rivers",
-  "Sokoto",
-  "Taraba",
-  "Yobe",
-  "Zamfara",
-  "FCT"
+  "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno",
+  "Cross River","Delta","Ebonyi","Edo","Ekiti","Enugu","Gombe","Imo","Jigawa",
+  "Kaduna","Kano","Katsina","Kebbi","Kogi","Kwara","Lagos","Nasarawa","Niger",
+  "Ogun","Ondo","Osun","Oyo","Plateau","Rivers","Sokoto","Taraba","Yobe","Zamfara","FCT"
 ];
 
 // Options for Means of Identification.
@@ -49,415 +18,328 @@ const IDENTIFICATION_OPTIONS = [
   "Driver's License"
 ];
 
-function ApplicantBiodataForm({ onSuccess }) {
-  // Form state for text and select inputs.
+export default function ApplicantBiodataForm({ onSuccess }) {
+  // 1) Form state
   const [formData, setFormData] = useState({
-    name: "",
-    address: "",
-    phone: "",
-    religion: "", // e.g., "Christian" or "Muslim"
-    date_of_birth: "",
-    marital_status: "", // e.g., "Single" or "Married"
-    state_of_origin: "",
-    state_of_residence: "",
-    mothers_maiden_name: "",
-    school_attended: "",
-    means_of_identification: "",
-    last_place_of_work: "",
-    job_description: "",
-    reason_for_quitting: "",
-    medical_condition: "",
-    next_of_kin_name: "",
-    next_of_kin_phone: "",
-    next_of_kin_address: "",
-    next_of_kin_relationship: "",
-    bank_name: "",
-    account_name: "",
-    account_number: "",
+    name: "", address: "", phone: "", religion: "",
+    date_of_birth: "", marital_status: "",
+    state_of_origin: "", state_of_residence: "",
+    mothers_maiden_name: "", school_attended: "",
+    means_of_identification: "", last_place_of_work: "",
+    job_description: "", reason_for_quitting: "",
+    medical_condition: "", next_of_kin_name: "",
+    next_of_kin_phone: "", next_of_kin_address: "",
+    next_of_kin_relationship: "", bank_name: "",
+    account_name: "", account_number: "",
   });
-
-  // File state for uploads.
   const [passportPhoto, setPassportPhoto] = useState(null);
   const [identificationFile, setIdentificationFile] = useState(null);
 
-  // Handler for text and select input changes.
-  const handleChange = (e) => {
+  // 2) Handlers
+  const handleChange = e => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(f => ({ ...f, [name]: value }));
+  };
+  const handlePassportPhotoChange = e => {
+    if (e.target.files[0]) setPassportPhoto(e.target.files[0]);
+  };
+  const handleIdentificationFileChange = e => {
+    if (e.target.files[0]) setIdentificationFile(e.target.files[0]);
   };
 
-  // Handler for file input changes.
-  const handlePassportPhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setPassportPhoto(file);
-    }
-  };
+  // 3) Simple validators
+  const isValidPhone = phone => /^\d{11}$/.test(phone);
+  const isValidAccountNumber = acct => /^\d{10}$/.test(acct);
 
-  const handleIdentificationFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setIdentificationFile(file);
-    }
-  };
-
-  // Simple client-side validations.
-  const isValidPhone = (phone) => /^\d{11}$/.test(phone);
-  const isValidAccountNumber = (acct) => /^\d{10}$/.test(acct);
-
-  // Handle form submission.
-  const handleSubmit = async (e) => {
+  // 4) Submit
+  const handleSubmit = async e => {
     e.preventDefault();
 
-    // Validate phone and account numbers.
     if (!isValidPhone(formData.phone)) {
-      alert("Phone number must be exactly 11 digits.");
-      return;
+      return alert("Phone number must be exactly 11 digits.");
     }
     if (!isValidAccountNumber(formData.account_number)) {
-      alert("Account number must be exactly 10 digits.");
-      return;
+      return alert("Account number must be exactly 10 digits.");
     }
 
-    // Create a FormData object to bundle text fields and file uploads.
     const payload = new FormData();
-    for (const key in formData) {
-      payload.append(key, formData[key]);
-    }
-    // Append passport photo.
-    if (passportPhoto) {
-      payload.append("passport_photo", passportPhoto);
-    }
-    // Append identification file if a means of identification is selected.
+    Object.entries(formData).forEach(([k, v]) => payload.append(k, v));
+    if (passportPhoto) payload.append("passport_photo", passportPhoto);
     if (formData.means_of_identification && identificationFile) {
       payload.append("id_document", identificationFile);
     }
 
     try {
-      const token = localStorage.getItem("token");
-      // Let the browser set the correct Content-Type when using FormData.
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/verification/bio-data`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: payload,
-        }
+      // a) POST biodata
+      const res1 = await api.post(
+        "/api/verification/bio-data",
+        payload,
+        { headers: { "Content-Type": "multipart/form-data" } }
       );
-      const data = await response.json();
-      if (response.ok) {
-        alert("Biodata submitted successfully!");
-        if (onSuccess) onSuccess();
-        // Clear the form.
-        setFormData({
-          name: "",
-          address: "",
-          phone: "",
-          religion: "",
-          date_of_birth: "",
-          marital_status: "",
-          state_of_origin: "",
-          state_of_residence: "",
-          mothers_maiden_name: "",
-          school_attended: "",
-          means_of_identification: "",
-          last_place_of_work: "",
-          job_description: "",
-          reason_for_quitting: "",
-          medical_condition: "",
-          next_of_kin_name: "",
-          next_of_kin_phone: "",
-          next_of_kin_address: "",
-          next_of_kin_relationship: "",
-          bank_name: "",
-          account_name: "",
-          account_number: "",
-        });
-        setPassportPhoto(null);
-        setIdentificationFile(null);
-      } else {
-        alert(data.message || "Submission failed.");
+      if (res1.status !== 201) {
+        return alert(res1.data.message || "Biodata submission failed.");
       }
-    } catch (error) {
-      console.error("Error submitting biodata:", error);
+
+      // b) PATCH success flag
+      await api.patch("/api/verification/biodata-success");
+
+      alert("Biodata submitted successfully!");
+      onSuccess?.();
+
+      // Clear form
+      setFormData({
+        name: "", address: "", phone: "", religion: "",
+        date_of_birth: "", marital_status: "",
+        state_of_origin: "", state_of_residence: "",
+        mothers_maiden_name: "", school_attended: "",
+        means_of_identification: "", last_place_of_work: "",
+        job_description: "", reason_for_quitting: "",
+        medical_condition: "", next_of_kin_name: "",
+        next_of_kin_phone: "", next_of_kin_address: "",
+        next_of_kin_relationship: "", bank_name: "",
+        account_name: "", account_number: "",
+      });
+      setPassportPhoto(null);
+      setIdentificationFile(null);
+    } catch (err) {
+      console.error(err);
       alert("Error submitting biodata.");
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow rounded">
+      {/* Stepper indicating “Biodata” is step 1 */}
+      <FormStepper currentStep={1} />
+
       <h2 className="text-2xl font-bold mb-4">APPLICANT BIO-DATA FORM</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Personal Details */}
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">NAME:</label>
+            <label className="block text-sm font-medium">NAME:</label>
             <input
-              type="text"
-              name="name"
-              value={formData.name}
+              name="name" value={formData.name}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">ADDRESS:</label>
+            <label className="block text-sm font-medium">ADDRESS:</label>
             <input
-              type="text"
-              name="address"
-              value={formData.address}
+              name="address" value={formData.address}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">PHONE NO:</label>
+            <label className="block text-sm font-medium">PHONE NO:</label>
             <input
-              type="text"
-              name="phone"
-              value={formData.phone}
+              name="phone" value={formData.phone}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
-              placeholder="e.g., 08012345678"
               required
               pattern="\d{11}"
+              placeholder="e.g., 08012345678"
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">RELIGION:</label>
+            <label className="block text-sm font-medium">RELIGION:</label>
             <select
-              name="religion"
-              value={formData.religion}
+              name="religion" value={formData.religion}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             >
-              <option value="">Select...</option>
-              <option value="Christian">Christian</option>
-              <option value="Muslim">Muslim</option>
+              <option value="">Select…</option>
+              <option>Christian</option>
+              <option>Muslim</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">DATE OF BIRTH:</label>
+            <label className="block text-sm font-medium">DATE OF BIRTH:</label>
             <input
               type="date"
-              name="date_of_birth"
-              value={formData.date_of_birth}
+              name="date_of_birth" value={formData.date_of_birth}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">MARITAL STATUS:</label>
+            <label className="block text-sm font-medium">MARITAL STATUS:</label>
             <select
-              name="marital_status"
-              value={formData.marital_status}
+              name="marital_status" value={formData.marital_status}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             >
-              <option value="">Select...</option>
-              <option value="Single">Single</option>
-              <option value="Married">Married</option>
+              <option value="">Select…</option>
+              <option>Single</option>
+              <option>Married</option>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">STATE OF ORIGIN:</label>
+              <label className="block text-sm font-medium">STATE OF ORIGIN:</label>
               <select
-                name="state_of_origin"
-                value={formData.state_of_origin}
+                name="state_of_origin" value={formData.state_of_origin}
                 onChange={handleChange}
-                className="mt-1 block w-full border rounded p-2"
                 required
+                className="mt-1 block w-full border rounded p-2"
               >
-                <option value="">Select...</option>
-                {NIGERIAN_STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
+                <option value="">Select…</option>
+                {NIGERIAN_STATES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">STATE OF RESIDENCE:</label>
+              <label className="block text-sm font-medium">STATE OF RESIDENCE:</label>
               <select
-                name="state_of_residence"
-                value={formData.state_of_residence}
+                name="state_of_residence" value={formData.state_of_residence}
                 onChange={handleChange}
-                className="mt-1 block w-full border rounded p-2"
                 required
+                className="mt-1 block w-full border rounded p-2"
               >
-                <option value="">Select...</option>
-                {NIGERIAN_STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
+                <option value="">Select…</option>
+                {NIGERIAN_STATES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">MOTHER’S MAIDEN NAME:</label>
+            <label className="block text-sm font-medium">MOTHER’S MAIDEN NAME:</label>
             <input
-              type="text"
-              name="mothers_maiden_name"
-              value={formData.mothers_maiden_name}
+              name="mothers_maiden_name" value={formData.mothers_maiden_name}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">SCHOOL ATTENDED WITH DATE:</label>
+            <label className="block text-sm font-medium">
+              SCHOOL ATTENDED WITH DATE:
+            </label>
             <input
-              type="text"
-              name="school_attended"
-              value={formData.school_attended}
+              name="school_attended" value={formData.school_attended}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
-              placeholder="e.g., XYZ University (2005-2009)"
               required
+              placeholder="e.g., XYZ University (2005–2009)"
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
         </div>
 
-        {/* Means of Identification Section */}
+        {/* Means of Identification */}
         <div className="border-t pt-4">
-          <h3 className="text-xl font-semibold mb-2">MEANS OF IDENTIFICATION:</h3>
+          <h3 className="text-xl font-semibold mb-2">MEANS OF IDENTIFICATION</h3>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Select your Means of Identification:
-            </label>
             <select
               name="means_of_identification"
               value={formData.means_of_identification}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             >
-              <option value="">Select...</option>
-              {IDENTIFICATION_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+              <option value="">Select…</option>
+              {IDENTIFICATION_OPTIONS.map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
           {formData.means_of_identification && (
             <div className="mt-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Upload image of your {formData.means_of_identification}:
-              </label>
               <input
                 type="file"
-                accept="image/jpeg, image/jpg, image/png"
+                accept="image/*"
                 onChange={handleIdentificationFileChange}
-                className="mt-1 block"
                 required
               />
             </div>
           )}
         </div>
 
-        {/* Work and Other Details */}
+        {/* Work & Other Details */}
         <div className="border-t pt-4 grid grid-cols-1 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">LAST PLACE OF WORK:</label>
+            <label className="block text-sm font-medium">LAST PLACE OF WORK:</label>
             <input
-              type="text"
-              name="last_place_of_work"
-              value={formData.last_place_of_work}
+              name="last_place_of_work" value={formData.last_place_of_work}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">JOB DESCRIPTION:</label>
+            <label className="block text-sm font-medium">JOB DESCRIPTION:</label>
             <textarea
-              name="job_description"
-              value={formData.job_description}
+              name="job_description" value={formData.job_description}
               onChange={handleChange}
+              required
               className="mt-1 block w-full border rounded p-2"
               rows="3"
-              required
-            ></textarea>
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">REASON FOR QUITING YOUR PREVIOUS JOB:</label>
+            <label className="block text-sm font-medium">
+              REASON FOR QUITTING PREVIOUS JOB:
+            </label>
             <textarea
-              name="reason_for_quitting"
-              value={formData.reason_for_quitting}
+              name="reason_for_quitting" value={formData.reason_for_quitting}
               onChange={handleChange}
+              required
               className="mt-1 block w-full border rounded p-2"
               rows="3"
-              required
-            ></textarea>
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">ANY MEDICAL CONDITION WE NEED TO KNOW ABOUT:</label>
+            <label className="block text-sm font-medium">
+              ANY MEDICAL CONDITION:
+            </label>
             <input
-              type="text"
-              name="medical_condition"
-              value={formData.medical_condition}
+              name="medical_condition" value={formData.medical_condition}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
         </div>
 
-        {/* Next of Kin Details */}
+        {/* Next of Kin */}
         <div className="border-t pt-4 grid grid-cols-1 gap-4">
           <h3 className="text-xl font-semibold">NEXT OF KIN</h3>
           <div>
-            <label className="block text-sm font-medium text-gray-700">NAME:</label>
+            <label className="block text-sm font-medium">NAME:</label>
             <input
-              type="text"
-              name="next_of_kin_name"
-              value={formData.next_of_kin_name}
+              name="next_of_kin_name" value={formData.next_of_kin_name}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">PHONE NO:</label>
+            <label className="block text-sm font-medium">PHONE NO:</label>
             <input
-              type="text"
-              name="next_of_kin_phone"
-              value={formData.next_of_kin_phone}
+              name="next_of_kin_phone" value={formData.next_of_kin_phone}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">ADDRESS:</label>
+            <label className="block text-sm font-medium">ADDRESS:</label>
             <input
-              type="text"
-              name="next_of_kin_address"
-              value={formData.next_of_kin_address}
+              name="next_of_kin_address" value={formData.next_of_kin_address}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">RELATIONSHIP:</label>
+            <label className="block text-sm font-medium">RELATIONSHIP:</label>
             <input
-              type="text"
-              name="next_of_kin_relationship"
-              value={formData.next_of_kin_relationship}
+              name="next_of_kin_relationship" value={formData.next_of_kin_relationship}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
         </div>
@@ -466,58 +348,53 @@ function ApplicantBiodataForm({ onSuccess }) {
         <div className="border-t pt-4 grid grid-cols-1 gap-4">
           <h3 className="text-xl font-semibold">ACCOUNT DETAILS</h3>
           <div>
-            <label className="block text-sm font-medium text-gray-700">BANK NAME:</label>
+            <label className="block text-sm font-medium">BANK NAME:</label>
             <input
-              type="text"
-              name="bank_name"
-              value={formData.bank_name}
+              name="bank_name" value={formData.bank_name}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">ACCOUNT NAME:</label>
+            <label className="block text-sm font-medium">ACCOUNT NAME:</label>
             <input
-              type="text"
-              name="account_name"
-              value={formData.account_name}
+              name="account_name" value={formData.account_name}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">ACCOUNT NO:</label>
+            <label className="block text-sm font-medium">ACCOUNT NO:</label>
             <input
-              type="text"
-              name="account_number"
-              value={formData.account_number}
+              name="account_number" value={formData.account_number}
               onChange={handleChange}
-              className="mt-1 block w-full border rounded p-2"
               required
               placeholder="10 digits only"
               pattern="\d{10}"
+              className="mt-1 block w-full border rounded p-2"
             />
           </div>
         </div>
 
-        {/* Upload Passport Photo */}
+        {/* Passport Photo Upload */}
         <div className="border-t pt-4">
           <h3 className="text-xl font-semibold mb-2">Upload Passport Photo</h3>
           <input
             type="file"
-            accept="image/jpeg, image/jpg, image/png"
+            accept="image/*"
             onChange={handlePassportPhotoChange}
-            className="block"
             required
           />
           {passportPhoto && (
-            <p className="mt-1 text-xs text-green-600">File selected: {passportPhoto.name}</p>
+            <p className="mt-1 text-xs text-green-600">
+              Selected: {passportPhoto.name}
+            </p>
           )}
         </div>
 
-        {/* Submit Button */}
+        {/* Submit */}
         <div className="flex justify-end pt-4">
           <button
             type="submit"
@@ -530,5 +407,3 @@ function ApplicantBiodataForm({ onSuccess }) {
     </div>
   );
 }
-
-export default ApplicantBiodataForm;

@@ -22,17 +22,17 @@ export default function VerificationMarketer({ onComplete }) {
   const [resetForm, setResetForm] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // helper to list incomplete keys
-  const getIncomplete = u =>
+  // Helper: which forms remain?
+  const getIncomplete = (u) =>
     FORM_KEYS.filter((k) => !u[FLAG_MAP[k]]);
 
-  // fetch fresh user on mount
+  // 1) On mount, fetch fresh user & flags
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get("/auth/me");
         setUser(data.user);
-        // resume step from storage or from flags
+        // decide if only one incomplete → force‐show that
         const incomplete = getIncomplete(data.user);
         if (incomplete.length === 0) {
           onComplete?.();
@@ -40,14 +40,14 @@ export default function VerificationMarketer({ onComplete }) {
           setResetForm(incomplete[0]);
         }
       } catch (err) {
-        console.error("couldn't fetch user:", err);
+        console.error("Couldn't fetch user:", err);
       } finally {
         setLoading(false);
       }
     })();
   }, [onComplete]);
 
-  // react to admin resets injected via localStorage
+  // 2) Check for any admin‐injected override
   useEffect(() => {
     const admin = localStorage.getItem("resetFormType");
     if (admin) {
@@ -57,25 +57,27 @@ export default function VerificationMarketer({ onComplete }) {
     }
   }, []);
 
-  // persist step when it changes (unless override)
+  // 3) Persist step (unless override)
   useEffect(() => {
     if (!resetForm) {
       localStorage.setItem("verificationStep", step);
     }
   }, [step, resetForm]);
 
-  // handle success from any form
+  // 4) When any form completes
   const handleFormSuccess = async (key) => {
-    // flip the flag on server
-    await api.patch(`/verification/${key}-success`);
-    // update local user
+    // 4a) Tell backend we succeeded
+    await api.patch(`/api/verification/${key}-success`);
+
+    // 4b) Flip local flag
     const updated = { ...user, [FLAG_MAP[key]]: true };
     setUser(updated);
     localStorage.setItem("user", JSON.stringify(updated));
 
-    // clear potential override
+    // 4c) Clear any override
     if (resetForm === key) setResetForm(null);
 
+    // 4d) Decide next
     const incomplete = getIncomplete(updated);
     if (incomplete.length === 0) {
       localStorage.removeItem("verificationStep");
@@ -87,36 +89,38 @@ export default function VerificationMarketer({ onComplete }) {
     }
   };
 
+  // Pick the right form to show
   const renderForm = () => {
-    // override form
+    // Override always wins
     if (resetForm) {
-      if (resetForm === "biodata") {
-        return <ApplicantBiodataForm onSuccess={() => handleFormSuccess("biodata")} />;
-      }
-      if (resetForm === "guarantor") {
-        return <ApplicantGuarantorForm onSuccess={() => handleFormSuccess("guarantor")} />;
-      }
-      if (resetForm === "commitment") {
-        return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
+      switch (resetForm) {
+        case "biodata":
+          return <ApplicantBiodataForm onSuccess={() => handleFormSuccess("biodata")} />;
+        case "guarantor":
+          return <ApplicantGuarantorForm onSuccess={() => handleFormSuccess("guarantor")} />;
+        case "commitment":
+          return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
+        default:
+          return null;
       }
     }
 
-    // normal sequence
-    if (step === 1) {
-      return <ApplicantBiodataForm onSuccess={() => handleFormSuccess("biodata")} />;
+    // Otherwise follow step sequence
+    switch (step) {
+      case 1:
+        return <ApplicantBiodataForm onSuccess={() => handleFormSuccess("biodata")} />;
+      case 2:
+        return <ApplicantGuarantorForm onSuccess={() => handleFormSuccess("guarantor")} />;
+      case 3:
+        return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
+      default:
+        return null;
     }
-    if (step === 2) {
-      return <ApplicantGuarantorForm onSuccess={() => handleFormSuccess("guarantor")} />;
-    }
-    if (step === 3) {
-      return <ApplicantCommitmentForm onSuccess={() => handleFormSuccess("commitment")} />;
-    }
-    return null;
   };
 
   if (loading) return <p>Loading…</p>;
 
-  // compute completed steps for the FormStepper
+  // Build data for the stepper
   const completed = FORM_KEYS.map((k) => Boolean(user?.[FLAG_MAP[k]]));
   const activeIndex = resetForm
     ? FORM_KEYS.indexOf(resetForm)
@@ -135,8 +139,9 @@ export default function VerificationMarketer({ onComplete }) {
         activeIndex={activeIndex}
         completed={completed}
         onStepClick={(idx, key) => {
-          // allow clicking only on completed steps or the immediate next
-          if (completed[idx] || idx === completed.filter(Boolean).length) {
+          // only allow clicking on a step that's already done, or the very next one
+          const doneCount = completed.filter(Boolean).length;
+          if (completed[idx] || idx === doneCount) {
             setStep(idx + 1);
             setResetForm(null);
           }

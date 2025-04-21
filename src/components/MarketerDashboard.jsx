@@ -15,17 +15,17 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import MarketersOverview             from "./MarketersOverview";
-import MarketerAccountSettings       from "./MarketerAccountSettings";
-import Order                         from "./Order";
-import Messaging                     from "./Messaging";
-import VerificationMarketer          from "./VerificationMarketer";
-import Wallet                        from "./Wallet";
-import MarketerStockPickup           from "./MarketerStockPickup";
-import AvatarDropdown                from "./AvatarDropdown";
-import NotificationBell              from "./NotificationBell";
+import MarketersOverview        from "./MarketersOverview";
+import MarketerAccountSettings  from "./MarketerAccountSettings";
+import Order                    from "./Order";
+import Messaging                from "./Messaging";
+import VerificationMarketer     from "./VerificationMarketer";
+import Wallet                   from "./Wallet";
+import MarketerStockPickup      from "./MarketerStockPickup";
+import AvatarDropdown           from "./AvatarDropdown";
+import NotificationBell         from "./NotificationBell";
 
-// init socket
+// initialize socket.io client
 const socket = io("https://vistapro-backend.onrender.com");
 
 export default function MarketerDashboard() {
@@ -41,12 +41,12 @@ export default function MarketerDashboard() {
 
   const isVerified = user?.overall_verification_status === "approved";
 
-  // redirect
+  // Redirect to landing if not logged in
   useEffect(() => {
     if (!user) navigate("/", { replace: true });
   }, [user, navigate]);
 
-  // greeting once
+  // One‑time greeting per session
   useEffect(() => {
     if (localStorage.getItem("hasVisitedMarketerDashboard")) {
       setGreeting("Welcome back");
@@ -55,20 +55,30 @@ export default function MarketerDashboard() {
     }
   }, []);
 
-  // sockets
+  // Socket.io listeners
   useEffect(() => {
-    if (user?.unique_id) socket.emit("register", user.unique_id);
+    if (user?.unique_id) {
+      socket.emit("register", user.unique_id);
+    }
 
-    socket.on("notification", ({ count }) => setNotifCount(count));
-    socket.on("verificationApproved", data => {
+    // NEW: listen for notificationCount
+    socket.on("notificationCount", ({ count }) => {
+      setNotifCount(count);
+    });
+
+    socket.on("verificationApproved", (data) => {
       if (data.marketerUniqueId === user.unique_id) {
-        const updated = { ...user, overall_verification_status: "approved" };
+        const updated = {
+          ...user,
+          overall_verification_status: "approved"
+        };
         setUser(updated);
         localStorage.setItem("user", JSON.stringify(updated));
         alert(data.message);
       }
     });
-    socket.on("formReset", data => {
+
+    socket.on("formReset", (data) => {
       if (data.marketerUniqueId === user.unique_id) {
         const key = data.formType.toLowerCase() + "_submitted";
         const updatedUser = { ...user, [key]: false };
@@ -80,7 +90,8 @@ export default function MarketerDashboard() {
     });
 
     return () => {
-      socket.off("notification");
+      // CLEANUP: off notificationCount
+      socket.off("notificationCount");
       socket.off("verificationApproved");
       socket.off("formReset");
     };
@@ -103,17 +114,18 @@ export default function MarketerDashboard() {
       );
     }
     switch (activeModule) {
-      case "overview":        return <MarketersOverview onNewOrder={()=>setActiveModule("order")} />;
-      case "order":           return <Order />;
-      case "account-settings":return <MarketerAccountSettings />;
-      case "messages":        return <Messaging />;
-      case "verification":    return <VerificationMarketer />;
-      case "wallet":          return <Wallet />;
-      case "stock-pickup":    return <MarketerStockPickup />;
-      default:                return <MarketersOverview />;
+      case "overview":         return <MarketersOverview onNewOrder={()=>setActiveModule("order")} />;
+      case "order":            return <Order />;
+      case "account-settings": return <MarketerAccountSettings />;
+      case "messages":         return <Messaging />;
+      case "verification":     return <VerificationMarketer />;
+      case "wallet":           return <Wallet />;
+      case "stock-pickup":     return <MarketerStockPickup />;
+      default:                 return <MarketersOverview />;
     }
   };
 
+  // Sidebar item helper
   function SidebarItem({ label, Icon, moduleName, disabled }) {
     const isActive = activeModule === moduleName;
     const base = isActive
@@ -140,10 +152,10 @@ export default function MarketerDashboard() {
 
   return (
     <div className={`min-h-screen flex flex-col ${isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"}`}>
-      {/* Mobile header */}
+      {/* Mobile top bar */}
       <header className="md:hidden flex items-center justify-between px-4 h-16 border-b">
-        <button onClick={()=>setSidebarOpen(v=>!v)} className="p-2">
-          {sidebarOpen ? <X size={20}/> : <Menu size={20}/> }
+        <button onClick={() => setSidebarOpen(v => !v)} className="p-2">
+          {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
         </button>
         <h2 className="text-lg font-bold">Vistapro</h2>
         <div className="flex items-center gap-3">
@@ -159,7 +171,7 @@ export default function MarketerDashboard() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Overlay (under drawer) */}
+        {/* Mobile overlay */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
@@ -180,11 +192,14 @@ export default function MarketerDashboard() {
             border-r ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}
           `}
         >
-          {/* Close button on mobile */}
-          <div className="flex items-center justify-between p-4 md:hidden border-b">
+          {/* Brand + mobile close */}
+          <div className="flex items-center justify-between p-4 border-b">
             <h2 className="text-xl font-bold">Vistapro</h2>
-            <button onClick={() => setSidebarOpen(false)}>
-              <X size={24} />
+            <button
+              className="md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X size={24}/>
             </button>
           </div>
           <ul className="p-4 space-y-2 text-sm">
@@ -198,7 +213,7 @@ export default function MarketerDashboard() {
             {activeModule !== "overview" && (
               <li>
                 <button
-                  onClick={()=>setActiveModule("overview")}
+                  onClick={() => setActiveModule("overview")}
                   className="flex items-center gap-2 px-3 py-2 w-full rounded hover:bg-gray-50"
                 >
                   <ArrowLeft size={16}/> Return
@@ -218,7 +233,7 @@ export default function MarketerDashboard() {
 
         {/* Main content */}
         <div className="flex-1 flex flex-col">
-          {/* Desktop header */}
+          {/* Desktop top bar */}
           <header className="hidden md:flex items-center justify-between px-6 h-16 border-b">
             <div>
               <h2 className="text-xl font-bold">{greeting}, {user?.first_name}!</h2>
