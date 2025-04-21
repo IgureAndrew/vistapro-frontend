@@ -4,7 +4,8 @@ import ApplicantBiodataForm from "./ApplicantBiodataForm";
 import ApplicantGuarantorForm from "./ApplicantGuarantorForm";
 import ApplicantCommitmentForm from "./ApplicantCommitmentForm";
 import FormStepper from "./FormStepper";
-import api from "../api";
+import authApi from '../api/authApi';
+
 
 const FORM_KEYS = ["biodata", "guarantor", "commitment"];
 const FLAG_MAP = {
@@ -30,7 +31,7 @@ export default function VerificationMarketer({ onComplete }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get("/auth/me");
+        const { data } = await api.get("/me");
         setUser(data.user);
         // decide if only one incomplete → force‐show that
         const incomplete = getIncomplete(data.user);
