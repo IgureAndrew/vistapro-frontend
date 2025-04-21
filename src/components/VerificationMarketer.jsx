@@ -4,7 +4,7 @@ import ApplicantBiodataForm from "./ApplicantBiodataForm";
 import ApplicantGuarantorForm from "./ApplicantGuarantorForm";
 import ApplicantCommitmentForm from "./ApplicantCommitmentForm";
 import FormStepper from "./FormStepper";
-import api from "../api/authApi"; 
+import api from "../api";
 
 
 const FORM_KEYS = ["biodata", "guarantor", "commitment"];
@@ -31,7 +31,7 @@ export default function VerificationMarketer({ onComplete }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get("/me");
+        const { data } = await api.get("/auth/me");
         setUser(data.user);
         // decide if only one incomplete → force‐show that
         const incomplete = getIncomplete(data.user);
@@ -68,7 +68,7 @@ export default function VerificationMarketer({ onComplete }) {
   // 4) When any form completes
   const handleFormSuccess = async (key) => {
     // 4a) Tell backend we succeeded
-    await api.patch(`/api/verification/${key}-success`);
+    await api.patch(`/verification/${key}-success`);
 
     // 4b) Flip local flag
     const updated = { ...user, [FLAG_MAP[key]]: true };

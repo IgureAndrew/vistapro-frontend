@@ -57,7 +57,7 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
 
     try {
       const res = await api.post(
-        "/api/verification/guarantor",
+        "/verification/guarantor",
         payload,
         {
           headers: { "Content-Type": "multipart/form-data" }
@@ -70,7 +70,7 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
       alert(res.data.message || "Guarantor form submitted successfully.");
 
       // notify back‑end that we succeeded (so front‑end success endpoints no longer 404)
-      await api.patch("/api/verification/guarantor-success");
+      await api.patch("/verification/guarantor-success");
 
       // advance stepper
       onSuccess?.();

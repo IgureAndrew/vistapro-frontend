@@ -71,17 +71,13 @@ export default function ApplicantBiodataForm({ onSuccess }) {
 
     try {
       // a) POST biodata
-      const res1 = await api.post(
-        "/api/verification/bio-data",
-        payload,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      const res1 = await api.post("/verification/bio-data", payload);
       if (res1.status !== 201) {
         return alert(res1.data.message || "Biodata submission failed.");
       }
 
       // b) PATCH success flag
-      await api.patch("/api/verification/biodata-success");
+      await api.patch("/verification/biodata-success");
 
       alert("Biodata submitted successfully!");
       onSuccess?.();

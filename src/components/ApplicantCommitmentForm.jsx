@@ -95,7 +95,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
 
     try {
       const postRes = await api.post(
-        "/api/verification/commitment-handbook",
+        "/verification/commitment-handbook",
         payload,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
@@ -104,7 +104,7 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
       }
 
       // Flip the success flag
-      await api.patch("/api/verification/commitment-success");
+      await api.patch("/verification/commitment-success");
 
       alert(postRes.data.message || "Commitment form submitted successfully.");
 

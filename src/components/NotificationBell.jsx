@@ -1,7 +1,7 @@
 // src/components/NotificationBell.jsx
 import React, { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
-import notifApi from '../api/notifApi';      // <— import your notifications API client
+import api from "../api";
 import { io } from 'socket.io-client';
 
 export default function NotificationBell() {
@@ -11,7 +11,7 @@ export default function NotificationBell() {
 
   useEffect(() => {
     // 1) Fetch initial list + count
-    notifApi.get('/')
+    api.get("/notifications")
       .then(({ data }) => {
         setNotifications(data.notifications);
         setUnreadCount(data.unread);

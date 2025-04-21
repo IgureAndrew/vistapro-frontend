@@ -24,7 +24,7 @@ import Wallet                   from "./Wallet";
 import MarketerStockPickup      from "./MarketerStockPickup";
 import AvatarDropdown           from "./AvatarDropdown";
 import NotificationBell         from "./NotificationBell";
-import api from "../api/authApi"; 
+import api from "../api"; 
 
 // initialize socket.io client
 const socket = io("https://vistapro-backend.onrender.com");
@@ -45,7 +45,7 @@ export default function MarketerDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get("/me");
+        const { data } = await api.get("/auth/me");
         setUser(data.user);
         localStorage.setItem("user", JSON.stringify(data.user));
       } catch (err) {
