@@ -49,7 +49,7 @@ export default function NotificationBell() {
 
   // mark a single notification as read
   const markRead = (id) => {
-    notifApi.patch(`/${id}/read`)
+    api.patch(`/notifications/${id}/read`)
       .then(() => {
         setNotifications(prev =>
           prev.map(n => n.id === id ? { ...n, is_read: true } : n)

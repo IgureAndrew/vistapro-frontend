@@ -4,7 +4,7 @@ import ApplicantBiodataForm from "./ApplicantBiodataForm";
 import ApplicantGuarantorForm from "./ApplicantGuarantorForm";
 import ApplicantCommitmentForm from "./ApplicantCommitmentForm";
 import FormStepper from "./FormStepper";
-import authApi from '../api/authApi';
+import api from "../api/authApi"; 
 
 
 const FORM_KEYS = ["biodata", "guarantor", "commitment"];
