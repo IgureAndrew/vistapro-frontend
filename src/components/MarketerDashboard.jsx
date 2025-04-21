@@ -24,18 +24,15 @@ import Wallet                   from "./Wallet";
 import MarketerStockPickup      from "./MarketerStockPickup";
 import AvatarDropdown           from "./AvatarDropdown";
 import NotificationBell         from "./NotificationBell";
+import api from "../api";
 
 // initialize socket.io client
 const socket = io("https://vistapro-backend.onrender.com");
 
-const SOCKET_URL = "https://vistapro-backend.onrender.com";
-const API_BASE   = import.meta.env.VITE_API_URL;
-
 export default function MarketerDashboard() {
   const navigate = useNavigate();
   const stored   = localStorage.getItem("user");
-  const [user, setUser] = useState(stored ? JSON.parse(stored) : null);
-
+  const [user, setUser]             = useState(stored ? JSON.parse(stored) : null);
   const [activeModule, setActiveModule] = useState("overview");
   const [sidebarOpen,   setSidebarOpen] = useState(false);
   const [isDarkMode,    setIsDarkMode]  = useState(false);
@@ -44,12 +41,28 @@ export default function MarketerDashboard() {
 
   const isVerified = user?.overall_verification_status === "approved";
 
-  // Redirect to landing if not logged in
+  // 1) on-mount: refresh user from /auth/me
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = api.get("/auth/me");
+        setUser(data.user);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      } catch (err) {
+        console.error("Couldn't fetch current user:", err);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        navigate("/", { replace: true });
+      }
+    })();
+  }, [navigate]);
+
+  // redirect to landing if not logged in
   useEffect(() => {
     if (!user) navigate("/", { replace: true });
   }, [user, navigate]);
 
-  // One‑time greeting per session
+  // one‐time greeting per session
   useEffect(() => {
     if (localStorage.getItem("hasVisitedMarketerDashboard")) {
       setGreeting("Welcome back");
@@ -58,13 +71,12 @@ export default function MarketerDashboard() {
     }
   }, []);
 
-  // Socket.io listeners
+  // socket.io listeners
   useEffect(() => {
     if (user?.unique_id) {
       socket.emit("register", user.unique_id);
     }
 
-    // NEW: listen for notificationCount
     socket.on("notificationCount", ({ count }) => {
       setNotifCount(count);
     });
@@ -93,7 +105,6 @@ export default function MarketerDashboard() {
     });
 
     return () => {
-      // CLEANUP: off notificationCount
       socket.off("notificationCount");
       socket.off("verificationApproved");
       socket.off("formReset");
@@ -128,12 +139,12 @@ export default function MarketerDashboard() {
     }
   };
 
-  // Sidebar item helper
+  // Sidebar Item helper
   function SidebarItem({ label, Icon, moduleName, disabled }) {
     const isActive = activeModule === moduleName;
     const base = isActive
-      ? isDarkMode ? "bg-gray-700 text-white" : "bg-blue-100 text-black"
-      : isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black";
+      ? (isDarkMode ? "bg-gray-700 text-white" : "bg-blue-100 text-black")
+      : (isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black");
 
     return (
       <li>
@@ -183,8 +194,7 @@ export default function MarketerDashboard() {
         )}
 
         {/* Sidebar / Drawer */}
-        <aside
-          className={`
+        <aside className={`
             fixed inset-y-0 left-0 z-50
             w-full               /* xs: full width */
             sm:w-3/4             /* ≥640px: 75% */
@@ -193,15 +203,11 @@ export default function MarketerDashboard() {
             ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
             md:relative md:translate-x-0
             border-r ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}
-          `}
-        >
+          `}>
           {/* Brand + mobile close */}
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="text-xl font-bold">Vistapro</h2>
-            <button
-              className="md:hidden"
-              onClick={() => setSidebarOpen(false)}
-            >
+            <button className="md:hidden" onClick={() => setSidebarOpen(false)}>
               <X size={24}/>
             </button>
           </div>
