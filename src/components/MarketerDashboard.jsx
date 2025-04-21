@@ -28,6 +28,9 @@ import NotificationBell         from "./NotificationBell";
 // initialize socket.io client
 const socket = io("https://vistapro-backend.onrender.com");
 
+const SOCKET_URL = "https://vistapro-backend.onrender.com";
+const API_BASE   = import.meta.env.VITE_API_URL;
+
 export default function MarketerDashboard() {
   const navigate = useNavigate();
   const stored   = localStorage.getItem("user");
