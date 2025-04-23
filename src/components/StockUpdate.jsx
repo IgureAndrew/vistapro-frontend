@@ -13,7 +13,7 @@ function StockUpdates() {
   useEffect(() => {
     const fetchStockUpdates = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/stockupdates`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/stockupdates`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -41,7 +41,7 @@ function StockUpdates() {
 
   const handleSendNotification = async (stockId, marketerId) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

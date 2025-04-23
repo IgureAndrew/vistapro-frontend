@@ -3,10 +3,10 @@ import React, { useEffect, useState, useMemo } from "react";
 import { io } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
 import {
-  BarChart2,
   ShoppingCart,
   Clock,
-  Users,
+  BarChart2,
+  Wallet,
   MoreVertical
 } from "lucide-react";
 import api from "../api";
@@ -28,13 +28,13 @@ export default function MarketersOverview() {
     totalOrders: 0,
     totalSales: 0,
     pendingOrders: 0,
-    customers: 0,
+    wallet: 0,              // ← commission earned
   });
 
   // Date filter controls
   const [dateFilter, setDateFilter] = useState("All Time");
 
-  // 1) Real‑time socket listener
+  // 1) Real‑time socket listener for new orders
   useEffect(() => {
     const socket = io(import.meta.env.VITE_API_URL, { transports: ["websocket"] });
     socket.on("new-order", newOrder => {
@@ -45,25 +45,27 @@ export default function MarketersOverview() {
           totalOrders: prev.totalOrders + 1,
           totalSales: prev.totalSales + amt,
           pendingOrders: prev.pendingOrders + (newOrder.status === "pending" ? 1 : 0),
-          customers: prev.customers, // could dedupe by name/email if desired
+          wallet: prev.wallet,
         }));
       }
     });
     return () => socket.disconnect();
   }, [marketerId]);
 
-  // 2) Initial fetch of all marketer orders
+  // 2) Initial fetch of orders + wallet balance
   useEffect(() => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const { data } = await api.get("/api/marketer/orders", {
+
+        // a) fetch orders
+        const { data: orderData } = await api.get("/marketer/orders", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const fetched = data.orders || [];
+        const fetched = orderData.orders || [];
         setOrders(fetched);
 
-        // derive stats
+        // derive order stats
         const derived = fetched.reduce(
           (acc, o) => {
             acc.totalOrders += 1;
@@ -76,15 +78,24 @@ export default function MarketersOverview() {
 
         setStats({
           ...derived,
-          customers: fetched.length,
+          wallet: 0, // placeholder until we fetch it
         });
+
+        // b) fetch wallet/commission balance
+        const { data: walletData } = await api.get("/wallets", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setStats(prev => ({
+          ...prev,
+          wallet: walletData.balance ?? 0,
+        }));
       } catch (err) {
-        console.error("Error loading orders:", err);
+        console.error("Error loading dashboard data:", err);
       }
     })();
   }, []);
 
-  // 3) Filter orders by dateFilter
+  // 3) Filter orders by date
   const filteredOrders = useMemo(() => {
     const now = new Date();
     return orders.filter(o => {
@@ -126,10 +137,10 @@ export default function MarketersOverview() {
             changeColor: "text-blue-600",
           },
           {
-            icon: <Users size={20} className="text-gray-500" />,
-            label: "Customers",
-            value: stats.customers,
-            change: "+25.8%",
+            icon: <Wallet size={20} className="text-gray-500" />,
+            label: "Wallet",
+            value: `₦${stats.wallet.toFixed(2)}`,
+            change: "+12.3%",
             changeColor: "text-purple-600",
           },
         ].map(({ icon, label, value, change, changeColor }, i) => (
@@ -188,7 +199,7 @@ export default function MarketersOverview() {
                 "Device Model",
                 "Device Type",
                 "Price",
-                "BNPL",
+                "BNPL Platform",
                 "Status",
               ].map(hdr => (
                 <th
@@ -213,7 +224,7 @@ export default function MarketersOverview() {
                     ₦{Number(o.sold_amount).toLocaleString()}
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-700">
-                    {o.bnpl ? "Yes" : "No"}
+                    {o.bnpl_platform || "No"}
                   </td>
                   <td className="px-4 py-2 text-sm">
                     <span

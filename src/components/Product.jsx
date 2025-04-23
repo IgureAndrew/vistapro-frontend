@@ -1,250 +1,234 @@
+// src/components/Product.jsx
 import React, { useState, useEffect } from "react";
 
-function Product() {
-  // Use the full URL for the product endpoint (adjust if your backend uses "product" or "products")
-  const baseUrl = "https://vistapro-backend.onrender.com/api/product";
-  const token = localStorage.getItem("token");
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-  const isMasterAdmin = user && user.role === "MasterAdmin";
+export default function Product() {
+  const API_ROOT    = import.meta.env.VITE_API_URL + "/api";
+  const PRODUCTS_URL = `${API_ROOT}/products`;
+  const DEALERS_URL  = `${API_ROOT}/master-admin/dealers`;
+  const token        = localStorage.getItem("token") || "";
 
   const [products, setProducts] = useState([]);
-  const [filter, setFilter] = useState("");
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  const [error, setError] = useState("");
+  const [dealers, setDealers]   = useState([]);
+  const [filter, setFilter]     = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
+  const [editing, setEditing]   = useState(null);
+  const [error, setError]       = useState("");
+
   const [formData, setFormData] = useState({
     dealer_id: "",
     dealer_business_name: "",
+    device_type: "Android",
     device_name: "",
     device_model: "",
     product_quantity: "",
-    overall_product_quantity: "",
-    product_base_price: "",
     cost_price: "",
+    selling_price: "",
   });
 
-  // Fetch products on component mount
+  // Fetch dealers & products once on mount
   useEffect(() => {
+    fetchDealers();
     fetchProducts();
   }, []);
 
-  // Filter products whenever the filter or products change
-  useEffect(() => {
-    if (filter.trim() === "") {
-      setFilteredProducts(products);
-    } else {
-      const lowerFilter = filter.toLowerCase();
-      setFilteredProducts(
-        products.filter(
-          (prod) =>
-            prod.device_name.toLowerCase().includes(lowerFilter) ||
-            (prod.dealer_business_name &&
-              prod.dealer_business_name.toLowerCase().includes(lowerFilter))
-        )
-      );
-    }
-  }, [filter, products]);
-
-  const fetchProducts = async () => {
+  async function fetchDealers() {
     try {
-      const currentToken = localStorage.getItem("token");
-      const res = await fetch(baseUrl, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentToken}`,
-        },
+      const res  = await fetch(DEALERS_URL, {
+        headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) {
-        setProducts(data.products);
-      } else {
-        setError(data.message || "Failed to fetch products");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Error fetching products");
+      if (!res.ok) throw new Error(data.message || "Failed to load dealers");
+      setDealers(data.dealers);
+    } catch (e) {
+      console.error(e);
+      setError("Could not load dealers");
     }
-  };
+  }
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const currentToken = localStorage.getItem("token");
-    if (!currentToken) {
-      alert("No token provided. Please log in again.");
-      return;
-    }
+  async function fetchProducts() {
     try {
-      const method = editingProduct ? "PUT" : "POST";
-      const url = editingProduct ? `${baseUrl}/${editingProduct.id}` : baseUrl;
-      const res = await fetch(url, {
+      const res  = await fetch(PRODUCTS_URL, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load products");
+      setProducts(data.products);
+    } catch (e) {
+      console.error(e);
+      setError("Could not load products");
+    }
+  }
+
+  // Handler for controlled inputs
+  function handleChange(e) {
+    const { name, value } = e.target;
+    if (name === "dealer_id") {
+      const sel = dealers.find(d => d.id === +value);
+      setFormData(fd => ({
+        ...fd,
+        dealer_id: +value,
+        dealer_business_name: sel.business_name
+      }));
+    } else {
+      setFormData(fd => ({ ...fd, [name]: value }));
+    }
+  }
+  
+
+  // Submit add or edit
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      const method = editing ? "PUT" : "POST";
+      const url    = editing
+        ? `${PRODUCTS_URL}/${editing.id}`
+        : PRODUCTS_URL;
+
+      const res  = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${currentToken}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (res.ok) {
-        alert(data.message);
-        setShowForm(false);
-        setEditingProduct(null);
-        setFormData({
-          dealer_id: "",
-          dealer_business_name: "",
-          device_name: "",
-          device_model: "",
-          product_quantity: "",
-          overall_product_quantity: "",
-          product_base_price: "",
-          cost_price: "",
-        });
-        fetchProducts();
-      } else {
-        alert(data.message || "Operation failed");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Error submitting form");
-    }
-  };
+      if (!res.ok) throw new Error(data.message);
 
-  const handleDelete = async (productId) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) return;
-    const currentToken = localStorage.getItem("token");
+      // refresh
+      setShowForm(false);
+      setEditing(null);
+      setFormData({
+        dealer_id: "",
+        dealer_business_name: "",
+        device_type: "Android",
+        device_name: "",
+        device_model: "",
+        product_quantity: "",
+        cost_price: "",
+        selling_price: "",
+      });
+      fetchProducts();
+    } catch (e) {
+      alert(e.message || "Operation failed");
+    }
+  }
+
+  // Populate form for editing
+  function handleEdit(p) {
+    setEditing(p);
+    setFormData({
+      dealer_id: p.dealer_id,
+      dealer_business_name: p.dealer_business_name,
+      device_type: p.device_type,
+      device_name: p.device_name,
+      device_model: p.device_model,
+      product_quantity: String(p.product_quantity),
+      cost_price: String(p.cost_price),
+      selling_price: String(p.selling_price),
+    });
+    setShowForm(true);
+  }
+
+  // Delete product
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this product?")) return;
     try {
-      const res = await fetch(`${baseUrl}/${productId}`, {
+      const res = await fetch(`${PRODUCTS_URL}/${id}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentToken}`,
-        },
+        headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) {
-        alert(data.message);
-        fetchProducts();
-      } else {
-        alert(data.message || "Failed to delete product");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Error deleting product");
+      if (!res.ok) throw new Error(data.message);
+      fetchProducts();
+    } catch (e) {
+      alert(e.message || "Delete failed");
     }
-  };
+  }
 
-  const handleEdit = (product) => {
-    setEditingProduct(product);
-    setFormData({
-      dealer_id: product.dealer_id,
-      dealer_business_name: product.dealer_business_name,
-      device_name: product.device_name,
-      device_model: product.device_model,
-      product_quantity: product.product_quantity,
-      overall_product_quantity: product.overall_product_quantity,
-      product_base_price: product.product_base_price,
-      cost_price: product.cost_price,
-    });
-    setShowForm(true);
-  };
-
-  const handleAdd = () => {
-    setEditingProduct(null);
-    setFormData({
-      dealer_id: "",
-      dealer_business_name: "",
-      device_name: "",
-      device_model: "",
-      product_quantity: "",
-      overall_product_quantity: "",
-      product_base_price: "",
-      cost_price: "",
-    });
-    setShowForm(true);
-  };
+  // Filtered products list
+  const displayed = products.filter(p => {
+    const q = filter.toLowerCase();
+    return (
+      p.device_name.toLowerCase().includes(q) ||
+      p.dealer_business_name.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Product Management</h2>
 
-      {/* Filter Input */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search by device name or dealer..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="border border-gray-300 rounded px-3 py-2 w-full"
-        />
-      </div>
-
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
-      {/* Only show Add button for Master Admin */}
-      {isMasterAdmin && (
-        <button
-          onClick={handleAdd}
-          className="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-        >
-          Add Product
-        </button>
-      )}
+      <input
+        type="text"
+        placeholder="Search by device or dealer…"
+        value={filter}
+        onChange={e => setFilter(e.target.value)}
+        className="border rounded px-3 py-2 mb-4 w-full"
+      />
 
-      {/* Products Table */}
-      <table className="min-w-full border">
-        <thead>
-          <tr className="bg-gray-200">
+      <button
+        onClick={() => { setShowForm(true); setEditing(null); }}
+        className="mb-4 px-4 py-2 bg-green-500 text-white rounded"
+      >
+        Add Product
+      </button>
+
+      <table className="min-w-full border mb-8">
+        <thead className="bg-gray-200">
+          <tr>
             <th className="px-4 py-2 border">ID</th>
             <th className="px-4 py-2 border">Dealer</th>
+            <th className="px-4 py-2 border">Type</th>
             <th className="px-4 py-2 border">Device</th>
             <th className="px-4 py-2 border">Model</th>
-            <th className="px-4 py-2 border">Quantity</th>
-            <th className="px-4 py-2 border">Overall Qty</th>
-            <th className="px-4 py-2 border">Base Price</th>
-            <th className="px-4 py-2 border">Cost Price</th>
-            {isMasterAdmin && <th className="px-4 py-2 border">Actions</th>}
+            <th className="px-4 py-2 border">Qty</th>
+            <th className="px-4 py-2 border">Cost</th>
+            <th className="px-4 py-2 border">Sell</th>
+            <th className="px-4 py-2 border">Profit</th>
+            <th className="px-4 py-2 border">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map((prod) => (
-              <tr key={prod.id}>
-                <td className="border px-4 py-2">{prod.id}</td>
-                <td className="border px-4 py-2">{prod.dealer_business_name}</td>
-                <td className="border px-4 py-2">{prod.device_name}</td>
-                <td className="border px-4 py-2">{prod.device_model}</td>
-                <td className="border px-4 py-2">{prod.product_quantity}</td>
-                <td className="border px-4 py-2">{prod.overall_product_quantity}</td>
-                <td className="border px-4 py-2">{prod.product_base_price}</td>
-                <td className="border px-4 py-2">{prod.cost_price}</td>
-                {isMasterAdmin && (
-                  <td className="border px-4 py-2">
+          {displayed.length > 0 ? (
+            displayed.map(p => {
+              const profit = (
+                parseFloat(p.selling_price) -
+                parseFloat(p.cost_price) || 0
+              ).toFixed(2);
+              return (
+                <tr key={p.id}>
+                  <td className="px-4 py-2 border">{p.id}</td>
+                  <td className="px-4 py-2 border">{p.dealer_business_name}</td>
+                  <td className="px-4 py-2 border">{p.device_type}</td>
+                  <td className="px-4 py-2 border">{p.device_name}</td>
+                  <td className="px-4 py-2 border">{p.device_model}</td>
+                  <td className="px-4 py-2 border">{p.product_quantity}</td>
+                  <td className="px-4 py-2 border">{p.cost_price}</td>
+                  <td className="px-4 py-2 border">{p.selling_price}</td>
+                  <td className="px-4 py-2 border">{profit}</td>
+                  <td className="px-4 py-2 border space-x-2">
                     <button
-                      onClick={() => handleEdit(prod)}
-                      className="px-2 py-1 text-sm bg-blue-500 text-white rounded mr-2"
+                      onClick={() => handleEdit(p)}
+                      className="px-2 py-1 bg-blue-500 text-white rounded"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(prod.id)}
-                      className="px-2 py-1 text-sm bg-red-500 text-white rounded"
+                      onClick={() => handleDelete(p.id)}
+                      className="px-2 py-1 bg-red-500 text-white rounded"
                     >
                       Delete
                     </button>
                   </td>
-                )}
-              </tr>
-            ))
+                </tr>
+              );
+            })
           ) : (
             <tr>
-              <td colSpan={isMasterAdmin ? "9" : "8"} className="text-center p-4">
+              <td colSpan={10} className="text-center py-4">
                 No products found.
               </td>
             </tr>
@@ -252,77 +236,68 @@ function Product() {
         </tbody>
       </table>
 
-      {/* Modal Form for Adding/Editing Products */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
             <h3 className="text-xl font-bold mb-4">
-              {editingProduct ? "Edit Product" : "Add Product"}
+              {editing ? "Edit Product" : "Add Product"}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="number"
-                name="dealer_id"
-                placeholder="Dealer ID"
-                value={formData.dealer_id}
+            <label className="block font-semibold">Dealer:</label>
+            <select
+  name="dealer_id"
+  value={formData.dealer_id}
+  onChange={handleChange}
+  required
+>
+  <option value="">Select Dealer…</option>
+  {dealers.map(d => (
+    <option key={d.id} value={d.id}>
+      {d.business_name} ({d.unique_id})
+    </option>
+  ))}
+</select>
+              <label className="block font-semibold">Device Type</label>
+              <select
+                name="device_type"
+                value={formData.device_type}
                 onChange={handleChange}
                 className="w-full border rounded px-3 py-2"
-                required
-              />
-              <input
-                type="text"
-                name="dealer_business_name"
-                placeholder="Dealer Business Name"
-                value={formData.dealer_business_name}
-                onChange={handleChange}
-                className="w-full border rounded px-3 py-2"
-              />
+              >
+                <option value="Android">Android</option>
+                <option value="iPhone">iPhone</option>
+              </select>
+
               <input
                 type="text"
                 name="device_name"
                 placeholder="Device Name"
                 value={formData.device_name}
                 onChange={handleChange}
-                className="w-full border rounded px-3 py-2"
                 required
+                className="w-full border rounded px-3 py-2"
               />
+
               <input
                 type="text"
                 name="device_model"
                 placeholder="Device Model"
                 value={formData.device_model}
                 onChange={handleChange}
-                className="w-full border rounded px-3 py-2"
                 required
+                className="w-full border rounded px-3 py-2"
               />
+
               <input
                 type="number"
                 name="product_quantity"
-                placeholder="Product Quantity"
+                placeholder="Quantity"
                 value={formData.product_quantity}
                 onChange={handleChange}
-                className="w-full border rounded px-3 py-2"
                 required
-              />
-              <input
-                type="number"
-                name="overall_product_quantity"
-                placeholder="Overall Product Quantity"
-                value={formData.overall_product_quantity}
-                onChange={handleChange}
                 className="w-full border rounded px-3 py-2"
-                required
               />
-              <input
-                type="number"
-                step="0.01"
-                name="product_base_price"
-                placeholder="Product Base Price"
-                value={formData.product_base_price}
-                onChange={handleChange}
-                className="w-full border rounded px-3 py-2"
-                required
-              />
+
               <input
                 type="number"
                 step="0.01"
@@ -330,10 +305,22 @@ function Product() {
                 placeholder="Cost Price"
                 value={formData.cost_price}
                 onChange={handleChange}
-                className="w-full border rounded px-3 py-2"
                 required
+                className="w-full border rounded px-3 py-2"
               />
-              <div className="flex justify-end gap-2">
+
+              <input
+                type="number"
+                step="0.01"
+                name="selling_price"
+                placeholder="Selling Price"
+                value={formData.selling_price}
+                onChange={handleChange}
+                required
+                className="w-full border rounded px-3 py-2"
+              />
+
+              <div className="flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
@@ -343,9 +330,9 @@ function Product() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded font-bold hover:bg-blue-600 transition"
+                  className="px-4 py-2 bg-blue-500 text-white rounded"
                 >
-                  {editingProduct ? "Update" : "Add"}
+                  {editing ? "Update" : "Add"}
                 </button>
               </div>
             </form>
@@ -355,5 +342,3 @@ function Product() {
     </div>
   );
 }
-
-export default Product;

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 
 function ManageOrders() {
   // Define base URLs from environment.
-  const baseUrl = `${import.meta.env.VITE_API_URL}/api/manage-order`;
+  const baseUrl = `${import.meta.env.VITE_API_URL}/manage-order`;
   const pendingOrdersUrl = `${baseUrl}/orders`;
   const ordersHistoryUrl = `${baseUrl}/history`;
 
