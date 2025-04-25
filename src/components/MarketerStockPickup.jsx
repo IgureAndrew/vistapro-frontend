@@ -130,61 +130,60 @@ export default function MarketerStockPickup() {
       </form>
 
       {/* —— My Pickups Table —— */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">My Pickups</h2>
-        <div className="overflow-x-auto bg-white rounded shadow">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
-              <tr>
-                <th className="px-4 py-2">Product</th>
-                <th className="px-4 py-2">Qty</th>
-                <th className="px-4 py-2">Picked Up</th>
-                <th className="px-4 py-2">Deadline</th>
-                <th className="px-4 py-2">Countdown</th>
-                <th className="px-4 py-2">Transfer</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pickups.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-4 text-center text-gray-500">
-                    No pickups yet.
-                  </td>
-                </tr>
-              )}
-              {pickups.map(s => {
-                const label = `${s.device_name} ${s.device_model}`;
-                const countdown = formatCountdown(s.deadline);
-                return (
-                  <tr key={s.id}>
-                    <td className="px-4 py-2">{label}</td>
-                    <td className="px-4 py-2">{s.quantity}</td>
-                    <td className="px-4 py-2">
-                      {new Date(s.pickup_date).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2">
-                      {new Date(s.deadline).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2">{countdown}</td>
-                    <td className="px-4 py-2">
-                      {s.transfer_status === "none" ? (
-                        <button
-                          onClick={() => requestTransfer(s.id)}
-                          className="px-2 py-1 bg-yellow-500 text-white rounded"
-                        >
-                          Transfer
-                        </button>
-                      ) : (
-                        <span className="text-gray-600">{s.transfer_status}</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <div className="mt-10">
+  <h3 className="text-xl font-semibold mb-4">My Stock Pickups</h3>
+  <div className="overflow-x-auto bg-white rounded shadow">
+    <table className="min-w-full text-left text-sm">
+      <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
+        <tr>
+          <th className="px-4 py-2">Product</th>
+          <th className="px-4 py-2">Qty</th>
+          <th className="px-4 py-2">Picked Up</th>
+          <th className="px-4 py-2">Deadline</th>
+          <th className="px-4 py-2">Countdown</th>
+          <th className="px-4 py-2">Status</th>       {/* ← new */}
+          <th className="px-4 py-2">Transfer</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y">
+        {pickups.length === 0 ? (
+          <tr>
+            <td colSpan={7} className="p-4 text-center text-gray-500">
+              No pickups yet.
+            </td>
+          </tr>
+        ) : pickups.map(s => {
+          const label = `${s.device_name} ${s.device_model}`;
+          const countdown = formatCountdown(s.deadline);
+          return (
+            <tr key={s.id}>
+              <td className="px-4 py-2">{label}</td>
+              <td className="px-4 py-2">{s.quantity}</td>
+              <td className="px-4 py-2">{new Date(s.pickup_date).toLocaleString()}</td>
+              <td className="px-4 py-2">{new Date(s.deadline).toLocaleString()}</td>
+              <td className="px-4 py-2">{countdown}</td>
+              <td className="px-4 py-2 capitalize">{s.status}</td> {/* ← render status */}
+              <td className="px-4 py-2">
+                {s.transfer_status === "none" && s.status === "pending" ? (
+                  <button
+                    onClick={() => requestTransfer(s.id)}
+                    className="px-2 py-1 bg-yellow-500 text-white rounded"
+                  >
+                    Transfer
+                  </button>
+                ) : s.transfer_status === "pending" ? (
+                  <span className="text-sm text-gray-600">Pending</span>
+                ) : (
+                  <span className="text-sm capitalize">{s.transfer_status}</span>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+</div>
     </div>
   );
 }

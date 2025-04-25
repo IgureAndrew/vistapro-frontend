@@ -1,133 +1,97 @@
+// src/components/StockUpdates.jsx
 import React, { useEffect, useState } from "react";
+import api from "../api"; // axios w/ baseURL="${VITE_API_URL}/api"
 
-function StockUpdates() {
-  const baseUrl = "https://vistapro-backend.onrender.com";
+export default function StockUpdates() {
   const token = localStorage.getItem("token");
+  const [updates, setUpdates]   = useState([]);
+  const [filter, setFilter]     = useState("");
+  const [now, setNow]           = useState(Date.now());
+  const [error, setError]       = useState("");
 
-  const [stockUpdates, setStockUpdates] = useState([]);
-  const [filterTerm, setFilterTerm] = useState("");
-  const [error, setError] = useState("");
-  const [activeNotificationId, setActiveNotificationId] = useState(null);
-  const [notificationMessage, setNotificationMessage] = useState("");
-
+  // 1) tick clock every second for live countdown
   useEffect(() => {
-    const fetchStockUpdates = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/stockupdates`, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) throw new Error("Failed to fetch stock updates");
-        const data = await res.json();
-        setStockUpdates(data.data || []);
-      } catch (err) {
-        setError(err.message);
-      }
-    };
+    const tid = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tid);
+  }, []);
 
-    fetchStockUpdates();
-  }, [baseUrl, token]);
+  // 2) fetch all pickups
+  useEffect(() => {
+    api.get("/stock", { headers:{ Authorization:`Bearer ${token}` }})
+      .then(r => setUpdates(r.data.data || []))
+      .catch(err => setError(err.response?.data?.message || err.message));
+  }, [token]);
 
-  // Filter stock updates by marketer ID or device category
-  const filteredUpdates = stockUpdates.filter(update => {
-    const term = filterTerm.toLowerCase();
+  const formatCountdown = deadline => {
+    const diff = new Date(deadline).getTime() - now;
+    if (diff <= 0) return "Expired";
+    const hrs  = Math.floor(diff / 3_600_000);
+    const mins = Math.floor((diff % 3_600_000) / 60_000);
+    const secs = Math.floor((diff %    60_000) / 1000);
+    return `${hrs}h ${mins}m ${secs}s`;
+  };
+
+  // simple text‐filter across marketer, product or status
+  const filtered = updates.filter(u => {
+    const t = filter.toLowerCase();
     return (
-      update.marketer_id.toString().includes(term) ||
-      (update.device_category && update.device_category.toLowerCase().includes(term))
+      u.marketer_name.toLowerCase().includes(t) ||
+      u.marketer_unique_id.toLowerCase().includes(t) ||
+      u.status.toLowerCase().includes(t)
     );
   });
 
-  const handleSendNotification = async (stockId, marketerId) => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ user_id: marketerId, message: notificationMessage }),
-      });
-      if (!res.ok) throw new Error("Failed to send notification");
-      setNotificationMessage("");
-      setActiveNotificationId(null);
-      alert("Notification sent successfully.");
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <h1 className="text-4xl font-bold text-center mb-8">Stock Update Dashboard</h1>
-      
-      {error && (
-        <p className="text-red-500 text-center mb-4">{error}</p>
-      )}
+      <h1 className="text-3xl font-bold mb-6">All Stock Pickups</h1>
+      {error && <p className="text-red-500 mb-4">{error}</p>}
 
-      <div className="flex justify-center mb-8">
+      <div className="mb-4">
         <input
           type="text"
-          placeholder="Search by marketer ID or device type..."
-          value={filterTerm}
-          onChange={(e) => setFilterTerm(e.target.value)}
-          className="w-full max-w-md px-4 py-2 rounded shadow focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Filter by marketer, ID or status…"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="w-full max-w-sm px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredUpdates.map(update => (
-          <div
-            key={update.id}
-            className="p-6 rounded-xl shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-          >
-            <h2 className="text-2xl font-extrabold mb-2">Marketer ID: {update.marketer_id}</h2>
-            <p className="mb-1">Device: {update.device_category}</p>
-            <p className="mb-1">Quantity: {update.quantity}</p>
-            <p className="mb-1">Pickup: {new Date(update.pickup_date).toLocaleString()}</p>
-            <p className="mb-1">Deadline: {new Date(update.deadline).toLocaleString()}</p>
-            <p className="mb-1">
-              Status: {update.sold ? "Sold" : (update.countdown ? update.countdown : "Pending")}
-            </p>
-
-            {/* Notification Form */}
-            {activeNotificationId === update.id ? (
-              <div className="mt-4">
-                <textarea
-                  placeholder="Type your notification..."
-                  value={notificationMessage}
-                  onChange={(e) => setNotificationMessage(e.target.value)}
-                  className="w-full p-2 rounded shadow focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-800"
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={() => handleSendNotification(update.id, update.marketer_id)}
-                    className="flex-1 bg-green-500 hover:bg-green-600 font-bold py-2 px-4 rounded shadow"
-                  >
-                    Send
-                  </button>
-                  <button
-                    onClick={() => setActiveNotificationId(null)}
-                    className="flex-1 bg-red-500 hover:bg-red-600 font-bold py-2 px-4 rounded shadow"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setActiveNotificationId(update.id)}
-                className="mt-4 w-full bg-white text-blue-600 font-bold py-2 px-4 rounded shadow hover:bg-blue-100"
-              >
-                Send Notification
-              </button>
-            )}
-          </div>
-        ))}
+      <div className="overflow-x-auto bg-white shadow rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Marketer</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">ID</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Qty</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Picked Up</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Deadline</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Countdown</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Status</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Transfer</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                  No pickups to display.
+                </td>
+              </tr>
+            ) : filtered.map(u => (
+              <tr key={u.id}>
+                <td className="px-4 py-2 text-sm text-gray-800">{u.marketer_name}</td>
+                <td className="px-4 py-2 text-sm text-gray-600">{u.marketer_unique_id}</td>
+                <td className="px-4 py-2 text-sm">{u.quantity}</td>
+                <td className="px-4 py-2 text-sm">{new Date(u.pickup_date).toLocaleString()}</td>
+                <td className="px-4 py-2 text-sm">{new Date(u.deadline).toLocaleString()}</td>
+                <td className="px-4 py-2 text-sm">{formatCountdown(u.deadline)}</td>
+                <td className="px-4 py-2 text-sm capitalize">{u.status}</td>
+                <td className="px-4 py-2 text-sm capitalize">{u.transfer_status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
-
-export default StockUpdates;

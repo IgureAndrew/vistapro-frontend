@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 
 function StockManagement() {
-  const baseUrl = "http://localhost:5000/api/stock";
+  const baseUrl = "https://vistapro-backend.onrender.com/api/stock";
   const token = localStorage.getItem("token");
   const [stocks, setStocks] = useState([]);
   const [error, setError] = useState("");

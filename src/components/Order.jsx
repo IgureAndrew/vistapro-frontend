@@ -1,269 +1,323 @@
 // src/components/Order.jsx
 import React, { useState, useEffect } from "react";
 
-function Order() {
-  // State for holding new order data.
-  const [orderData, setOrderData] = useState({
-    device_name: "",
-    device_model: "",
-    device_type: "Android", // default value
-    imei: "",              // new field for IMEI
+export default function Order() {
+  // NOTE: include the /api prefix here
+  const API_ROOT    = import.meta.env.VITE_API_URL + "/api/marketer";
+  const PLACE_URL   = `${API_ROOT}/orders`;
+  const HISTORY_URL = `${API_ROOT}/orders/history`;
+  const token       = localStorage.getItem("token") || "";
+
+  const [placeData, setPlaceData]   = useState(null);
+  const [orders, setOrders]         = useState([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [formState, setFormState]   = useState({
     number_of_devices: "",
-    sold_amount: "",
     customer_name: "",
     customer_phone: "",
     customer_address: "",
     bnpl_platform: "",
-    // Removed sale_date - this will be set automatically in the backend.
   });
 
-  // State to hold orders fetched from the backend.
-  const [orders, setOrders] = useState([]);
-  const token = localStorage.getItem("token");
-
-  // Function to fetch orders for the marketer.
-  const fetchOrders = async () => {
-    try {
-      const res = await fetch("https://vistapro-backend.onrender.com/api/marketer/orders", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        // Assuming the returned data has an "orders" field.
-        setOrders(data.orders);
-      } else {
-        alert(data.message || "Failed to fetch orders");
-      }
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-      alert("Error fetching orders");
-    }
-  };
-
   useEffect(() => {
+    fetchPlaceData();
     fetchOrders();
   }, []);
 
-  // Handle input changes for the order form.
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setOrderData((prev) => ({ ...prev, [name]: value }));
+  async function fetchPlaceData() {
+    try {
+      const res = await fetch(PLACE_URL, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `Error ${res.status}`);
+      }
+      const data = await res.json();
+      setPlaceData(data);
+      setSelectedId("");
+      setFormState({
+        number_of_devices: "",
+        customer_name: "",
+        customer_phone: "",
+        customer_address: "",
+        bnpl_platform: "",
+      });
+    } catch (err) {
+      console.error("fetchPlaceData:", err);
+      alert(err.message || "Could not load order form");
+    }
+  }
+
+  async function fetchOrders() {
+    try {
+      const res = await fetch(HISTORY_URL, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `Error ${res.status}`);
+      }
+      const data = await res.json();
+      setOrders(data.orders);
+    } catch (err) {
+      console.error("fetchOrders:", err);
+      alert(err.message || "Could not load your orders");
+    }
+  }
+
+  const handleSelectChange = e => {
+    setSelectedId(e.target.value);
+    setFormState(fs => ({ ...fs, number_of_devices: "" }));
   };
 
-  // Handle form submission for placing a new order.
-  const handleSubmit = async (e) => {
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setFormState(fs => ({ ...fs, [name]: value }));
+  };
+
+  async function handleSubmit(e) {
     e.preventDefault();
+    if (!selectedId) return alert("Please select an item first.");
+
+    const record = placeData.mode === "stock"
+      ? placeData.pending.find(p => p.stock_update_id === +selectedId)
+      : placeData.products.find(p => p.product_id === +selectedId);
+
+    const qty   = parseInt(formState.number_of_devices, 10);
+    const price = Number(record.selling_price);
+
+    if (!qty || qty < 1) {
+      return alert("Enter a valid quantity");
+    }
+    if (!formState.customer_name ||
+        !formState.customer_phone ||
+        !formState.customer_address) {
+      return alert("Fill in all customer details");
+    }
+
+    const sold_amount = price * qty;
+
+    const body = placeData.mode === "stock"
+      ? {
+          stock_update_id:   record.stock_update_id,
+          number_of_devices: qty,
+          sold_amount,
+          customer_name:     formState.customer_name,
+          customer_phone:    formState.customer_phone,
+          customer_address:  formState.customer_address,
+          bnpl_platform:     formState.bnpl_platform || null,
+        }
+      : {
+          product_id:        record.product_id,
+          number_of_devices: qty,
+          sold_amount,
+          customer_name:     formState.customer_name,
+          customer_phone:    formState.customer_phone,
+          customer_address:  formState.customer_address,
+          bnpl_platform:     formState.bnpl_platform || null,
+        };
+
     try {
-      const res = await fetch("https://vistapro-backend.onrender.com/api/marketer/order", {
+      const res = await fetch(PLACE_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization:  `Bearer ${token}`,
         },
-        // Send the new orderData (sale_date is not sent, backend auto-sets it)
-        body: JSON.stringify(orderData),
+        body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert("Order placed successfully!");
-        // Reset the form with default values (without sale_date).
-        setOrderData({
-          device_name: "",
-          device_model: "",
-          device_type: "Android",
-          imei: "",
-          number_of_devices: "",
-          sold_amount: "",
-          customer_name: "",
-          customer_phone: "",
-          customer_address: "",
-          bnpl_platform: "",
-        });
-        // Refresh the list of orders.
-        fetchOrders();
-      } else {
-        alert(data.message || "Failed to place order");
+      if (!res.ok) {
+        const errTxt = await res.text();
+        throw new Error(errTxt || `Error ${res.status}`);
       }
-    } catch (error) {
-      console.error("Error placing order:", error);
-      alert("Error placing order");
+      alert("Order placed successfully!");
+      fetchPlaceData();
+      fetchOrders();
+    } catch (err) {
+      console.error("handleSubmit:", err);
+      alert(err.message || "Failed to place order");
     }
-  };
+  }
+
+  if (!placeData) {
+    return <div className="p-4">Loading form…</div>;
+  }
+
+  const selected = selectedId
+    ? (placeData.mode === "stock"
+        ? placeData.pending.find(p => p.stock_update_id === +selectedId)
+        : placeData.products.find(p => p.product_id === +selectedId))
+    : null;
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">Place Order</h2>
-      <form onSubmit={handleSubmit} className="space-y-4 bg-white p-4 rounded shadow">
-        {/* Device Details */}
-        <div>
-          <label className="block font-bold mb-1">Device Name</label>
-          <input
-            type="text"
-            name="device_name"
-            value={orderData.device_name}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-bold mb-1">Device Model</label>
-          <input
-            type="text"
-            name="device_model"
-            value={orderData.device_model}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-bold mb-1">Device Type</label>
-          <select
-            name="device_type"
-            value={orderData.device_type}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          >
-            <option value="Android">Android</option>
-            <option value="iPhone">iPhone</option>
-          </select>
-        </div>
-        {/* New Field: IMEI */}
-        <div>
-          <label className="block font-bold mb-1">IMEI</label>
-          <input
-            type="text"
-            name="imei"
-            value={orderData.imei}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        {/* Pricing & Quantity */}
-        <div>
-          <label className="block font-bold mb-1">Number of Devices</label>
-          <input
-            type="number"
-            name="number_of_devices"
-            value={orderData.number_of_devices}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-bold mb-1">Sold Amount</label>
-          <input
-            type="number"
-            name="sold_amount"
-            value={orderData.sold_amount}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        {/* Customer Details */}
-        <div>
-          <label className="block font-bold mb-1">Customer Name</label>
-          <input
-            type="text"
-            name="customer_name"
-            value={orderData.customer_name}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-bold mb-1">Customer Phone</label>
-          <input
-            type="text"
-            name="customer_phone"
-            value={orderData.customer_phone}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-bold mb-1">Customer Address</label>
-          <input
-            type="text"
-            name="customer_address"
-            value={orderData.customer_address}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-        {/* BNPL Platform */}
-        <div>
-          <label className="block font-bold mb-1">BNPL Platform</label>
-          <select
-            name="bnpl_platform"
-            value={orderData.bnpl_platform}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          >
-            <option value="">Select Platform</option>
-            <option value="WATU">WATU</option>
-            <option value="EASYBUY">EASYBUY</option>
-            <option value="CREDIT DIRECT">CREDIT DIRECT</option>
-          </select>
-        </div>
+    <div className="p-4 max-w-4xl mx-auto space-y-8">
+      {/* Place Order */}
+      <div className="bg-white p-6 rounded shadow">
+        <h2 className="text-2xl font-bold mb-4">Place Order</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block font-semibold mb-1">
+              Select {placeData.mode === "stock" ? "Pickup" : "Product"}
+            </label>
+            <select
+              value={selectedId}
+              onChange={handleSelectChange}
+              className="w-full border rounded px-3 py-2"
+              required
+            >
+              <option value="">-- choose --</option>
+              {placeData.mode === "stock"
+                ? placeData.pending.map(p => (
+                    <option key={p.stock_update_id} value={p.stock_update_id}>
+                      [{p.qty_reserved}]  {p.device_name} {p.device_model}
+                    </option>
+                  ))
+                : placeData.products.map(p => (
+                    <option key={p.product_id} value={p.product_id}>
+                      [{p.qty_available} available] {p.device_name} {p.device_model}
+                    </option>
+                  ))
+              }
+            </select>
+          </div>
 
-        <button type="submit" className="bg-black text-[#FFD700] font-bold px-4 py-2 rounded">
-          Place Order
-        </button>
-      </form>
+          {selected && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {["device_name","device_model","device_type","selling_price"].map((field, i) => (
+                  <div key={i}>
+                    <label className="block font-semibold mb-1">
+                      {field.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+                    </label>
+                    <input
+                      readOnly
+                      value={selected[field]}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                    />
+                  </div>
+                ))}
+              </div>
 
-      {/* Orders Table */}
-      <div className="mt-8 bg-white p-4 rounded shadow overflow-x-auto">
+              {placeData.mode === "stock" && (
+                <div>
+                  <label className="block font-semibold mb-1">IMEI</label>
+                  <textarea
+                    readOnly
+                    rows={3}
+                    value={selected.imeis_reserved.join("\n")}
+                    className="w-full border rounded px-3 py-2 bg-gray-100"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    name="number_of_devices"
+                    min="1"
+                    max={placeData.mode === "stock"
+                      ? selected.qty_reserved
+                      : selected.qty_available}
+                    value={formState.number_of_devices}
+                    onChange={handleChange}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">BNPL Platform</label>
+                  <select
+                    name="bnpl_platform"
+                    value={formState.bnpl_platform}
+                    onChange={handleChange}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="">None</option>
+                    <option value="WATU">WATU</option>
+                    <option value="EASYBUY">EASYBUY</option>
+                    <option value="CREDIT DIRECT">CREDIT DIRECT</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {["customer_name","customer_phone"].map((nm, i) => (
+                  <div key={i}>
+                    <label className="block font-semibold mb-1">
+                      {nm.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+                    </label>
+                    <input
+                      name={nm}
+                      value={formState[nm]}
+                      onChange={handleChange}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    />
+                  </div>
+                ))}
+                <div className="md:col-span-2">
+                  <label className="block font-semibold mb-1">Customer Address</label>
+                  <input
+                    name="customer_address"
+                    value={formState.customer_address}
+                    onChange={handleChange}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="mt-4 bg-black text-[#FFD700] font-bold px-6 py-2 rounded"
+              >
+                Place Order
+              </button>
+            </>
+          )}
+        </form>
+      </div>
+
+      {/* Order History */}
+      <div className="bg-white p-6 rounded shadow overflow-x-auto">
         <h3 className="text-xl font-bold mb-4">Your Orders</h3>
         {orders.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Order ID</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Device</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Model</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">IMEI</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Quantity</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Sold Amount</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Sale Date</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Status</th>
+                {["#","Qty","Amount","Date","Status"].map((h,i) => (
+                  <th
+                    key={i}
+                    className="px-4 py-2 text-left text-xs font-semibold uppercase"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm">{order.id}</td>
-                  <td className="px-4 py-2 text-sm">{order.device_name}</td>
-                  <td className="px-4 py-2 text-sm">{order.device_model}</td>
-                  <td className="px-4 py-2 text-sm">{order.imei}</td>
-                  <td className="px-4 py-2 text-sm">{order.number_of_devices}</td>
-                  <td className="px-4 py-2 text-sm">{order.sold_amount}</td>
-                  <td className="px-4 py-2 text-sm">{order.sale_date}</td>
+              {orders.map(o => (
+                <tr key={o.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 text-sm">{o.id}</td>
+                  <td className="px-4 py-2 text-sm">{o.number_of_devices}</td>
+                  <td className="px-4 py-2 text-sm">{o.sold_amount}</td>
                   <td className="px-4 py-2 text-sm">
-                    {order.status ? order.status : "Pending"}
+                    {new Date(o.sale_date).toLocaleString()}
                   </td>
+                  <td className="px-4 py-2 text-sm">{o.status || "Pending"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="text-center font-bold text-gray-500">No orders found.</p>
+          <p className="text-center text-gray-500 font-medium">
+            No orders found.
+          </p>
         )}
       </div>
     </div>
   );
 }
-
-export default Order;
