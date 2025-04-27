@@ -1,250 +1,231 @@
 // src/components/Wallet.jsx
 import React, { useEffect, useState } from 'react';
-import api from '../api/walletApi';
+import api from '../api/walletApi';          // axios.create({ baseURL: '/api/wallets' })
 import { useNavigate } from 'react-router-dom';
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { FilterIcon } from 'lucide-react';  // or any icon you like
 
 export default function Wallet() {
-  const [wallet, setWallet] = useState(null);
-  const [txs, setTxs]       = useState([]);
-  const [amount, setAmount] = useState('');
-  const [error, setError]   = useState('');
-
-  const [bank, setBank]     = useState({ account_name:'', account_number:'', bank_name:'' });
-  const [bankMsg, setBankMsg] = useState('');
-  const [bankLoading, setBankLoading] = useState(true);
-  const [bankSaving, setBankSaving]   = useState(false);
-
-  const [stats, setStats]   = useState([]);
-  const [statRange, setStatRange] = useState({
-    from: new Date(Date.now() - 30*24*60*60000).toISOString().slice(0,10),
-    to:   new Date().toISOString().slice(0,10)
-  });
-  const [statLoading, setStatLoading] = useState(true);
-
   const navigate = useNavigate();
 
-  /** Fetch wallet & transactions **/
+  // state
+  const [wallet, setWallet]           = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [stats, setStats]             = useState([]);
+  const [range, setRange]             = useState({
+    from: new Date(Date.now() - 30*24*60*60000).toISOString().slice(0,10),
+    to:   new Date().toISOString().slice(0,10),
+  });
+  const [amount, setAmount]           = useState('');
+  const [error, setError]             = useState('');
+  const [loading, setLoading]         = useState({
+    wallet: true,
+    stats:  false,
+    withdraws: true
+  });
+
+  // fetch wallet + txns
   const fetchWallet = async () => {
     try {
       const { data } = await api.get('/');
       setWallet(data.wallet);
-      setTxs(data.transactions);
+      setTransactions(data.transactions);
     } catch (err) {
       if (err.response?.status === 401) navigate('/login');
-    }
-  };
-
-  /** Fetch bank details **/
-  const fetchBank = async () => {
-    try {
-      const { data } = await api.get('/bank-details');
-      if (data.bank) setBank(data.bank);
-    } catch (_) {}
-    finally { setBankLoading(false); }
-  };
-
-  /** Fetch stats **/
-  const fetchStats = async () => {
-    setStatLoading(true);
-    try {
-      const { data } = await api.get(
-        `/stats?from=${statRange.from}&to=${statRange.to}`
-      );
-      setStats(data.stats);
-    } catch (_) {
-      setStats([]);
     } finally {
-      setStatLoading(false);
+      setLoading(l => ({ ...l, wallet: false }));
     }
   };
 
+  // fetch withdrawal history
+  const fetchWithdrawals = async () => {
+    try {
+      const { data } = await api.get('/withdrawals');
+      setWithdrawals(data.requests);
+    } finally {
+      setLoading(l => ({ ...l, withdraws: false }));
+    }
+  };
+
+  // fetch stats (commission & withdrawals)
+  const fetchStats = async () => {
+    setLoading(l => ({ ...l, stats: true }));
+    try {
+      const { data } = await api.get(`/stats?from=${range.from}&to=${range.to}`);
+      setStats(data.stats);
+    } finally {
+      setLoading(l => ({ ...l, stats: false }));
+    }
+  };
+
+  // combined on-mount
   useEffect(() => {
     fetchWallet();
-    fetchBank();
+    fetchWithdrawals();
     fetchStats();
   }, []);
 
-  /** Handle withdrawal **/
+  // submit withdrawal
   const submitWithdrawal = async e => {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/withdraw',{ amount: Number(amount) });
+      await api.post('/withdraw', { amount: Number(amount) });
       setAmount('');
       fetchWallet();
-      fetchStats(); // update if withdrawal shows in stats
+      fetchWithdrawals();
     } catch (err) {
       setError(err.response?.data?.message || 'Withdrawal failed.');
     }
   };
 
-  /** Handle bank form **/
-  const handleBankChange = e => {
-    setBank(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-  const saveBank = async e => {
-    e.preventDefault();
-    setBankSaving(true);
-    setBankMsg('');
-    try {
-      await api.post('/bank-details', bank);
-      setBankMsg('Saved successfully');
-    } catch (err) {
-      setBankMsg(err.response?.data?.message || 'Save failed');
-    } finally {
-      setBankSaving(false);
-    }
-  };
+  if (loading.wallet) {
+    return <div className="p-6 text-center">Loading wallet…</div>;
+  }
 
-  if (!wallet) return <p>Loading wallet…</p>;
+  // how much they can withdraw
+  const max = wallet.available_balance - 100;
 
-  const maxWithdraw = wallet.available_balance - 100;
+  // convenience sums
+  const totalCommission = stats.reduce((s, r) => s + (r.commission || 0), 0);
+  const totalWithdrawn  = stats.reduce((s, r) => s + (r.withdrawals || 0), 0);
 
   return (
     <div className="p-6 space-y-6 bg-gray-50">
 
-      {/* BALANCES & WITHDRAWAL */}
-      <h2 className="text-3xl font-bold">My Wallet</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          ['Total Balance', wallet.total_balance],
-          ['Available Balance', wallet.available_balance],
-          ['Withheld Balance', wallet.withheld_balance]
-        ].map(([label, value]) => (
-          <div key={label} className="p-4 bg-white rounded shadow">
-            <h3 className="text-sm text-gray-500">{label}</h3>
-            <p className="text-xl font-semibold">₦{value.toLocaleString()}</p>
-          </div>
-        ))}
-      </div>
-
-      <form onSubmit={submitWithdrawal} className="bg-white p-4 rounded shadow space-y-2">
-        <h3 className="text-xl font-semibold">Request Withdrawal</h3>
-        <p className="text-sm text-gray-600">
-          You can withdraw up to ₦{maxWithdraw.toLocaleString()} (₦100 fee included)
-        </p>
-        <input
-          type="number"
-          min="1" max={maxWithdraw}
-          value={amount}
-          onChange={e=>setAmount(e.target.value)}
-          className="border w-32 px-3 py-2 rounded"
-          placeholder="₦ amount"
-          required
-        />
-        <button
-          type="submit"
-          disabled={!amount || amount>maxWithdraw}
-          className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-        >
-          Withdraw
-        </button>
-        {error && <p className="text-red-600">{error}</p>}
-      </form>
-
-      {/* BANK DETAILS */}
-      <section className="bg-white p-4 rounded shadow space-y-2">
-        <h3 className="text-xl font-semibold">Bank Details</h3>
-        {bankLoading
-          ? <p>Loading bank info…</p>
-          : (
-          <form onSubmit={saveBank} className="space-y-4">
-            {['account_name','account_number','bank_name'].map(field => (
-              <div key={field}>
-                <label className="block text-sm text-gray-700">
-                  {field.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
-                </label>
-                <input
-                  name={field}
-                  value={bank[field]}
-                  onChange={handleBankChange}
-                  className="w-full border px-3 py-2 rounded"
-                  required
-                />
-              </div>
-            ))}
+      {/* ─── period filter ───────────────────────────────────────────── */}
+      <div className="flex justify-between items-center">
+        <div className="space-x-2">
+          {['12 months','30 days','7 days','24 hours'].map(label => (
             <button
-              type="submit"
-              disabled={bankSaving}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+              key={label}
+              className="px-3 py-1 bg-white rounded shadow text-sm hover:bg-gray-100"
             >
-              {bankSaving ? 'Saving…' : 'Save Bank Details'}
+              {label}
             </button>
-            {bankMsg && <p className="text-sm text-green-600">{bankMsg}</p>}
-          </form>
-        )}
-      </section>
-
-      {/* STATS */}
-      <section className="bg-white p-4 rounded shadow space-y-4">
-        <h3 className="text-xl font-semibold">Commission & Withdrawal Stats</h3>
-        <div className="flex space-x-2">
+          ))}
+        </div>
+        <div className="flex items-center space-x-2">
           <input
             type="date"
-            value={statRange.from}
-            onChange={e=>setStatRange(r=>({...r,from:e.target.value}))}
+            value={range.from}
+            onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
             className="border px-2 py-1 rounded"
           />
           <input
             type="date"
-            value={statRange.to}
-            onChange={e=>setStatRange(r=>({...r,to:e.target.value}))}
+            value={range.to}
+            onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
             className="border px-2 py-1 rounded"
           />
           <button
             onClick={fetchStats}
-            className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700"
+            className="p-2 bg-white rounded shadow hover:bg-gray-100"
+          >
+            <FilterIcon size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* ─── top KPIs ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          ['Total Balance', wallet.total_balance],
+          ['Available',    wallet.available_balance],
+          ['Withheld',     wallet.withheld_balance],
+        ].map(([label, val]) => (
+          <div key={label} className="bg-white p-4 rounded shadow">
+            <p className="text-sm text-gray-500">{label}</p>
+            <p className="text-2xl font-bold">₦{val.toLocaleString()}</p>
+          </div>
+        ))}
+
+        {/* pending withdrawals */}
+        <div className="bg-white p-4 rounded shadow flex flex-col">
+          <p className="text-sm text-gray-500">Pending Requests</p>
+          <p className="text-3xl font-bold flex-1">
+            {withdrawals.filter(w => w.status === 'pending').length}
+          </p>
+          <button
+            onClick={fetchWithdrawals}
+            className="mt-2 text-indigo-600 hover:underline self-start"
           >
             Refresh
           </button>
         </div>
-        {statLoading
-          ? <p>Loading stats…</p>
-          : stats.length === 0
-            ? <p>No data in this period.</p>
-            : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {['Date','Commission','Withdrawals'].map(h=>(
-                      <th key={h} className="px-4 py-2 text-left text-xs text-gray-500">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {stats.map(row=>(
-                    <tr key={row.day}>
-                      <td className="px-4 py-2 text-sm">{row.day}</td>
-                      <td className="px-4 py-2 text-sm">₦{(row.commission||0).toLocaleString()}</td>
-                      <td className="px-4 py-2 text-sm">₦{(row.withdrawals||0).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-      </section>
+      </div>
 
-      {/* TRANSACTIONS LIST */}
-      <section className="bg-white p-4 rounded shadow">
-        <h3 className="text-xl font-semibold mb-2">Recent Transactions</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+      {/* ─── mid section: stats + withdrawal form ───────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* stats + line chart */}
+        <div className="bg-white p-4 rounded shadow">
+          <p className="text-gray-500">Commission</p>
+          <p className="text-2xl font-bold mb-4">₦{totalCommission.toLocaleString()}</p>
+
+          <p className="text-gray-500">Withdrawals</p>
+          <p className="text-2xl font-bold mb-4">₦{totalWithdrawn.toLocaleString()}</p>
+
+          <div className="h-32">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={stats.map(r => ({ date: r.day, amt: r.commission }))}>
+                <Line type="monotone" dataKey="amt" stroke="#4F46E5" dot={false} strokeWidth={2}/>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* withdrawal form */}
+        <form
+          onSubmit={submitWithdrawal}
+          className="bg-white p-4 rounded shadow space-y-3"
+        >
+          <h3 className="text-lg font-semibold">Request Withdrawal</h3>
+          <p className="text-sm text-gray-600">
+            You may withdraw up to <strong>₦{max.toLocaleString()}</strong><br/>
+            <span className="text-red-500 text-xs">₦100 fee applies</span>
+          </p>
+          <input
+            type="number"
+            min="1" max={max}
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            className="w-full border px-3 py-2 rounded"
+            placeholder="₦ amount"
+            required
+          />
+          <button
+            type="submit"
+            disabled={!amount || amount > max}
+            className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
+          >
+            Withdraw
+          </button>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+        </form>
+      </div>
+
+      {/* ─── bottom tables ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* recent transactions */}
+        <div className="bg-white p-4 rounded shadow overflow-x-auto">
+          <h3 className="font-semibold mb-2">Recent Transactions</h3>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100">
               <tr>
-                {['Date','Type','Amount'].map(h=>(
-                  <th key={h} className="px-4 py-2 text-left text-xs text-gray-500">{h}</th>
+                {['Date','Type','Amount'].map(h => (
+                  <th key={h} className="px-2 py-1 text-left">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {txs.map(tx=>(
+            <tbody>
+              {transactions.map(tx => (
                 <tr key={tx.id}>
-                  <td className="px-4 py-2 text-sm">{new Date(tx.created_at).toLocaleString()}</td>
-                  <td className="px-4 py-2 text-sm">{tx.transaction_type}</td>
-                  <td className={`px-4 py-2 text-sm font-medium ${
-                    tx.amount<0? 'text-red-600':'text-green-600'
+                  <td className="px-2 py-1">{new Date(tx.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-1">{tx.transaction_type}</td>
+                  <td className={`px-2 py-1 font-semibold ${
+                    tx.amount < 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
                     ₦{Math.abs(tx.amount).toLocaleString()}
                   </td>
@@ -253,7 +234,32 @@ export default function Wallet() {
             </tbody>
           </table>
         </div>
-      </section>
+
+        {/* withdrawal history */}
+        <div className="bg-white p-4 rounded shadow overflow-x-auto">
+          <h3 className="font-semibold mb-2">Withdrawal History</h3>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                {['Date','Requested','Fee','Total','Status'].map(h => (
+                  <th key={h} className="px-2 py-1 text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {withdrawals.map(w => (
+                <tr key={w.id}>
+                  <td className="px-2 py-1">{new Date(w.requested_at).toLocaleString()}</td>
+                  <td className="px-2 py-1">₦{w.amount.toLocaleString()}</td>
+                  <td className="px-2 py-1">₦{w.fee.toLocaleString()}</td>
+                  <td className="px-2 py-1">₦{(w.amount + w.fee).toLocaleString()}</td>
+                  <td className="px-2 py-1">{w.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

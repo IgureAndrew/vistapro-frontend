@@ -1,7 +1,7 @@
 // src/components/MarketerDashboard.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate }               from "react-router-dom";
-import io                            from "socket.io-client";
+import { useNavigate }            from "react-router-dom";
+import io                         from "socket.io-client";
 import {
   Home,
   ShoppingCart,
@@ -15,16 +15,16 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import MarketersOverview        from "./MarketersOverview";
-import MarketerAccountSettings  from "./MarketerAccountSettings";
-import Order                    from "./Order";
-import Messaging                from "./Messaging";
-import VerificationMarketer     from "./VerificationMarketer";
-import Wallet                   from "./Wallet";
-import MarketerStockPickup      from "./MarketerStockPickup";
-import AvatarDropdown           from "./AvatarDropdown";
-import NotificationBell         from "./NotificationBell";
-import api from "../api"; 
+import MarketersOverview         from "./MarketersOverview";
+import MarketerAccountSettings   from "./MarketerAccountSettings";
+import Order                     from "./Order";
+import Messaging                 from "./Messaging";
+import VerificationMarketer      from "./VerificationMarketer";
+import MarketerStockPickup       from "./MarketerStockPickup";
+import Wallet                    from "./Wallet";               // ← your new Wallet view
+import AvatarDropdown            from "./AvatarDropdown";
+import NotificationBell          from "./NotificationBell";
+import api                       from "../api/";
 
 // initialize socket.io client
 const socket = io("https://vistapro-backend.onrender.com");
@@ -32,12 +32,12 @@ const socket = io("https://vistapro-backend.onrender.com");
 export default function MarketerDashboard() {
   const navigate = useNavigate();
   const stored   = localStorage.getItem("user");
-  const [user, setUser]             = useState(stored ? JSON.parse(stored) : null);
-  const [activeModule, setActiveModule] = useState("overview");
-  const [sidebarOpen,   setSidebarOpen] = useState(false);
-  const [isDarkMode,    setIsDarkMode]  = useState(false);
-  const [greeting,      setGreeting]    = useState("Welcome");
-  const [notifCount,    setNotifCount]  = useState(0);
+  const [user, setUser]                   = useState(stored ? JSON.parse(stored) : null);
+  const [activeModule, setActiveModule]   = useState("overview");
+  const [sidebarOpen, setSidebarOpen]     = useState(false);
+  const [isDarkMode, setIsDarkMode]       = useState(false);
+  const [greeting, setGreeting]           = useState("Welcome");
+  const [notifCount, setNotifCount]       = useState(0);
 
   const isVerified = user?.overall_verification_status === "approved";
 
@@ -85,7 +85,7 @@ export default function MarketerDashboard() {
       if (data.marketerUniqueId === user.unique_id) {
         const updated = {
           ...user,
-          overall_verification_status: "approved"
+          overall_verification_status: "approved",
         };
         setUser(updated);
         localStorage.setItem("user", JSON.stringify(updated));
@@ -128,18 +128,25 @@ export default function MarketerDashboard() {
       );
     }
     switch (activeModule) {
-      case "overview":         return <MarketersOverview onNewOrder={()=>setActiveModule("order")} />;
-      case "order":            return <Order />;
-      case "account-settings": return <MarketerAccountSettings />;
-      case "messages":         return <Messaging />;
-      case "verification":     return <VerificationMarketer />;
-      case "wallet":           return <Wallet />;
-      case "stock-pickup":     return <MarketerStockPickup />;
-      default:                 return <MarketersOverview />;
+      case "overview":
+        return <MarketersOverview onNewOrder={() => setActiveModule("order")} />;
+      case "order":
+        return <Order />;
+      case "account-settings":
+        return <MarketerAccountSettings />;
+      case "messages":
+        return <Messaging />;
+      case "verification":
+        return <VerificationMarketer />;
+      case "stock-pickup":
+        return <MarketerStockPickup />;
+      case "wallet":
+        return <Wallet />;          // ← our new wallet panel
+      default:
+        return <MarketersOverview />;
     }
   };
 
-  // Sidebar Item helper
   function SidebarItem({ label, Icon, moduleName, disabled }) {
     const isActive = activeModule === moduleName;
     const base = isActive
@@ -169,11 +176,11 @@ export default function MarketerDashboard() {
       {/* Mobile top bar */}
       <header className="md:hidden flex items-center justify-between px-4 h-16 border-b">
         <button onClick={() => setSidebarOpen(v => !v)} className="p-2">
-          {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <h2 className="text-lg font-bold">Vistapro</h2>
         <div className="flex items-center gap-3">
-          <NotificationBell count={notifCount}/>
+          <NotificationBell count={notifCount} />
           <AvatarDropdown
             user={user}
             handleLogout={handleLogout}
@@ -193,39 +200,36 @@ export default function MarketerDashboard() {
           />
         )}
 
-        {/* Sidebar / Drawer */}
+        {/* Sidebar */}
         <aside className={`
             fixed inset-y-0 left-0 z-50
-            w-full               /* xs: full width */
-            sm:w-3/4             /* ≥640px: 75% */
-            md:w-64              /* ≥768px: 16rem */
+            w-full sm:w-3/4 md:w-64
             transform transition-transform duration-200
             ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
             md:relative md:translate-x-0
             border-r ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}
           `}>
-          {/* Brand + mobile close */}
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="text-xl font-bold">Vistapro</h2>
             <button className="md:hidden" onClick={() => setSidebarOpen(false)}>
-              <X size={24}/>
+              <X size={24} />
             </button>
           </div>
           <ul className="p-4 space-y-2 text-sm">
-            <SidebarItem label="Overview"     Icon={Home}         moduleName="overview"        disabled={!isVerified}/>
-            <SidebarItem label="Orders"       Icon={ShoppingCart} moduleName="order"           disabled={!isVerified}/>
-            <SidebarItem label="Account"      Icon={User}         moduleName="account-settings"disabled={!isVerified}/>
-            <SidebarItem label="Messages"     Icon={MessageSquare}moduleName="messages"        disabled={!isVerified}/>
-            <SidebarItem label="Verification" Icon={Bell}         moduleName="verification"    disabled={false}/>
-            <SidebarItem label="Wallet"       Icon={CreditCard}   moduleName="wallet"          disabled={!isVerified}/>
-            <SidebarItem label="Stock Pickup" Icon={ShoppingCart} moduleName="stock-pickup"    disabled={!isVerified}/>
+            <SidebarItem label="Overview"        Icon={Home}         moduleName="overview"        disabled={!isVerified} />
+            <SidebarItem label="Orders"          Icon={ShoppingCart} moduleName="order"           disabled={!isVerified} />
+            <SidebarItem label="Account"         Icon={User}         moduleName="account-settings" disabled={!isVerified} />
+            <SidebarItem label="Messages"        Icon={MessageSquare}moduleName="messages"        disabled={!isVerified} />
+            <SidebarItem label="Verification"    Icon={Bell}         moduleName="verification"    disabled={false}       />
+            <SidebarItem label="Stock Pickup"    Icon={ShoppingCart} moduleName="stock-pickup"    disabled={!isVerified} />
+            <SidebarItem label="Wallet"          Icon={CreditCard}   moduleName="wallet"          disabled={!isVerified} />
             {activeModule !== "overview" && (
               <li>
                 <button
                   onClick={() => setActiveModule("overview")}
                   className="flex items-center gap-2 px-3 py-2 w-full rounded hover:bg-gray-50"
                 >
-                  <ArrowLeft size={16}/> Return
+                  <ArrowLeft size={16} /> Return
                 </button>
               </li>
             )}
@@ -234,7 +238,7 @@ export default function MarketerDashboard() {
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-3 py-2 w-full rounded hover:bg-gray-50"
               >
-                <LogOut size={16}/> Logout
+                <LogOut size={16} /> Logout
               </button>
             </li>
           </ul>
@@ -249,7 +253,7 @@ export default function MarketerDashboard() {
               <p className="text-sm text-gray-500">ID: {user?.unique_id}</p>
             </div>
             <div className="flex items-center gap-4">
-              <NotificationBell count={notifCount}/>
+              <NotificationBell count={notifCount} />
               <AvatarDropdown
                 user={user}
                 handleLogout={handleLogout}

@@ -5,12 +5,14 @@ const walletApi = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL}/api/wallets`
 });
 
-// copy over any interceptors you need, e.g. auth:
-walletApi.interceptors.request.use(config => {
+// automatically attach your JWT
+walletApi.interceptors.request.use(cfg => {
   const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+  if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  return cfg;
 });
+
+// on 401, redirect to login
 walletApi.interceptors.response.use(
   res => res,
   err => {

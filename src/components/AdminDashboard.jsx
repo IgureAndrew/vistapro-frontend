@@ -18,7 +18,6 @@ import StockManagement from "./StockManagement";
 import Messaging from "./Messaging";
 import Submissions from "./Submissions";
 import Verification from "./Verification";
-import Wallet from "./Wallet";
 import AdminOverview from "./AdminOverview"; // Import the new AdminOverview component
 import AvatarDropdown from "./AvatarDropdown";
 import AssignedMarketers from "./AssignedMarketers";

@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 
 export default function Order() {
-  // NOTE: include the /api prefix here
   const API_ROOT    = import.meta.env.VITE_API_URL + "/api/marketer";
   const PLACE_URL   = `${API_ROOT}/orders`;
   const HISTORY_URL = `${API_ROOT}/orders/history`;
@@ -68,6 +67,7 @@ export default function Order() {
 
   const handleSelectChange = e => {
     setSelectedId(e.target.value);
+    // reset quantity when changing selection:
     setFormState(fs => ({ ...fs, number_of_devices: "" }));
   };
 
@@ -144,18 +144,33 @@ export default function Order() {
     return <div className="p-4">Loading form…</div>;
   }
 
+  // determine the selected record (stock vs free)
   const selected = selectedId
     ? (placeData.mode === "stock"
         ? placeData.pending.find(p => p.stock_update_id === +selectedId)
         : placeData.products.find(p => p.product_id === +selectedId))
     : null;
 
+  // build the full IMEI array from whichever prop your API sends
+  const allImeis = selected
+    ? (placeData.mode === "stock"
+        ? selected.imeis_reserved || []
+        : selected.imeis_available || [])
+    : [];
+
+  // parse the requested quantity
+  const qty = parseInt(formState.number_of_devices, 10) || 0;
+
+  // slice down to first N IMEIs
+  const displayedImeis = allImeis.slice(0, qty);
+
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-8">
-      {/* Place Order */}
+      {/* ───────── Place Order ───────── */}
       <div className="bg-white p-6 rounded shadow">
         <h2 className="text-2xl font-bold mb-4">Place Order</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Select dropdown */}
           <div>
             <label className="block font-semibold mb-1">
               Select {placeData.mode === "stock" ? "Pickup" : "Product"}
@@ -169,12 +184,18 @@ export default function Order() {
               <option value="">-- choose --</option>
               {placeData.mode === "stock"
                 ? placeData.pending.map(p => (
-                    <option key={p.stock_update_id} value={p.stock_update_id}>
-                      [{p.qty_reserved}]  {p.device_name} {p.device_model}
+                    <option
+                      key={p.stock_update_id}
+                      value={p.stock_update_id}
+                    >
+                      [{p.qty_reserved}] {p.device_name} {p.device_model}
                     </option>
                   ))
                 : placeData.products.map(p => (
-                    <option key={p.product_id} value={p.product_id}>
+                    <option
+                      key={p.product_id}
+                      value={p.product_id}
+                    >
                       [{p.qty_available} available] {p.device_name} {p.device_model}
                     </option>
                   ))
@@ -182,35 +203,41 @@ export default function Order() {
             </select>
           </div>
 
+          {/* Auto‐Filled Read‐Only Fields */}
           {selected && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {["device_name","device_model","device_type","selling_price"].map((field, i) => (
-                  <div key={i}>
-                    <label className="block font-semibold mb-1">
-                      {field.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
-                    </label>
-                    <input
-                      readOnly
-                      value={selected[field]}
-                      className="w-full border rounded px-3 py-2 bg-gray-100"
-                    />
-                  </div>
+                {["device_name","device_model","device_type","selling_price"]
+                  .map((field,i) => (
+                    <div key={i}>
+                      <label className="block font-semibold mb-1">
+                        {field.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+                      </label>
+                      <input
+                        readOnly
+                        value={selected[field]}
+                        className="w-full border rounded px-3 py-2 bg-gray-100"
+                      />
+                    </div>
                 ))}
               </div>
 
-              {placeData.mode === "stock" && (
+              {/* ─── IMEIs (first N) ─── */}
+              {displayedImeis.length > 0 && (
                 <div>
-                  <label className="block font-semibold mb-1">IMEI</label>
+                  <label className="block font-semibold mb-1">
+                    IMEI{qty>1?'s':''} (showing {qty})
+                  </label>
                   <textarea
                     readOnly
-                    rows={3}
-                    value={selected.imeis_reserved.join("\n")}
+                    rows={Math.min(5, displayedImeis.length)}
+                    value={displayedImeis.join("\n")}
                     className="w-full border rounded px-3 py-2 bg-gray-100"
                   />
                 </div>
               )}
 
+              {/* Quantity & BNPL */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold mb-1">Quantity</label>
@@ -218,9 +245,9 @@ export default function Order() {
                     type="number"
                     name="number_of_devices"
                     min="1"
-                    max={placeData.mode === "stock"
+                    max={ placeData.mode==="stock"
                       ? selected.qty_reserved
-                      : selected.qty_available}
+                      : selected.qty_available }
                     value={formState.number_of_devices}
                     onChange={handleChange}
                     className="w-full border rounded px-3 py-2"
@@ -243,21 +270,28 @@ export default function Order() {
                 </div>
               </div>
 
+              {/* Customer Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {["customer_name","customer_phone"].map((nm, i) => (
-                  <div key={i}>
-                    <label className="block font-semibold mb-1">
-                      {nm.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
-                    </label>
-                    <input
-                      name={nm}
-                      value={formState[nm]}
-                      onChange={handleChange}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    />
-                  </div>
-                ))}
+                <div>
+                  <label className="block font-semibold mb-1">Customer Name</label>
+                  <input
+                    name="customer_name"
+                    value={formState.customer_name}
+                    onChange={handleChange}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Customer Phone</label>
+                  <input
+                    name="customer_phone"
+                    value={formState.customer_phone}
+                    onChange={handleChange}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
                 <div className="md:col-span-2">
                   <label className="block font-semibold mb-1">Customer Address</label>
                   <input
@@ -281,20 +315,21 @@ export default function Order() {
         </form>
       </div>
 
-      {/* Order History */}
+      {/* ───────── Order History ───────── */}
       <div className="bg-white p-6 rounded shadow overflow-x-auto">
         <h3 className="text-xl font-bold mb-4">Your Orders</h3>
         {orders.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {["#","Qty","Amount","Date","Status"].map((h,i) => (
-                  <th
-                    key={i}
-                    className="px-4 py-2 text-left text-xs font-semibold uppercase"
-                  >
-                    {h}
-                  </th>
+                {["#","Device","Model","Qty","Amount","Date","Status"]
+                  .map((h,i) => (
+                    <th
+                      key={i}
+                      className="px-4 py-2 text-left text-xs font-semibold uppercase"
+                    >
+                      {h}
+                    </th>
                 ))}
               </tr>
             </thead>
@@ -302,12 +337,14 @@ export default function Order() {
               {orders.map(o => (
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-sm">{o.id}</td>
+                  <td className="px-4 py-2 text-sm">{o.device_name}</td>
+                  <td className="px-4 py-2 text-sm">{o.device_model}</td>
                   <td className="px-4 py-2 text-sm">{o.number_of_devices}</td>
                   <td className="px-4 py-2 text-sm">{o.sold_amount}</td>
                   <td className="px-4 py-2 text-sm">
                     {new Date(o.sale_date).toLocaleString()}
                   </td>
-                  <td className="px-4 py-2 text-sm">{o.status || "Pending"}</td>
+                  <td className="px-4 py-2 text-sm">{o.status || "pending"}</td>
                 </tr>
               ))}
             </tbody>
