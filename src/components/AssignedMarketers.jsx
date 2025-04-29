@@ -18,7 +18,7 @@ const AssignedMarketers = () => {
       try {
         const token = localStorage.getItem("token");
         const response = await api.get(
-          `api/master-admin/marketers/${admin.unique_id}`, // Adjust this endpoint if needed
+          `/master-admin/marketers/${admin.unique_id}`, // Adjust this endpoint if needed
           {
             headers: {
               Authorization: `Bearer ${token}`,

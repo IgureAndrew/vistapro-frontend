@@ -12,11 +12,13 @@ export default function Order() {
   const [selectedId, setSelectedId] = useState("");
   const [formState, setFormState]   = useState({
     number_of_devices: "",
-    customer_name: "",
-    customer_phone: "",
-    customer_address: "",
-    bnpl_platform: "",
+    bnpl_platform:     "",
+    customer_name:     "",
+    customer_phone:    "",
+    customer_address:  "",
   });
+  // errors
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     fetchPlaceData();
@@ -25,23 +27,19 @@ export default function Order() {
 
   async function fetchPlaceData() {
     try {
-      const res = await fetch(PLACE_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `Error ${res.status}`);
-      }
+      const res = await fetch(PLACE_URL, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(await res.text() || `Error ${res.status}`);
       const data = await res.json();
       setPlaceData(data);
       setSelectedId("");
       setFormState({
         number_of_devices: "",
-        customer_name: "",
-        customer_phone: "",
-        customer_address: "",
-        bnpl_platform: "",
+        bnpl_platform:     "",
+        customer_name:     "",
+        customer_phone:    "",
+        customer_address:  "",
       });
+      setErrors({});
     } catch (err) {
       console.error("fetchPlaceData:", err);
       alert(err.message || "Could not load order form");
@@ -50,13 +48,8 @@ export default function Order() {
 
   async function fetchOrders() {
     try {
-      const res = await fetch(HISTORY_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `Error ${res.status}`);
-      }
+      const res = await fetch(HISTORY_URL, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(await res.text() || `Error ${res.status}`);
       const data = await res.json();
       setOrders(data.orders);
     } catch (err) {
@@ -67,7 +60,6 @@ export default function Order() {
 
   const handleSelectChange = e => {
     setSelectedId(e.target.value);
-    // reset quantity when changing selection:
     setFormState(fs => ({ ...fs, number_of_devices: "" }));
   };
 
@@ -76,26 +68,39 @@ export default function Order() {
     setFormState(fs => ({ ...fs, [name]: value }));
   };
 
+  const validate = () => {
+    const errs = {};
+    const { number_of_devices, bnpl_platform, customer_name, customer_phone, customer_address } = formState;
+    if (!number_of_devices || Number(number_of_devices) < 1) {
+      errs.number_of_devices = 'Enter a valid quantity';
+    }
+    if (!bnpl_platform) {
+      errs.bnpl_platform = 'Select a BNPL platform';
+    }
+    if (!customer_name.trim()) {
+      errs.customer_name = 'Customer name is required';
+    }
+    if (!/^[0-9]{7,15}$/.test(customer_phone)) {
+      errs.customer_phone = 'Enter a valid phone number';
+    }
+    if (!customer_address.trim()) {
+      errs.customer_address = 'Customer address is required';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!selectedId) return alert("Please select an item first.");
-
+    if (!validate()) {
+      return; // stop on validation errors
+    }
     const record = placeData.mode === "stock"
       ? placeData.pending.find(p => p.stock_update_id === +selectedId)
       : placeData.products.find(p => p.product_id === +selectedId);
-
     const qty   = parseInt(formState.number_of_devices, 10);
     const price = Number(record.selling_price);
-
-    if (!qty || qty < 1) {
-      return alert("Enter a valid quantity");
-    }
-    if (!formState.customer_name ||
-        !formState.customer_phone ||
-        !formState.customer_address) {
-      return alert("Fill in all customer details");
-    }
-
     const sold_amount = price * qty;
 
     const body = placeData.mode === "stock"
@@ -103,19 +108,19 @@ export default function Order() {
           stock_update_id:   record.stock_update_id,
           number_of_devices: qty,
           sold_amount,
+          bnpl_platform:     formState.bnpl_platform,
           customer_name:     formState.customer_name,
           customer_phone:    formState.customer_phone,
           customer_address:  formState.customer_address,
-          bnpl_platform:     formState.bnpl_platform || null,
         }
       : {
           product_id:        record.product_id,
           number_of_devices: qty,
           sold_amount,
+          bnpl_platform:     formState.bnpl_platform,
           customer_name:     formState.customer_name,
           customer_phone:    formState.customer_phone,
           customer_address:  formState.customer_address,
-          bnpl_platform:     formState.bnpl_platform || null,
         };
 
     try {
@@ -123,14 +128,11 @@ export default function Order() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`,
+          Authorization:  `Bearer ${token}`
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(body)
       });
-      if (!res.ok) {
-        const errTxt = await res.text();
-        throw new Error(errTxt || `Error ${res.status}`);
-      }
+      if (!res.ok) throw new Error(await res.text() || `Error ${res.status}`);
       alert("Order placed successfully!");
       fetchPlaceData();
       fetchOrders();
@@ -140,41 +142,29 @@ export default function Order() {
     }
   }
 
-  if (!placeData) {
-    return <div className="p-4">Loading form…</div>;
-  }
+  if (!placeData) return <div className="p-4">Loading form…</div>;
 
-  // determine the selected record (stock vs free)
   const selected = selectedId
     ? (placeData.mode === "stock"
         ? placeData.pending.find(p => p.stock_update_id === +selectedId)
         : placeData.products.find(p => p.product_id === +selectedId))
     : null;
 
-  // build the full IMEI array from whichever prop your API sends
   const allImeis = selected
     ? (placeData.mode === "stock"
         ? selected.imeis_reserved || []
         : selected.imeis_available || [])
     : [];
-
-  // parse the requested quantity
   const qty = parseInt(formState.number_of_devices, 10) || 0;
-
-  // slice down to first N IMEIs
   const displayedImeis = allImeis.slice(0, qty);
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-8">
-      {/* ───────── Place Order ───────── */}
       <div className="bg-white p-6 rounded shadow">
         <h2 className="text-2xl font-bold mb-4">Place Order</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Select dropdown */}
           <div>
-            <label className="block font-semibold mb-1">
-              Select {placeData.mode === "stock" ? "Pickup" : "Product"}
-            </label>
+            <label className="block font-semibold mb-1">Select {placeData.mode === "stock" ? "Pickup" : "Product"}</label>
             <select
               value={selectedId}
               onChange={handleSelectChange}
@@ -184,45 +174,35 @@ export default function Order() {
               <option value="">-- choose --</option>
               {placeData.mode === "stock"
                 ? placeData.pending.map(p => (
-                    <option
-                      key={p.stock_update_id}
-                      value={p.stock_update_id}
-                    >
+                    <option key={p.stock_update_id} value={p.stock_update_id}>
                       [{p.qty_reserved}] {p.device_name} {p.device_model}
                     </option>
                   ))
                 : placeData.products.map(p => (
-                    <option
-                      key={p.product_id}
-                      value={p.product_id}
-                    >
+                    <option key={p.product_id} value={p.product_id}>
                       [{p.qty_available} available] {p.device_name} {p.device_model}
                     </option>
-                  ))
-              }
+                  ))}
             </select>
           </div>
 
-          {/* Auto‐Filled Read‐Only Fields */}
           {selected && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {["device_name","device_model","device_type","selling_price"]
-                  .map((field,i) => (
-                    <div key={i}>
-                      <label className="block font-semibold mb-1">
-                        {field.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
-                      </label>
-                      <input
-                        readOnly
-                        value={selected[field]}
-                        className="w-full border rounded px-3 py-2 bg-gray-100"
-                      />
-                    </div>
+                {['device_name','device_model','device_type','selling_price'].map((field, i) => (
+                  <div key={i}>
+                    <label className="block font-semibold mb-1">
+                      {field.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
+                    </label>
+                    <input
+                      readOnly
+                      value={selected[field]}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                    />
+                  </div>
                 ))}
               </div>
 
-              {/* ─── IMEIs (first N) ─── */}
               {displayedImeis.length > 0 && (
                 <div>
                   <label className="block font-semibold mb-1">
@@ -237,7 +217,6 @@ export default function Order() {
                 </div>
               )}
 
-              {/* Quantity & BNPL */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold mb-1">Quantity</label>
@@ -245,14 +224,13 @@ export default function Order() {
                     type="number"
                     name="number_of_devices"
                     min="1"
-                    max={ placeData.mode==="stock"
-                      ? selected.qty_reserved
-                      : selected.qty_available }
+                    max={placeData.mode === "stock" ? selected.qty_reserved : selected.qty_available}
                     value={formState.number_of_devices}
                     onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
+                    className={`w-full border rounded px-3 py-2 ${errors.number_of_devices ? 'border-red-500' : ''}`}
                     required
                   />
+                  {errors.number_of_devices && <p className="mt-1 text-red-600 text-sm">{errors.number_of_devices}</p>}
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">BNPL Platform</label>
@@ -260,17 +238,18 @@ export default function Order() {
                     name="bnpl_platform"
                     value={formState.bnpl_platform}
                     onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
+                    className={`w-full border rounded px-3 py-2 ${errors.bnpl_platform ? 'border-red-500' : ''}`}
+                    required
                   >
                     <option value="">None</option>
                     <option value="WATU">WATU</option>
                     <option value="EASYBUY">EASYBUY</option>
                     <option value="CREDIT DIRECT">CREDIT DIRECT</option>
                   </select>
+                  {errors.bnpl_platform && <p className="mt-1 text-red-600 text-sm">{errors.bnpl_platform}</p>}
                 </div>
               </div>
 
-              {/* Customer Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold mb-1">Customer Name</label>
@@ -278,9 +257,10 @@ export default function Order() {
                     name="customer_name"
                     value={formState.customer_name}
                     onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
+                    className={`w-full border rounded px-3 py-2 ${errors.customer_name ? 'border-red-500' : ''}`}
                     required
                   />
+                  {errors.customer_name && <p className="mt-1 text-red-600 text-sm">{errors.customer_name}</p>}
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Customer Phone</label>
@@ -288,9 +268,10 @@ export default function Order() {
                     name="customer_phone"
                     value={formState.customer_phone}
                     onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
+                    className={`w-full border rounded px-3 py-2 ${errors.customer_phone ? 'border-red-500' : ''}`}
                     required
                   />
+                  {errors.customer_phone && <p className="mt-1 text-red-600 text-sm">{errors.customer_phone}</p>}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block font-semibold mb-1">Customer Address</label>
@@ -298,16 +279,14 @@ export default function Order() {
                     name="customer_address"
                     value={formState.customer_address}
                     onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
+                    className={`w-full border rounded px-3 py-2 ${errors.customer_address ? 'border-red-500' : ''}`}
                     required
                   />
+                  {errors.customer_address && <p className="mt-1 text-red-600 text-sm">{errors.customer_address}</p>}
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="mt-4 bg-black text-[#FFD700] font-bold px-6 py-2 rounded"
-              >
+              <button type="submit" className="mt-4 bg-black text-[#FFD700] font-bold px-6 py-2 rounded">
                 Place Order
               </button>
             </>
@@ -315,21 +294,14 @@ export default function Order() {
         </form>
       </div>
 
-      {/* ───────── Order History ───────── */}
       <div className="bg-white p-6 rounded shadow overflow-x-auto">
         <h3 className="text-xl font-bold mb-4">Your Orders</h3>
         {orders.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {["#","Device","Model","Qty","Amount","Date","Status"]
-                  .map((h,i) => (
-                    <th
-                      key={i}
-                      className="px-4 py-2 text-left text-xs font-semibold uppercase"
-                    >
-                      {h}
-                    </th>
+                {['#','Device','Model','Qty','Amount','Date','Status'].map((h,i) => (
+                  <th key={i} className="px-4 py-2 text-left text-xs font-semibold uppercase">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -341,18 +313,14 @@ export default function Order() {
                   <td className="px-4 py-2 text-sm">{o.device_model}</td>
                   <td className="px-4 py-2 text-sm">{o.number_of_devices}</td>
                   <td className="px-4 py-2 text-sm">{o.sold_amount}</td>
-                  <td className="px-4 py-2 text-sm">
-                    {new Date(o.sale_date).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2 text-sm">{o.status || "pending"}</td>
+                  <td className="px-4 py-2 text-sm">{new Date(o.sale_date).toLocaleString()}</td>
+                  <td className="px-4 py-2 text-sm">{o.status || 'pending'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="text-center text-gray-500 font-medium">
-            No orders found.
-          </p>
+          <p className="text-center text-gray-500 font-medium">No orders found.</p>
         )}
       </div>
     </div>
