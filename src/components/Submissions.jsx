@@ -258,8 +258,14 @@ export default function Submissions() {
       const url = `${import.meta.env.VITE_API_URL}${endpoint}/${submissionId}`;
       const res = await fetch(url, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          marketerUniqueId: selectedDeleteMarketer.marketer_unique_id
+        })
+     });
       if (!res.ok) {
         const data = await res.json();
         alert(data.message || "Failed to delete submission");

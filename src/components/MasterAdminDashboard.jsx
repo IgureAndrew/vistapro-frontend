@@ -23,7 +23,7 @@ import AvatarDropdown from "./AvatarDropdown";
 import ProfileUpdate from "./ProfileUpdate";
 import UsersManagement from "./UsersManagement";
 import Reports from "./Reports";
-import CashOut from "./CashOut";
+import MasterAdminWallet from "./MasterAdminWallet";
 import Performance from "./Performance";
 import StockUpdate from "./StockUpdate";
 import Verification from "./Verification";
@@ -89,8 +89,8 @@ function MasterAdminDashboard() {
         return <UsersManagement />;
       case "reports":
         return <Reports />;
-      case "cashout":
-        return <CashOut />;
+      case "MasterAdminWallet":
+        return <MasterAdminWallet />;
       case "performance":
         return <Performance />;
       case "stock":
@@ -200,9 +200,9 @@ function MasterAdminDashboard() {
                 isDarkMode={isDarkMode}
               />
               <SidebarItem
-                label="Cash Out"
+                label="Wallet"
                 Icon={() => <span className="text-lg">₦</span>}
-                moduleName="cashout"
+                moduleName="MasterAdminWallet"
                 activeModule={activeModule}
                 setActiveModule={setActiveModule}
                 setSidebarOpen={setSidebarOpen}

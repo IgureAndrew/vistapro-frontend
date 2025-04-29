@@ -61,17 +61,12 @@ const promiseQuestions = [
 ];
 
 const ApplicantCommitmentForm = ({ onSuccess }) => {
-  // Form state
   const [formData, setFormData] = useState(
     promiseQuestions.reduce(
       (acc, q) => ({ ...acc, [q.name]: "" }),
-      {
-        direct_sales_rep_name: "",
-        date_signed: "",
-      }
+      { direct_sales_rep_name: "", date_signed: "" }
     )
   );
-
   const [signatureFile, setSignatureFile] = useState(null);
   const navigate = useNavigate();
 
@@ -79,9 +74,8 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
     const { name, value } = e.target;
     setFormData((f) => ({ ...f, [name]: value }));
   };
-  const handleFileChange = (e) => {
-    if (e.target.files[0]) setSignatureFile(e.target.files[0]);
-  };
+  const handleFileChange = (e) =>
+    e.target.files[0] && setSignatureFile(e.target.files[0]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -130,11 +124,11 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow">
+    <div className="max-w-2xl w-full mx-auto p-4 md:p-6 bg-white rounded shadow">
       <FormStepper currentStep={3} />
 
-      <h2 className="text-2xl font-bold mb-4">Commitment Handbook</h2>
-      <p className="text-sm text-gray-600 mb-6">
+      <h2 className="text-2xl font-bold mb-2">Commitment Handbook</h2>
+      <p className="text-sm text-gray-600 mb-4">
         The following are considered prohibited actions which are not allowed in
         the sales units.
       </p>
@@ -143,16 +137,17 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         {promiseQuestions.map(({ name, label }) => (
           <div key={name} className="space-y-2">
             <label className="block font-semibold">{label}</label>
-            <div className="flex gap-6">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
               {["yes", "no"].map((val) => (
-                <label key={val}>
+                <label key={val} className="flex items-center">
                   <input
                     type="radio"
                     name={name}
                     value={val}
                     onChange={handleChange}
                     required
-                  />{" "}
+                    className="mr-2"
+                  />
                   {val.charAt(0).toUpperCase() + val.slice(1)}
                 </label>
               ))}
@@ -160,30 +155,32 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
           </div>
         ))}
 
-        {/* Direct Sales Rep Name */}
-        <div className="space-y-2">
-          <label className="block font-semibold">Name of Direct Sales Rep:</label>
-          <input
-            type="text"
-            name="direct_sales_rep_name"
-            value={formData.direct_sales_rep_name}
-            onChange={handleChange}
-            required
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        {/* Date Signed */}
-        <div className="space-y-2">
-          <label className="block font-semibold">Date Signed:</label>
-          <input
-            type="date"
-            name="date_signed"
-            value={formData.date_signed}
-            onChange={handleChange}
-            required
-            className="w-full border rounded px-3 py-2"
-          />
+        {/* Direct Sales Rep Name & Date Signed */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="block font-semibold">
+              Name of Direct Sales Rep:
+            </label>
+            <input
+              type="text"
+              name="direct_sales_rep_name"
+              value={formData.direct_sales_rep_name}
+              onChange={handleChange}
+              required
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="block font-semibold">Date Signed:</label>
+            <input
+              type="date"
+              name="date_signed"
+              value={formData.date_signed}
+              onChange={handleChange}
+              required
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
         </div>
 
         {/* Signature Upload */}
