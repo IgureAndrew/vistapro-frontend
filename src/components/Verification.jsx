@@ -1,39 +1,50 @@
+// src/components/Verification.jsx
 import React, { useEffect, useState } from "react";
 
-function Verification() {
-  const baseUrl = "https://vistapro-backend.onrender.com";
-  const token = localStorage.getItem("token");
+export default function Verification() {
+  const API_ROOT = import.meta.env.VITE_API_URL;
+  const token    = localStorage.getItem("token");
+  const user     = JSON.parse(localStorage.getItem("user") || "{}");
+  const role     = user.role;
 
-  const [pendingVerifications, setPendingVerifications] = useState([]);
   const [verifiedMarketers, setVerifiedMarketers] = useState([]);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  // new search states
+  const [searchId, setSearchId]         = useState("");
+  const [searchLocation, setSearchLocation] = useState("");
 
   useEffect(() => {
-    const fetchVerifications = async () => {
+    const fetchVerified = async () => {
       setLoading(true);
-      try {
-        // Fetch pending verifications
-        const resPending = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/pending`, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!resPending.ok) throw new Error("Failed to fetch pending verifications");
-        const dataPending = await resPending.json();
-        setPendingVerifications(dataPending.data || []);
+      let endpoint;
 
-        // Fetch verified marketers
-        const resApproved = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/approved`, {
+      if (role === "MasterAdmin") {
+        endpoint = "/api/verification/verified-master";
+      } else if (role === "SuperAdmin") {
+        endpoint = "/api/verification/verified-superadmin";
+      } else if (role === "Admin") {
+        endpoint = "/api/verification/verified-admin";
+      } else {
+        setError("You are not authorized to view this page.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_ROOT}${endpoint}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "Content-Type":  "application/json",
+            Authorization:   `Bearer ${token}`,
           },
         });
-        if (!resApproved.ok) throw new Error("Failed to fetch verified marketers");
-        const dataApproved = await resApproved.json();
-        setVerifiedMarketers(dataApproved.data || []);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || `Failed to fetch (${res.status})`);
+        }
+        const { marketers } = await res.json();
+        setVerifiedMarketers(marketers);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -41,70 +52,80 @@ function Verification() {
       }
     };
 
-    fetchVerifications();
-  }, [baseUrl, token]);
+    fetchVerified();
+  }, [API_ROOT, role, token]);
 
-  const handleApprove = async (marketer_id) => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/verification/approve/${marketer_id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!res.ok) throw new Error("Approval failed");
-      alert("Verification approved.");
-      // Remove from pending list
-      setPendingVerifications(prev => prev.filter(v => v.marketer_id !== marketer_id));
-      // Append to verified list (for simplicity, using the pending record data)
-      const approvedRecord = pendingVerifications.find(v => v.marketer_id === marketer_id);
-      setVerifiedMarketers(prev => [...prev, { ...approvedRecord, approved: true, reviewed_at: new Date() }]);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  // Combine both pending and verified for a single list
-  const allVerifications = [...pendingVerifications, ...verifiedMarketers];
-  // Sort by submission date descending (most recent first)
-  allVerifications.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+  // apply filters
+  const filtered = verifiedMarketers.filter((m) => {
+    const matchesId = m.unique_id.toLowerCase().includes(searchId.toLowerCase());
+    const loc = m.location || "";
+    const matchesLoc = loc.toLowerCase().includes(searchLocation.toLowerCase());
+    return matchesId && matchesLoc;
+  });
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <h1 className="text-4xl font-bold text-center mb-8">Verification</h1>
-      {error && <p className="text-red-600 text-center mb-4">{error}</p>}
+      <h1 className="text-4xl font-bold text-center mb-6">Verified Marketers</h1>
+
+      {error && (
+        <p className="text-red-600 text-center mb-4">{error}</p>
+      )}
+
+      {role === "MasterAdmin" && (
+        <div className="flex gap-4 justify-center mb-6">
+          <input
+            type="text"
+            placeholder="Search by ID"
+            value={searchId}
+            onChange={e => setSearchId(e.target.value)}
+            className="border rounded px-3 py-2 w-48"
+          />
+          <input
+            type="text"
+            placeholder="Search by Location"
+            value={searchLocation}
+            onChange={e => setSearchLocation(e.target.value)}
+            className="border rounded px-3 py-2 w-48"
+          />
+        </div>
+      )}
+
       {loading ? (
-        <p className="text-center">Loading verifications...</p>
+        <p className="text-center">Loading…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-gray-500">No verified marketers found.</p>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {allVerifications.map(item => (
-            <div
-              key={item.marketer_id}
-              className="p-6 rounded-xl shadow-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white"
-            >
-              <h2 className="text-2xl font-bold mb-2">{item.marketer_name}</h2>
-              <p className="mb-1">ID: {item.marketer_id}</p>
-              <p className="mb-1">Email: {item.marketer_email}</p>
-              <p className="mb-1">Submitted: {new Date(item.submitted_at).toLocaleString()}</p>
-              {item.approved ? (
-                <span className="mt-2 inline-block bg-white text-green-600 px-3 py-1 rounded-full text-sm font-bold">
-                  Verified
-                </span>
-              ) : (
-                <button
-                  onClick={() => handleApprove(item.marketer_id)}
-                  className="mt-4 w-full bg-white text-green-600 font-bold py-2 px-4 rounded hover:bg-green-100"
-                >
-                  Approve Verification
-                </button>
-              )}
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white rounded-lg shadow">
+            <thead>
+              <tr className="bg-indigo-600 text-white">
+                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">ID</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Email</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Phone</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Location</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filtered.map((m) => (
+                <tr key={m.unique_id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.first_name} {m.last_name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.unique_id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.phone || "—"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.location || "—"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      Verified
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
-
-export default Verification;

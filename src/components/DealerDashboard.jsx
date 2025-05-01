@@ -1,140 +1,158 @@
 // src/components/DealerDashboard.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-// Import lucide-react icons for sidebar items
-import { User, ClipboardList, LogOut, Bell } from "lucide-react";
+import { useNavigate }              from "react-router-dom";
+import io                           from "socket.io-client";
+import {
+  Home,
+  User,
+  ClipboardList,
+  LogOut,
+  Menu,
+  X,
+  Bell,
+} from "lucide-react";
 
-// Import module components (or placeholders)
-import ProfileUpdate from "./ProfileUpdate";
-import ManageOrders from "./ManageOrders";
+import DealerOverview    from "./DealerOverview";
+import ProfileUpdate     from "./ProfileUpdate";
+import ManageOrders      from "./ManageOrders";
+import AvatarDropdown    from "./AvatarDropdown";
+import NotificationBell  from "./NotificationBell";
 
-function DealerDashboard() {
+const socket = io("https://vistapro-backend.onrender.com");
+
+export default function DealerDashboard() {
   const navigate = useNavigate();
-  const storedUser = localStorage.getItem("user");
-  const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
-  const [activeModule, setActiveModule] = useState("profile");
-  const [isOnline, setIsOnline] = useState(window.navigator.onLine);
+  const stored   = localStorage.getItem("user");
+  const [user, setUser]                 = useState(stored ? JSON.parse(stored) : null);
+  const [activeModule, setActiveModule] = useState("overview"); // default to overview
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [notifCount, setNotifCount]     = useState(0);
 
+  // sync & register for notifications
   useEffect(() => {
     if (!user) {
-      navigate("/");
+      navigate("/", { replace: true });
+      return;
     }
+    socket.emit("register", user.unique_id);
+    socket.on("notificationCount", ({ count }) => setNotifCount(count));
+    return () => socket.off("notificationCount");
   }, [user, navigate]);
 
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-   // Logout function: clear auth data and redirect to landing page.
-   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/");
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/", { replace: true });
   };
 
-  // Render module based on activeModule state.
   const renderModule = () => {
     switch (activeModule) {
+      case "overview":
+        return <DealerOverview />;
       case "profile":
         return <ProfileUpdate />;
       case "manage-orders":
         return <ManageOrders />;
       default:
-        return <ProfileUpdate />;
+        return <DealerOverview />;
     }
   };
 
+  function SidebarItem({ label, Icon, moduleName }) {
+    const isActive = activeModule === moduleName;
+    return (
+      <li>
+        <button
+          onClick={() => {
+            setActiveModule(moduleName);
+            setSidebarOpen(false);
+          }}
+          className={`flex items-center gap-2 px-3 py-2 w-full rounded transition-colors
+            ${isActive
+              ? "bg-blue-100 text-black"
+              : "hover:bg-gray-50 text-gray-800"
+            }`}
+        >
+          <Icon size={16} />
+          <span>{label}</span>
+        </button>
+      </li>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-white text-gray-800">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white flex flex-col border-r border-gray-200">
-        <div className="p-4 text-center font-bold text-xl md:text-2xl border-b border-gray-200">
-          Vistapro
+    <div className="min-h-screen flex flex-col bg-white text-gray-800">
+      {/* Mobile header */}
+      <header className="md:hidden flex items-center justify-between px-4 h-16 border-b">
+        <button onClick={() => setSidebarOpen(o => !o)} className="p-2">
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+        <h2 className="text-lg font-bold">Vistapro</h2>
+        <div className="flex items-center gap-3">
+          <NotificationBell count={notifCount} />
+          <AvatarDropdown user={user} handleLogout={handleLogout} />
         </div>
-        <nav className="p-3 flex-1">
-          <ul className="list-none space-y-2 text-sm">
-            <SidebarItem
-              label="Profile"
-              Icon={User}
-              moduleName="profile"
-              activeModule={activeModule}
-              setActiveModule={setActiveModule}
-            />
-            <SidebarItem
-              label="Manage Orders"
-              Icon={ClipboardList}
-              moduleName="manage-orders"
-              activeModule={activeModule}
-              setActiveModule={setActiveModule}
-            />
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar */}
+        <aside
+          className={`
+            fixed inset-y-0 left-0 z-50 w-3/4 sm:w-64 bg-white border-r
+            transform transition-transform duration-200
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            md:relative md:translate-x-0
+          `}
+        >
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-xl font-bold">Vistapro</h2>
+            <button className="md:hidden" onClick={() => setSidebarOpen(false)}>
+              <X size={24} />
+            </button>
+          </div>
+          <ul className="p-4 space-y-2 text-sm">
+            <SidebarItem label="Overview"       Icon={Home}         moduleName="overview" />
+            <SidebarItem label="Profile"        Icon={User}         moduleName="profile" />
+            <SidebarItem label="Manage Orders"  Icon={ClipboardList} moduleName="manage-orders" />
             <li>
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-3 py-2 rounded flex items-center gap-2 hover:bg-gray-50 transition"
+                className="flex items-center gap-2 px-3 py-2 w-full rounded hover:bg-gray-50"
               >
-                <LogOut size={16} className="text-black" />
-                Logout
+                <LogOut size={16} /> Logout
               </button>
             </li>
           </ul>
-        </nav>
-      </aside>
+        </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Top Bar */}
-        <header className="h-16 bg-white border-b border-gray-200 px-4 md:px-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg md:text-xl font-bold">
-              Welcome Back, {user ? user.name : "Dealer"}!
-            </h2>
-            <p className="text-xs md:text-sm text-gray-500">
-              {isOnline ? "You are online" : "You are offline"}
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="relative p-2 rounded hover:bg-gray-100">
-              <Bell size={18} className="text-black" />
-              <span className="absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-                3
-              </span>
-            </button>
-            <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-white font-bold">
-              {user ? user.name.charAt(0).toUpperCase() : "D"}
+        {/* Content */}
+        <div className="flex-1 flex flex-col">
+          {/* Desktop header */}
+          <header className="hidden md:flex items-center justify-between px-6 h-16 border-b">
+            <div>
+              <h2 className="text-xl font-bold">
+                Welcome, {user?.first_name || "Dealer"}!
+              </h2>
+              <p className="text-sm text-gray-500">ID: {user?.unique_id}</p>
             </div>
-          </div>
-        </header>
+            <div className="flex items-center gap-4">
+              <NotificationBell count={notifCount} />
+              <AvatarDropdown user={user} handleLogout={handleLogout} />
+            </div>
+          </header>
 
-        {/* Render Active Module */}
-        <main className="p-3 md:p-6 overflow-auto flex-1">{renderModule()}</main>
+          <main className="flex-1 overflow-auto p-6 bg-gray-50">
+            {renderModule()}
+          </main>
+        </div>
       </div>
     </div>
-  );
-}
-
-export default DealerDashboard;
-
-/* Reusable Sidebar Item Component */
-function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule }) {
-  const isActive = activeModule === moduleName;
-  return (
-    <li>
-      <button
-        onClick={() => setActiveModule(moduleName)}
-        className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-          isActive ? "bg-blue-100 font-semibold" : "hover:bg-blue-50"
-        }`}
-      >
-        {Icon && <Icon size={16} className="text-black" />}
-        <span>{label}</span>
-      </button>
-    </li>
   );
 }

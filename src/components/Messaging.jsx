@@ -1,79 +1,81 @@
 // src/components/Messaging.jsx
-import React, { useState, useEffect } from "react";
-import { io } from "socket.io-client";
-import { Send, MessageSquare } from "lucide-react";
+import React, { useEffect, useState } from 'react'
+import api from '../api'      // axios.create({ baseURL:'/api/messages' })
 
-const socket = io("https://vistapro-backend.onrender.com", {
-  transports: ["websocket"],
-});
+export default function Messaging() {
+  const [contacts, setContacts] = useState([])
+  const [selected, setSelected] = useState('')
+  const [thread, setThread]     = useState([])
+  const [draft, setDraft]       = useState('')
 
-function Messaging() {
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
-
+  // load just once
   useEffect(() => {
-    // Listen for incoming messages
-    socket.on("receive-message", (messageData) => {
-      setMessages((prev) => [...prev, messageData]);
-    });
+    api.get('/contacts')
+      .then(r => setContacts(Array.isArray(r.data) ? r.data : []))
+      .catch(console.error)
+  }, [])
 
-    return () => {
-      socket.off("receive-message");
-    };
-  }, []);
+  // whenever you pick someone, load history
+  useEffect(() => {
+    if (!selected) return
+    api.get(`/threads/${selected}`)
+      .then(r => setThread(r.data))
+      .catch(console.error)
+  }, [selected])
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
-    // Construct message object. You might include sender info from localStorage, etc.
-    const messageData = {
-      from: "currentUserId", // replace with actual sender id
-      content: newMessage,
-      timestamp: new Date().toISOString(),
-    };
-    // Emit the message to the server
-    socket.emit("send-message", messageData);
-    // Optionally add it to local state
-    setMessages((prev) => [...prev, messageData]);
-    setNewMessage("");
-  };
+  function send() {
+    if (!draft.trim() || !selected) return
+    api.post(`/threads/${selected}`, { text: draft })
+      .then(() => {
+        // append locally
+        setThread(t => [...t, { sender: 'me', recipient: selected, message: draft, created_at: new Date().toISOString() }])
+        setDraft('')
+      })
+      .catch(console.error)
+  }
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-semibold flex items-center gap-2">
-        <MessageSquare size={20} /> Messages
-      </h2>
-      <div className="border border-gray-200 rounded p-4 h-80 overflow-auto my-4">
-        {messages.length === 0 ? (
-          <p className="text-gray-500">No messages yet.</p>
-        ) : (
-          messages.map((msg, idx) => (
-            <div key={idx} className="mb-2">
-              <p className="text-sm text-gray-600">
-                <span className="font-bold">{msg.from}: </span>
-                {msg.content}
-              </p>
-              <p className="text-xs text-gray-400">{new Date(msg.timestamp).toLocaleString()}</p>
-            </div>
-          ))
-        )}
+    <div className="max-w-md mx-auto p-4 border rounded">
+      <label className="block mb-2 font-medium">Send To</label>
+      <select
+        className="w-full mb-4 border rounded p-2"
+        value={selected}
+        onChange={e => setSelected(e.target.value)}
+      >
+        <option value="">-- pick a user --</option>
+        {contacts.map(u => (
+          <option key={u.unique_id} value={u.unique_id}>
+            {u.first_name} {u.last_name} ({u.role})
+          </option>
+        ))}
+      </select>
+
+      <div className="h-64 mb-4 overflow-auto bg-gray-50 p-2 rounded">
+        {thread.map((m,i) => (
+          <div key={i} className={m.sender=== 'me' ? 'text-right' : ''}>
+            <p className="inline-block px-2 py-1 mb-1 rounded bg-white">
+              {m.message}
+            </p>
+          </div>
+        ))}
       </div>
-      <div className="flex gap-2">
+
+      <div className="flex">
         <input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type your message..."
-          className="flex-1 border border-gray-300 rounded px-3 py-2"
+          className="flex-1 border rounded-l p-2"
+          placeholder={selected ? "Type your message…" : "Select a user first"}
+          disabled={!selected}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
         />
         <button
-          onClick={sendMessage}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded flex items-center"
+          onClick={send}
+          disabled={!draft.trim() || !selected}
+          className="bg-indigo-600 text-white px-4 rounded-r"
         >
-          <Send size={16} className="mr-1" /> Send
+          Send
         </button>
       </div>
     </div>
-  );
+  )
 }
-
-export default Messaging;
