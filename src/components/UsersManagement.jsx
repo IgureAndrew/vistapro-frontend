@@ -53,12 +53,17 @@ export default function UsersManagement() {
   const baseUrl = "https://vistapro-backend.onrender.com/api/master-admin/users";
   const token = localStorage.getItem("token");
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   async function fetchUsers() {
     try {
       const res = await fetch(baseUrl, {
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
       });
       const data = await res.json();
       if (res.ok) setUsers(data.users);
@@ -100,18 +105,24 @@ export default function UsersManagement() {
       let payload, headers = { Authorization: `Bearer ${token}` };
       if (addFormData.role === "Dealer" && addFormData.registrationCertificate) {
         payload = new FormData();
-        Object.entries(addFormData).forEach(([k,v]) => payload.append(k, v));
+        Object.entries(addFormData).forEach(([k, v]) => payload.append(k, v));
       } else {
         payload = JSON.stringify(addFormData);
         headers["Content-Type"] = "application/json";
       }
-      const res = await fetch(baseUrl, { method: "POST", headers, body: payload });
+      const res = await fetch(baseUrl, {
+        method: "POST",
+        headers,
+        body: payload
+      });
       const data = await res.json();
       if (res.ok) {
         alert("User added!");
         fetchUsers();
         closeAddUserModal();
-      } else alert(data.message || "Failed to add user");
+      } else {
+        alert(data.message || "Failed to add user");
+      }
     } catch (err) {
       console.error(err);
       alert("Error adding user");
@@ -139,7 +150,10 @@ export default function UsersManagement() {
     });
     setShowEditUserModal(true);
   }
-  const closeEditUserModal = () => { setShowEditUserModal(false); setSelectedUser(null); };
+  const closeEditUserModal = () => {
+    setShowEditUserModal(false);
+    setSelectedUser(null);
+  };
 
   function handleEditChange(e) {
     const { name, value, type, files } = e.target;
@@ -151,11 +165,15 @@ export default function UsersManagement() {
 
   async function handleEditUserSubmit(e) {
     e.preventDefault();
-    if (!selectedUser?.unique_id || !token) return alert("Select a user and ensure you’re logged in");
+    if (!selectedUser?.id || !token)
+      return alert("Select a user and ensure you’re logged in");
     try {
-      const res = await fetch(`${baseUrl}/${selectedUser.unique_id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      const res = await fetch(`${baseUrl}/${selectedUser.id}`, {
+        method: "PUT",   // match your router.put()
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify(editFormData)
       });
       const data = await res.json();
@@ -163,7 +181,9 @@ export default function UsersManagement() {
         alert("User updated!");
         fetchUsers();
         closeEditUserModal();
-      } else alert(data.message || "Failed to update");
+      } else {
+        alert(data.message || "Failed to update");
+      }
     } catch (err) {
       console.error(err);
       alert("Error updating user");
@@ -171,49 +191,62 @@ export default function UsersManagement() {
   }
 
   async function patchUserLock(id, lock) {
-    const res = await fetch(`${baseUrl}/${id}/${lock?"lock":"unlock"}`, {
-      method: "PATCH",
-      headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` }
-    });
-    if (res.ok) {
-      alert(lock?"Locked":"Unlocked");
-      fetchUsers();
-    } else {
-      const data = await res.json().catch(()=>({}));
-      alert(data.message || "Failed");
+    try {
+      const res = await fetch(`${baseUrl}/${id}/${lock ? "lock" : "unlock"}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        alert(lock ? "Locked" : "Unlocked");
+        fetchUsers();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || "Failed");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error locking/unlocking user");
     }
   }
 
-  async function handleDeleteUser(id) {
+   async function handleDeleteUser(id) {
     if (!confirm("Delete this user?")) return;
     const res = await fetch(`${baseUrl}/${id}`, {
       method: "DELETE",
-      headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` }
+      headers: {
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${token}`
+      }
     });
     if (res.ok) {
       alert("Deleted");
       fetchUsers();
     } else {
       const data = await res.json().catch(()=>({}));
-      alert(data.message||"Failed to delete");
+      alert(data.message || "Failed to delete");
     }
   }
 
   // search & paginate
   const filtered = users.filter(u => {
     const term = searchTerm.toLowerCase();
-    const name = u.role==="Dealer"
-      ? u.business_name||`${u.first_name} ${u.last_name}`
+    const name = u.role === "Dealer"
+      ? u.business_name || `${u.first_name} ${u.last_name}`
       : `${u.first_name} ${u.last_name}`;
-    return name.toLowerCase().includes(term)
-      || (u.email||"").toLowerCase().includes(term)
-      || (u.id?.toString()||"").includes(term)
-      || (u.role||"").toLowerCase().includes(term);
+    return (
+      name.toLowerCase().includes(term) ||
+      (u.email || "").toLowerCase().includes(term) ||
+      u.id.toString().includes(term) ||
+      (u.role || "").toLowerCase().includes(term)
+    );
   });
   const totalPages = Math.ceil(filtered.length / usersPerPage);
   const pageUsers = filtered.slice(
-    (currentPage-1)*usersPerPage,
-    currentPage*usersPerPage
+    (currentPage - 1) * usersPerPage,
+    currentPage * usersPerPage
   );
 
   return (
@@ -241,82 +274,98 @@ export default function UsersManagement() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {["Unique ID","Name","Role","Location","Status","Actions"].map(h => (
-                <th key={h} className="px-6 py-3 text-xs font-bold text-gray-500 uppercase">{h}</th>
+              {["ID","Name","Role","Location","Status","Actions"].map(h => (
+                <th
+                  key={h}
+                  className="px-6 py-3 text-xs font-bold text-gray-500 uppercase"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {pageUsers.length
-              ? pageUsers.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium">{u.unique_id}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                        <UserIcon className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <div>
-                        <div className="font-bold">{u.role==="Dealer"
+            {pageUsers.length > 0 ? pageUsers.map(u => (
+              <tr key={u.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 text-sm font-medium">{u.id}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                      <UserIcon className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div>
+                      <div className="font-bold">
+                        {u.role === "Dealer"
                           ? u.business_name || `${u.first_name} ${u.last_name}`
                           : `${u.first_name} ${u.last_name}`}
-                        </div>
-                        <div className="text-sm text-gray-500">{u.email}</div>
                       </div>
+                      <div className="text-sm text-gray-500">{u.email}</div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">{u.role}</td>
-                  <td className="px-6 py-4 text-sm">{u.location}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      u.locked ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
-                    }`}>
-                      {u.locked ? "Locked" : "Active"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right space-x-2">
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm">{u.role}</td>
+                <td className="px-6 py-4 text-sm">{u.location}</td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    u.locked ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+                  }`}>
+                    {u.locked ? "Locked" : "Active"}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right space-x-2">
+                  <button
+                    onClick={() => openEditUserModal(u)}
+                    className="bg-black text-[#FFD700] px-3 py-1 rounded font-bold"
+                  >
+                    Edit
+                  </button>
+                  {u.locked ? (
                     <button
-                      onClick={()=>openEditUserModal(u)}
+                      onClick={() => patchUserLock(u.id, false)}
                       className="bg-black text-[#FFD700] px-3 py-1 rounded font-bold"
-                    >Edit</button>
-                    {u.locked
-                      ? <button
-                          onClick={()=>patchUserLock(u.id, false)}
-                          className="bg-black text-[#FFD700] px-3 py-1 rounded font-bold"
-                        >Unlock</button>
-                      : <button
-                          onClick={()=>patchUserLock(u.id, true)}
-                          className="bg-black text-[#FFD700] px-3 py-1 rounded font-bold"
-                        >Lock</button>
-                    }
+                    >
+                      Unlock
+                    </button>
+                  ) : (
                     <button
-                      onClick={()=>handleDeleteUser(u.id)}
+                      onClick={() => patchUserLock(u.id, true)}
                       className="bg-black text-[#FFD700] px-3 py-1 rounded font-bold"
-                    >Delete</button>
-                  </td>
-                </tr>
-              ))
-              : <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    No users found.
-                  </td>
-                </tr>
-            }
+                    >
+                      Lock
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteUser(u.id)}
+                    className="bg-black text-[#FFD700] px-3 py-1 rounded font-bold"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  No users found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="flex justify-center space-x-2">
-        {Array.from({length: totalPages}, (_,i)=>i+1).map(page=>(
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
           <button
             key={page}
-            onClick={()=>setCurrentPage(page)}
+            onClick={() => setCurrentPage(page)}
             className={`px-3 py-1 rounded border font-bold ${
-              currentPage===page
+              currentPage === page
                 ? "bg-black text-[#FFD700] border-black"
                 : "bg-white text-black border-gray-300"
             }`}
-          >{page}</button>
+          >
+            {page}
+          </button>
         ))}
       </div>
 
@@ -326,6 +375,7 @@ export default function UsersManagement() {
           <div className="p-6 bg-white rounded shadow-lg max-w-md mx-auto max-h-[70vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">Add New User</h2>
             <form onSubmit={handleAddUserSubmit} className="space-y-4">
+              {/* Role */}
               <div>
                 <label className="font-bold">Role</label>
                 <select
@@ -342,6 +392,8 @@ export default function UsersManagement() {
                   <option value="Dealer">Dealer</option>
                 </select>
               </div>
+
+              {/* First & Last Name */}
               <div>
                 <label className="font-bold">First Name</label>
                 <input
@@ -362,6 +414,8 @@ export default function UsersManagement() {
                   required
                 />
               </div>
+
+              {/* Gender */}
               <div>
                 <label className="font-bold">Gender</label>
                 <select
@@ -376,6 +430,8 @@ export default function UsersManagement() {
                   <option value="female">Female</option>
                 </select>
               </div>
+
+              {/* Email & Password */}
               <div>
                 <label className="font-bold">Email</label>
                 <input
@@ -391,7 +447,7 @@ export default function UsersManagement() {
                 <label className="font-bold">Password</label>
                 <input
                   name="password"
-                  type={showPassword ? "text":"password"}
+                  type={showPassword ? "text" : "password"}
                   value={addFormData.password}
                   onChange={handleAddChange}
                   className="w-full border px-3 py-2 rounded"
@@ -402,10 +458,12 @@ export default function UsersManagement() {
                   type="button"
                   onClick={toggleShowPassword}
                   className="absolute inset-y-0 right-0 pr-3 text-sm text-gray-600"
-                >{showPassword?"Hide":"Show"}</button>
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
               </div>
 
-              {/* bank fields only for non-Dealers */}
+              {/* Bank fields for non-Dealers */}
               {addFormData.role !== "Dealer" && (
                 <>
                   <div>
@@ -441,6 +499,7 @@ export default function UsersManagement() {
                 </>
               )}
 
+              {/* Location */}
               <div>
                 <label className="font-bold">Location</label>
                 <select
@@ -519,11 +578,15 @@ export default function UsersManagement() {
                   type="button"
                   onClick={closeAddUserModal}
                   className="px-4 py-2 bg-gray-200 rounded"
-                >Cancel</button>
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-black text-white rounded"
-                >Save</button>
+                >
+                  Save
+                </button>
               </div>
             </form>
           </div>
@@ -536,6 +599,7 @@ export default function UsersManagement() {
           <div className="p-6 bg-white rounded shadow-lg max-w-md mx-auto max-h-[70vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Edit User</h2>
             <form onSubmit={handleEditUserSubmit} className="space-y-4">
+              {/* Role */}
               <div>
                 <label className="font-bold">Role</label>
                 <select
@@ -550,6 +614,8 @@ export default function UsersManagement() {
                   <option value="Dealer">Dealer</option>
                 </select>
               </div>
+
+              {/* First & Last Name */}
               <div>
                 <label className="font-bold">First Name</label>
                 <input
@@ -568,6 +634,8 @@ export default function UsersManagement() {
                   className="w-full border px-3 py-2 rounded"
                 />
               </div>
+
+              {/* Gender */}
               <div>
                 <label className="font-bold">Gender</label>
                 <select
@@ -581,6 +649,8 @@ export default function UsersManagement() {
                   <option value="female">Female</option>
                 </select>
               </div>
+
+              {/* Email */}
               <div>
                 <label className="font-bold">Email</label>
                 <input
@@ -591,11 +661,13 @@ export default function UsersManagement() {
                   className="w-full border px-3 py-2 rounded"
                 />
               </div>
+
+              {/* Password */}
               <div className="relative">
                 <label className="font-bold">Password</label>
                 <input
                   name="password"
-                  type={showPassword?"text":"password"}
+                  type={showPassword ? "text" : "password"}
                   value={editFormData.password}
                   onChange={handleEditChange}
                   placeholder="Leave blank to keep current"
@@ -605,10 +677,12 @@ export default function UsersManagement() {
                   type="button"
                   onClick={toggleShowPassword}
                   className="absolute inset-y-0 right-0 pr-3 text-sm text-gray-600"
-                >{showPassword?"Hide":"Show"}</button>
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
               </div>
 
-              {/* bank fields only for non-Dealers */}
+              {/* Bank fields for non-Dealers */}
               {editFormData.role !== "Dealer" && (
                 <>
                   <div>
@@ -641,6 +715,7 @@ export default function UsersManagement() {
                 </>
               )}
 
+              {/* Location */}
               <div>
                 <label className="font-bold">Location</label>
                 <select
@@ -656,16 +731,21 @@ export default function UsersManagement() {
                 </select>
               </div>
 
+              {/* Submit */}
               <div className="flex justify-end gap-4 pt-2">
                 <button
                   type="button"
                   onClick={closeEditUserModal}
                   className="px-4 py-2 bg-gray-200 rounded"
-                >Cancel</button>
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-black text-white rounded"
-                >Update</button>
+                >
+                  Update
+                </button>
               </div>
             </form>
           </div>
