@@ -1,12 +1,13 @@
+// src/components/MasterAdminWallet.jsx
 import React, { useEffect, useState } from 'react';
 import api from '../api/walletApi';
 
 export default function MasterAdminWallet() {
-  const [wallets, setWallets]       = useState([]);
-  const [requests, setRequests]     = useState([]);
-  const [loadingWallets, setLoadingWallets]   = useState(true);
-  const [loadingRequests, setLoadingRequests] = useState(true);
-  const [error, setError]           = useState('');
+  const [wallets, setWallets]         = useState([]);
+  const [requests, setRequests]       = useState([]);
+  const [loadingWallets, setLoadingWallets]     = useState(true);
+  const [loadingRequests, setLoadingRequests]   = useState(true);
+  const [error, setError]             = useState('');
 
   // 1) Load all marketers' balances
   const fetchWallets = async () => {
@@ -45,9 +46,7 @@ export default function MasterAdminWallet() {
   const handleReview = async (id, action) => {
     try {
       await api.patch(`/master-admin/requests/${id}`, { action });
-      // remove from UI
       setRequests(rs => rs.filter(r => r.id !== id));
-      // refresh balances
       fetchWallets();
     } catch {
       alert(`Could not ${action} request #${id}`);
@@ -55,20 +54,34 @@ export default function MasterAdminWallet() {
   };
 
   // 4) Release all withheld balances
-  const handleRelease = async () => {
+  const handleReleaseAll = async () => {
     if (!window.confirm('Release all withheld balances now?')) return;
     try {
       await api.post('/master-admin/release-withheld');
-      await fetchWallets();
+      fetchWallets();
       alert('Withheld balances released.');
     } catch {
       alert('Release failed.');
     }
   };
 
+  // 5) **Reset a single marketer’s wallet**
+  const handleResetWallet = async (userUniqueId) => {
+    if (!window.confirm(`Reset wallet for ${userUniqueId}? This will zero out balances and erase transactions.`)) {
+      return;
+    }
+    try {
+      // assuming your backend accepts a body { userUniqueId }
+      await api.post('/master-admin/reset', { userUniqueId });
+      alert(`Wallet for ${userUniqueId} has been reset.`);
+      fetchWallets();
+    } catch {
+      alert(`Failed to reset wallet for ${userUniqueId}.`);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 bg-gray-50">
-
       {error && <div className="text-red-600">{error}</div>}
 
       {/* ─── Wallet Balances ────────────────────────────────── */}
@@ -80,7 +93,7 @@ export default function MasterAdminWallet() {
             <table className="w-full text-sm bg-white rounded shadow overflow-auto">
               <thead className="bg-gray-100">
                 <tr>
-                  {['Marketer','Total','Available','Withheld'].map(h => (
+                  {['Marketer','Total','Available','Withheld','Actions'].map(h => (
                     <th key={h} className="px-3 py-2 text-left">{h}</th>
                   ))}
                 </tr>
@@ -92,6 +105,14 @@ export default function MasterAdminWallet() {
                     <td className="px-3 py-2">₦{w.total_balance.toLocaleString()}</td>
                     <td className="px-3 py-2">₦{w.available_balance.toLocaleString()}</td>
                     <td className="px-3 py-2">₦{w.withheld_balance.toLocaleString()}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => handleResetWallet(w.user_unique_id)}
+                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                      >
+                        Reset
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -99,7 +120,7 @@ export default function MasterAdminWallet() {
           )
         }
         <button
-          onClick={handleRelease}
+          onClick={handleReleaseAll}
           className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
         >
           Release All Withheld

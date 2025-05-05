@@ -2,237 +2,207 @@
 import React, { useState, useEffect } from "react";
 
 export default function Order() {
-  const API_ROOT          = import.meta.env.VITE_API_URL + "/api/marketer";
-  const DEALERS_URL       = `${API_ROOT}/dealers`;
-  const dealerProductsUrl = (uid) => `${API_ROOT}/dealers/${uid}/products`;
-  const PLACE_URL         = `${API_ROOT}/orders`;
-  const HISTORY_URL       = `${API_ROOT}/orders/history`;
-  const token             = localStorage.getItem("token") || "";
+  const API_ROOT    = import.meta.env.VITE_API_URL + "/api/marketer";
+  const PLACE_URL   = `${API_ROOT}/orders`;
+  const HISTORY_URL = `${API_ROOT}/orders/history`;
+  const token       = localStorage.getItem("token") || "";
 
-  // Lists & selections
-  const [dealers, setDealers]                     = useState([]);
-  const [dealerProducts, setDealerProducts]       = useState([]);
-  const [selectedDealer, setSelectedDealer]       = useState("");
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedProduct, setSelectedProduct]     = useState(null);
-
-  // Form state & history
-  const [formState, setFormState] = useState({
+  const [placeData, setPlaceData]   = useState(null);
+  const [orders, setOrders]         = useState([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [form, setForm]             = useState({
     number_of_devices: "",
     bnpl_platform:     "",
     customer_name:     "",
     customer_phone:    "",
-    customer_address:  "",
+    customer_address:  ""
   });
-  const [errors, setErrors] = useState({});
-  const [orders, setOrders] = useState([]);
+  const [errors, setErrors]         = useState({});
 
-  // Load dealers + order history on mount
   useEffect(() => {
-    fetchDealers();
+    fetchPlaceData();
     fetchOrders();
   }, []);
 
-  async function fetchDealers() {
+  async function fetchPlaceData() {
     try {
-      const res = await fetch(DEALERS_URL, {
+      const res  = await fetch(PLACE_URL, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error(await res.text());
-      const { dealers } = await res.json();
-      setDealers(dealers);
-    } catch (err) {
-      console.error("Could not load dealers:", err);
-      alert("Failed to load dealers");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setPlaceData(data);
+      setSelectedId("");
+      setForm({
+        number_of_devices: "",
+        bnpl_platform:     "",
+        customer_name:     "",
+        customer_phone:    "",
+        customer_address:  ""
+      });
+      setErrors({});
+    } catch (e) {
+      alert(e.message || "Could not load order form");
     }
   }
 
   async function fetchOrders() {
     try {
-      const res = await fetch(HISTORY_URL, {
+      const res  = await fetch(HISTORY_URL, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error(await res.text());
-      const { orders } = await res.json();
-      setOrders(orders);
-    } catch (err) {
-      console.error("Could not load orders:", err);
-      alert("Failed to load your orders");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setOrders(data.orders);
+    } catch (e) {
+      alert(e.message || "Could not load your orders");
     }
   }
 
-  // Dealer → products
-  async function onDealerChange(e) {
-    const uid = e.target.value;
-    setSelectedDealer(uid);
-    setSelectedProductId("");
-    setSelectedProduct(null);
-    setDealerProducts([]);
-
-    if (!uid) return;
-    try {
-      const res = await fetch(dealerProductsUrl(uid), {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const { products } = await res.json();
-      setDealerProducts(products);
-    } catch (err) {
-      console.error("Could not load dealer products:", err);
-      alert("Failed to load products for that dealer");
-    }
-  }
-
-  // Product → details
-  function onProductChange(e) {
-    const id = +e.target.value;
-    setSelectedProductId(id);
-    const p = dealerProducts.find(x => x.product_id === id);
-    setSelectedProduct(p || null);
-
-    // reset quantity & errors
-    setFormState(fs => ({ ...fs, number_of_devices: "" }));
+  function handleSelectChange(e) {
+    setSelectedId(e.target.value);
+    setForm(fs => ({ ...fs, number_of_devices: "" }));
     setErrors({});
   }
 
   function handleChange(e) {
     const { name, value } = e.target;
-    setFormState(fs => ({ ...fs, [name]: value }));
+    setForm(fs => ({ ...fs, [name]: value }));
   }
 
   function validate() {
     const errs = {};
-    const {
-      number_of_devices,
-      bnpl_platform,
-      customer_name,
-      customer_phone,
-      customer_address
-    } = formState;
-
-    if (selectedProduct && qty > selectedProduct.qty_available) {
-           errs.number_of_devices = `Only ${selectedProduct.qty_available} in stock`;
-         }
-
-    if (!number_of_devices || Number(number_of_devices) < 1) {
-      errs.number_of_devices = "Enter a valid quantity";
+    if (!isStockMode) {
+      if (!form.number_of_devices || Number(form.number_of_devices) < 1) {
+        errs.number_of_devices = "Enter a valid quantity";
+      }
     }
-    if (!bnpl_platform) {
-      errs.bnpl_platform = "Select a BNPL platform";
-    }
-    if (!customer_name.trim()) {
-      errs.customer_name = "Customer name is required";
-    }
-    if (!/^[0-9]{7,15}$/.test(customer_phone)) {
-      errs.customer_phone = "Enter a valid phone number";
-    }
-    if (!customer_address.trim()) {
-      errs.customer_address = "Customer address is required";
-    }
-
+    if (!form.bnpl_platform)    errs.bnpl_platform    = "Select a BNPL platform";
+    if (!form.customer_name.trim()) 
+                                errs.customer_name    = "Customer name is required";
+    if (!/^[0-9]{7,15}$/.test(form.customer_phone)) 
+                                errs.customer_phone   = "Enter a valid phone number";
+    if (!form.customer_address.trim()) 
+                                errs.customer_address = "Customer address is required";
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    return !Object.keys(errs).length;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!selectedDealer)                return alert("Please select a dealer first.");
-    if (!selectedProductId)             return alert("Please select a product first.");
-    if (!validate())                    return;
+    if (!selectedId) {
+      return alert("Please select an item first.");
+    }
+    if (!validate()) return;
 
-    const qty = parseInt(formState.number_of_devices, 10);
-    const sold_amount = Number(selectedProduct.selling_price) * qty;
+    // pick the right record & qty
+    const record = isStockMode
+      ? placeData.pending.find(p => p.stock_update_id === +selectedId)
+      : placeData.products.find(p => p.product_id === +selectedId);
 
-    const body = {
-      product_id:        selectedProduct.product_id,
-      number_of_devices: qty,
-      sold_amount,
-      bnpl_platform:     formState.bnpl_platform,
-      customer_name:     formState.customer_name,
-      customer_phone:    formState.customer_phone,
-      customer_address:  formState.customer_address,
-    };
+    const qty = isStockMode
+      ? 1
+      : parseInt(form.number_of_devices, 10);
+
+    const sold_amount = Number(record.selling_price) * qty;
+    const body = isStockMode
+      ? {
+          stock_update_id:   record.stock_update_id,
+          number_of_devices: qty,
+          sold_amount,
+          bnpl_platform:     form.bnpl_platform,
+          customer_name:     form.customer_name,
+          customer_phone:    form.customer_phone,
+          customer_address:  form.customer_address
+        }
+      : {
+          product_id:        record.product_id,
+          number_of_devices: qty,
+          sold_amount,
+          bnpl_platform:     form.bnpl_platform,
+          customer_name:     form.customer_name,
+          customer_phone:    form.customer_phone,
+          customer_address:  form.customer_address
+        };
 
     try {
       const res = await fetch(PLACE_URL, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data);
       alert("Order placed successfully!");
-      // reset & reload history
-      setSelectedProductId("");
-      setSelectedProduct(null);
-      setFormState({
-        number_of_devices: "",
-        bnpl_platform:     "",
-        customer_name:     "",
-        customer_phone:    "",
-        customer_address:  "",
-      });
+      fetchPlaceData();
       fetchOrders();
     } catch (err) {
-      console.error("Failed to place order:", err);
-      alert(err.message || "Order failed");
+      alert(err.message || "Failed to place order");
     }
   }
 
-  const qty = parseInt(formState.number_of_devices, 10) || 0;
-  const displayImeis = selectedProduct
-    ? selectedProduct.imeis_available.slice(0, qty)
-    : [];
+  if (!placeData) {
+    return <div className="p-4">Loading form…</div>;
+  }
+
+  // if any pending pickups exist, force stock mode
+  const isStockMode = placeData.mode === "stock" && placeData.pending.length > 0;
+  const options     = isStockMode ? placeData.pending : placeData.products;
+  const selected    = selectedId
+    ? (isStockMode
+        ? placeData.pending.find(p => p.stock_update_id === +selectedId)
+        : placeData.products.find(p => p.product_id === +selectedId))
+    : null;
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-8">
-      {/* Place Order */}
-      <div className="bg-white p-6 rounded shadow">
-        <h2 className="text-2xl font-bold mb-4">Place Order</h2>
+
+      <div className="bg-white p-6 rounded shadow space-y-4">
+        <h2 className="text-2xl font-bold">Place Order</h2>
+        {isStockMode && (
+          <p className="text-yellow-700 bg-yellow-100 p-2 rounded">
+            ⚠️ You have pending stock pickups—use your reserved stock.
+          </p>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* Dealer */}
           <div>
-            <label className="block font-semibold mb-1">Dealer</label>
+            <label className="block font-semibold mb-1">
+              {isStockMode ? "Select Pickup" : "Select Product"}
+            </label>
             <select
-              value={selectedDealer}
-              onChange={onDealerChange}
+              value={selectedId}
+              onChange={handleSelectChange}
               className="w-full border rounded px-3 py-2"
               required
             >
-              <option value="">— Select Dealer —</option>
-              {dealers.map(d => (
-                <option key={d.unique_id} value={d.unique_id}>
-                  {d.business_name}
-                </option>
-              ))}
+              <option value="">-- choose --</option>
+              {options.map(o => isStockMode
+                ? (
+                  <option
+                    key={o.stock_update_id}
+                    value={o.stock_update_id}
+                  >
+                    [{o.qty_reserved}] {o.device_name} {o.device_model}
+                  </option>
+                )
+                : (
+                  <option
+                    key={o.product_id}
+                    value={o.product_id}
+                  >
+                    [{o.qty_available} available] {o.device_name} {o.device_model}
+                  </option>
+                )
+              )}
             </select>
           </div>
 
-          {/* Product */}
-          {selectedDealer && (
-            <div>
-              <label className="block font-semibold mb-1">Product</label>
-              <select
-                value={selectedProductId}
-                onChange={onProductChange}
-                className="w-full border rounded px-3 py-2"
-                required
-              >
-                <option value="">— Select Product —</option>
-                {dealerProducts.map(p => (
-                  <option key={p.product_id} value={p.product_id}>
-                    [{p.qty_available} available] {p.device_name} {p.device_model}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Details */}
-          {selectedProduct && (
+          {selected && (
             <>
               {/* Dealer & Location */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -240,9 +210,7 @@ export default function Order() {
                   <label className="block font-semibold mb-1">Dealer</label>
                   <input
                     readOnly
-                    value={
-                      dealers.find(d => d.unique_id === selectedDealer)?.business_name || ""
-                    }
+                    value={selected.dealer_name}
                     className="w-full border rounded px-3 py-2 bg-gray-100"
                   />
                 </div>
@@ -250,54 +218,62 @@ export default function Order() {
                   <label className="block font-semibold mb-1">Location</label>
                   <input
                     readOnly
-                    value={
-                      dealers.find(d => d.unique_id === selectedDealer)?.location || ""
-                    }
+                    value={selected.dealer_location}
                     className="w-full border rounded px-3 py-2 bg-gray-100"
                   />
                 </div>
               </div>
 
-              {/* Device info */}
+              {/* Device Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {["device_name","device_model","device_type","selling_price"].map((f,i)=>(
+                {["device_name","device_model","device_type","selling_price"].map((f,i) => (
                   <div key={i}>
                     <label className="block font-semibold mb-1">
                       {f.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
                     </label>
                     <input
                       readOnly
-                      value={selectedProduct[f]}
+                      value={selected[f]}
                       className="w-full border rounded px-3 py-2 bg-gray-100"
                     />
                   </div>
                 ))}
               </div>
 
-              {/* IMEIs (sliced to quantity) */}
-              <div>
-                <label className="block font-semibold mb-1">
-                  IMEI{qty>1?'s':''} (showing {qty})
-                </label>
-                <textarea
-                  readOnly
-                  rows={Math.min(5, displayImeis.length)}
-                  value={displayImeis.join("\n")}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                />
-              </div>
+              {/* IMEIs for stock pickups */}
+              {isStockMode && (
+                <div>
+                  <label className="block font-semibold mb-1">IMEI(s)</label>
+                  <textarea
+                    readOnly
+                    rows={(selected.imeis_reserved||[]).length}
+                    value={(selected.imeis_reserved||[]).join("\n")}
+                    className="w-full border rounded px-3 py-2 bg-gray-100"
+                  />
+                </div>
+              )}
 
-              {/* Order fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Quantity */}
+              {/* Quantity */}
+              {isStockMode ? (
+                <div>
+                  <label className="block font-semibold mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    name="number_of_devices"
+                    value={1}
+                    readOnly
+                    className="w-full border rounded px-3 py-2 bg-gray-100"
+                  />
+                </div>
+              ) : (
                 <div>
                   <label className="block font-semibold mb-1">Quantity</label>
                   <input
                     type="number"
                     name="number_of_devices"
                     min="1"
-                    max={selectedProduct.qty_available}
-                    value={formState.number_of_devices}
+                    max={selected.qty_available}
+                    value={form.number_of_devices}
                     onChange={handleChange}
                     className={`w-full border rounded px-3 py-2 ${
                       errors.number_of_devices ? "border-red-500" : ""
@@ -305,35 +281,35 @@ export default function Order() {
                     required
                   />
                   {errors.number_of_devices && (
-                    <p className="mt-1 text-red-600 text-sm">
+                    <p className="text-red-600 text-sm mt-1">
                       {errors.number_of_devices}
                     </p>
                   )}
                 </div>
+              )}
 
-                {/* BNPL */}
-                <div>
-                  <label className="block font-semibold mb-1">BNPL Platform</label>
-                  <select
-                    name="bnpl_platform"
-                    value={formState.bnpl_platform}
-                    onChange={handleChange}
-                    className={`w-full border rounded px-3 py-2 ${
-                      errors.bnpl_platform ? "border-red-500" : ""
-                    }`}
-                    required
-                  >
-                    <option value="">None</option>
-                    <option value="WATU">WATU</option>
-                    <option value="EASYBUY">EASYBUY</option>
-                    <option value="CREDIT DIRECT">CREDIT DIRECT</option>
-                  </select>
-                  {errors.bnpl_platform && (
-                    <p className="mt-1 text-red-600 text-sm">
-                      {errors.bnpl_platform}
-                    </p>
-                  )}
-                </div>
+              {/* BNPL */}
+              <div>
+                <label className="block font-semibold mb-1">BNPL Platform</label>
+                <select
+                  name="bnpl_platform"
+                  value={form.bnpl_platform}
+                  onChange={handleChange}
+                  className={`w-full border rounded px-3 py-2 ${
+                    errors.bnpl_platform ? "border-red-500" : ""
+                  }`}
+                  required
+                >
+                  <option value="">None</option>
+                  <option value="WATU">WATU</option>
+                  <option value="EASYBUY">EASYBUY</option>
+                  <option value="CREDIT DIRECT">CREDIT DIRECT</option>
+                </select>
+                {errors.bnpl_platform && (
+                  <p className="text-red-600 text-sm mt-1">
+                    {errors.bnpl_platform}
+                  </p>
+                )}
               </div>
 
               {/* Customer */}
@@ -342,7 +318,7 @@ export default function Order() {
                   <label className="block font-semibold mb-1">Customer Name</label>
                   <input
                     name="customer_name"
-                    value={formState.customer_name}
+                    value={form.customer_name}
                     onChange={handleChange}
                     className={`w-full border rounded px-3 py-2 ${
                       errors.customer_name ? "border-red-500" : ""
@@ -350,7 +326,7 @@ export default function Order() {
                     required
                   />
                   {errors.customer_name && (
-                    <p className="mt-1 text-red-600 text-sm">
+                    <p className="text-red-600 text-sm mt-1">
                       {errors.customer_name}
                     </p>
                   )}
@@ -359,7 +335,7 @@ export default function Order() {
                   <label className="block font-semibold mb-1">Customer Phone</label>
                   <input
                     name="customer_phone"
-                    value={formState.customer_phone}
+                    value={form.customer_phone}
                     onChange={handleChange}
                     className={`w-full border rounded px-3 py-2 ${
                       errors.customer_phone ? "border-red-500" : ""
@@ -367,7 +343,7 @@ export default function Order() {
                     required
                   />
                   {errors.customer_phone && (
-                    <p className="mt-1 text-red-600 text-sm">
+                    <p className="text-red-600 text-sm mt-1">
                       {errors.customer_phone}
                     </p>
                   )}
@@ -376,7 +352,7 @@ export default function Order() {
                   <label className="block font-semibold mb-1">Customer Address</label>
                   <input
                     name="customer_address"
-                    value={formState.customer_address}
+                    value={form.customer_address}
                     onChange={handleChange}
                     className={`w-full border rounded px-3 py-2 ${
                       errors.customer_address ? "border-red-500" : ""
@@ -384,7 +360,7 @@ export default function Order() {
                     required
                   />
                   {errors.customer_address && (
-                    <p className="mt-1 text-red-600 text-sm">
+                    <p className="text-red-600 text-sm mt-1">
                       {errors.customer_address}
                     </p>
                   )}
@@ -402,7 +378,7 @@ export default function Order() {
         </form>
       </div>
 
-      {/* Order history */}
+      {/* Your Orders */}
       <div className="bg-white p-6 rounded shadow overflow-x-auto">
         <h3 className="text-xl font-bold mb-4">Your Orders</h3>
         {orders.length ? (

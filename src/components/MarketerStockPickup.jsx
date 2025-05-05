@@ -12,11 +12,20 @@ export default function MarketerStockPickup() {
     formState: { errors, isSubmitting }
   } = useForm();
 
-  const [dealers, setDealers]           = useState([]);
-  const [products, setProducts]         = useState([]);
-  const [pickups, setPickups]           = useState([]);
+  const [dealers, setDealers]               = useState([]);
+  const [products, setProducts]             = useState([]);
+  const [pickups, setPickups]               = useState([]);
   const [selectedDealer, setSelectedDealer] = useState("");
-  const [now, setNow]                   = useState(Date.now());
+  const [now, setNow]                       = useState(Date.now());
+
+  // track which pickup row is being transferred
+  const [transferringId, setTransferringId] = useState(null);
+  const [transferTarget, setTransferTarget] = useState("");
+
+  // grab my location from localStorage
+  const stored      = localStorage.getItem("user");
+  const currentUser = stored ? JSON.parse(stored) : {};
+  const myLocation  = currentUser.location;
 
   // 1) Live clock for countdowns
   useEffect(() => {
@@ -76,10 +85,31 @@ export default function MarketerStockPickup() {
       });
       alert("Pickup recorded!");
       reset();
+      setSelectedDealer("");
+      setProducts([]);
       loadPickups();
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.message || "Error recording pickup");
+    }
+  };
+
+  // 6) Submit a transfer request
+  const submitTransfer = async () => {
+    if (!transferTarget.trim()) {
+      return alert("Enter a name or unique ID to transfer to.");
+    }
+    try {
+      await api.post(`/stock/${transferringId}/transfer`, {
+        targetIdentifier: transferTarget.trim()
+      });
+      alert("Transfer requested!");
+      setTransferringId(null);
+      setTransferTarget("");
+      loadPickups();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Error requesting transfer");
     }
   };
 
@@ -148,8 +178,10 @@ export default function MarketerStockPickup() {
               validate: v => {
                 const num = parseInt(v, 10);
                 if (!selectedProd) return true;
-                return num <= selectedProd.qty_available ||
-                  `Only ${selectedProd.qty_available} in stock`;
+                return (
+                  num <= selectedProd.qty_available ||
+                  `Only ${selectedProd.qty_available} in stock`
+                );
               }
             })}
             disabled={!selectedProd}
@@ -209,29 +241,42 @@ export default function MarketerStockPickup() {
                       </td>
                       <td className="px-4 py-2">{countdown}</td>
                       <td className="px-4 py-2 capitalize">{s.status}</td>
+
+                      {/* Transfer Column */}
                       <td className="px-4 py-2">
-                        {s.transfer_status === "none" && s.status === "pending" ? (
+                        {transferringId === s.id ? (
+                          <div className="space-y-1">
+                            <p>
+                              Transferring <strong>{label}</strong> from{" "}
+                              <strong>{myLocation}</strong>
+                            </p>
+                            <input
+                              type="text"
+                              placeholder="Name or unique ID"
+                              value={transferTarget}
+                              onChange={e => setTransferTarget(e.target.value)}
+                              className="w-full border rounded px-2 py-1"
+                            />
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={submitTransfer}
+                                className="px-2 py-1 bg-green-500 text-white rounded"
+                              >
+                                Submit
+                              </button>
+                              <button
+                                onClick={() => setTransferringId(null)}
+                                className="px-2 py-1 bg-gray-300 rounded"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : s.transfer_status === "none" && s.status === "pending" ? (
                           <button
                             onClick={() => {
-                              const target = prompt(
-                                "Enter marketer unique_id to transfer to:"
-                              );
-                              if (!target) return;
-                              api
-                                .post(`/stock/${s.id}/transfer`, {
-                                  targetUniqueId: target
-                                })
-                                .then(() => {
-                                  alert("Transfer requested");
-                                  loadPickups();
-                                })
-                                .catch(err => {
-                                  console.error(err);
-                                  alert(
-                                    err.response?.data?.message ||
-                                      "Error requesting transfer"
-                                  );
-                                });
+                              setTransferringId(s.id);
+                              setTransferTarget("");
                             }}
                             className="px-2 py-1 bg-yellow-500 text-white rounded"
                           >
@@ -239,9 +284,7 @@ export default function MarketerStockPickup() {
                           </button>
                         ) : (
                           <span className="text-sm capitalize">
-                            {s.transfer_status === "none"
-                              ? s.status
-                              : s.transfer_status}
+                            {s.transfer_status}
                           </span>
                         )}
                       </td>
