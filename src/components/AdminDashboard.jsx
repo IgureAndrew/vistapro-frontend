@@ -14,7 +14,7 @@ import {
 // Import module components for each section.
 import ProfileUpdate from "./ProfileUpdate";
 import ManageOrders from "./ManageOrders";
-import StockManagement from "./StockManagement";
+import AdminStockPickups from "./AdminStockPickups";
 import Messaging from "./Messaging";
 import Submissions from "./Submissions";
 import Verification from "./Verification";
@@ -68,7 +68,7 @@ function AdminDashboard() {
       case "manage-orders":
         return <ManageOrders />;
       case "stock":
-        return <StockManagement />;
+        return <AdminStockPickups />;
       case "marketers":
         return <AssignedMarketers />;
       case "messages":
