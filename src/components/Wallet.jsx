@@ -1,192 +1,171 @@
 // src/components/Wallet.jsx
-import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { CopyIcon } from 'lucide-react'
-import api from '../api/walletApi'  // axios.create({ baseURL: '/api/wallets' })
+import React, { useEffect, useState } from 'react';
+import { CopyIcon } from 'lucide-react';
+import walletApi from '../api/walletApi';
 
 export default function Wallet() {
-  const navigate = useNavigate()
+  const [wallet, setWallet] = useState({
+    total_balance:     0,
+    available_balance: 0,
+    withheld_balance:  0,
+    account_name:      '',
+    account_number:    '',
+    bank_name:         ''
+  });
+  const [transactions, setTransactions] = useState([]);
+  const [withdrawals, setWithdrawals]   = useState([]);
+  const [form, setForm] = useState({
+    amount: '',
+    account_name: '',
+    account_number: '',
+    bank_name: ''
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState({
+    wallet: true,
+    withdrawals: true
+  });
 
-  // ─── state ──────────────────────────────────────────────────────
-  const [wallet, setWallet]             = useState(null)
-  const [transactions, setTransactions] = useState([])
-  const [withdrawals, setWithdrawals]   = useState([])
-
-  // withdrawal form inputs
-  const [amount,      setAmount]      = useState('')
-  const [acctName,    setAcctName]    = useState('')
-  const [acctNumber,  setAcctNumber]  = useState('')
-  const [bankName,    setBankName]    = useState('')
-  const [error,       setError]       = useState('')
-  const [loading,     setLoading]     = useState({ wallet: true, withdrawals: true })
-
-  // ─── fetch wallet + recent txns ────────────────────────────────
-  const fetchWallet = async () => {
-    setLoading(l => ({ ...l, wallet: true }))
+  // — normalize whatever your back-end is sending —
+  const loadWallet = async () => {
+    setLoading(l => ({ ...l, wallet: true }));
     try {
-      const { data } = await api.get('/')
-      setWallet(data.wallet)
-      setTransactions(data.transactions)
-
-      // prefill form bank fields if present
-      if (data.wallet.account_name) {
-        setAcctName(data.wallet.account_name)
-        setAcctNumber(data.wallet.account_number)
-        setBankName(data.wallet.bank_name)
-      }
-    } catch (err) {
-      if (err.response?.status === 401) navigate('/login')
-      else console.error(err)
+      const resp = await walletApi.get('/');
+      const payload = resp.data;
+      // if payload.wallet exists, use it, otherwise assume payload is already the wallet
+      const w = payload.wallet ?? payload;
+      setWallet({
+        total_balance:     w.total_balance   ?? 0,
+        available_balance: w.available_balance ?? 0,
+        withheld_balance:  w.withheld_balance  ?? 0,
+        account_name:      w.account_name    ?? '',
+        account_number:    w.account_number  ?? '',
+        bank_name:         w.bank_name       ?? ''
+      });
+      // transactions might be payload.transactions or payload.txns, etc.
+      setTransactions(payload.transactions ?? []);
+      // prefill bank fields:
+      setForm(f => ({
+        ...f,
+        account_name:   w.account_name    ?? '',
+        account_number: w.account_number  ?? '',
+        bank_name:      w.bank_name       ?? ''
+      }));
+    } catch (e) {
+      console.error(e);
     } finally {
-      setLoading(l => ({ ...l, wallet: false }))
+      setLoading(l => ({ ...l, wallet: false }));
     }
-  }
+  };
 
-  // ─── fetch withdrawal history ─────────────────────────────────
-  const fetchWithdrawals = async () => {
-    setLoading(l => ({ ...l, withdrawals: true }))
+  const loadWithdrawals = async () => {
+    setLoading(l => ({ ...l, withdrawals: true }));
     try {
-      const { data } = await api.get('/withdrawals')
-      setWithdrawals(data.requests)
-    } catch (err) {
-      console.error(err)
+      const { data } = await walletApi.get('/withdrawals');
+      setWithdrawals(data.requests ?? []);
+    } catch (e) {
+      console.error(e);
     } finally {
-      setLoading(l => ({ ...l, withdrawals: false }))
+      setLoading(l => ({ ...l, withdrawals: false }));
     }
-  }
+  };
 
-  // ─── on-mount ──────────────────────────────────────────────────
   useEffect(() => {
-    fetchWallet()
-    fetchWithdrawals()
-  }, [])
+    loadWallet();
+    loadWithdrawals();
+  }, []);
 
-  // ─── copy helper ───────────────────────────────────────────────
-  const copyToClipboard = text => {
-    navigator.clipboard.writeText(text).catch(() => alert('Copy failed'))
-  }
+  const maxWithdraw = Math.max(wallet.available_balance - 100, 0);
 
-  // ─── submit withdrawal ─────────────────────────────────────────
-  const submitWithdrawal = async e => {
-    e.preventDefault()
-    setError('')
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError('');
     try {
-      await api.post('/withdraw', {
-        amount:         Number(amount),
-        account_name:   acctName,
-        account_number: acctNumber,
-        bank_name:      bankName
-      })
-      setAmount('')
-      fetchWallet()
-      fetchWithdrawals()
+      await walletApi.post('/withdraw', {
+        amount: Number(form.amount),
+        account_name:   form.account_name,
+        account_number: form.account_number,
+        bank_name:      form.bank_name
+      });
+      setForm(f => ({ ...f, amount: '' }));
+      await loadWallet();
+      await loadWithdrawals();
     } catch (err) {
-      setError(err.response?.data?.message || 'Withdrawal failed.')
+      setError(err.response?.data?.message || 'Withdrawal failed');
     }
-  }
+  };
 
+
+  // guard against rendering before we have a wallet object
   if (loading.wallet) {
-    return <div className="p-6 text-center">Loading wallet…</div>
+    return <div className="p-6 text-center">Loading wallet…</div>;
   }
-
-  const max = Math.max((wallet.available_balance||0) - 100, 0)
 
   return (
     <div className="p-6 space-y-6 bg-gray-50">
-
-      {/* ─── Balances & pending requests ──────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Balances */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           ['Total Balance', wallet.total_balance],
-          ['Available',     wallet.available_balance],
-          ['Withheld',      wallet.withheld_balance],
-          ['Pending Requests', withdrawals.filter(w=>w.status==='pending').length]
-        ].map(([label,val]) => (
+          ['Available', wallet.available_balance],
+          ['Withheld',  wallet.withheld_balance]
+        ].map(([label, val]) => (
           <div key={label} className="bg-white p-4 rounded shadow">
             <p className="text-sm text-gray-500">{label}</p>
-            <p className="text-2xl font-bold">
-              {label==='Pending Requests'
-                ? val
-                : `₦${(val||0).toLocaleString()}`
-              }
-            </p>
+            <p className="text-2xl font-bold">₦{(val||0).toLocaleString()}</p>
           </div>
         ))}
       </div>
 
-      {/* ─── Stored Bank Details ─────────────────────────────────── */}
-      <div className="bg-white p-4 rounded shadow space-y-2">
-        <h3 className="font-semibold">Your Bank Details</h3>
-        <div className="flex items-center">
-          <span className="flex-1">
-            Account name: {wallet.account_name || '—'}
-          </span>
-          {wallet.account_name && (
-            <button onClick={()=>copyToClipboard(wallet.account_name)}>
-              <CopyIcon size={16}/>
-            </button>
-          )}
-        </div>
-        <div className="flex items-center">
-          <span className="flex-1">
-            Account number: {wallet.account_number||'—'}
-          </span>
-          {wallet.account_number && (
-            <button onClick={()=>copyToClipboard(wallet.account_number)}>
-              <CopyIcon size={16}/>
-            </button>
-          )}
-        </div>
-        <div className="flex items-center">
-          <span className="flex-1">
-            Bank name: {wallet.bank_name||'—'}
-          </span>
-          {wallet.bank_name && (
-            <button onClick={()=>copyToClipboard(wallet.bank_name)}>
-              <CopyIcon size={16}/>
-            </button>
-          )}
-        </div>
-      </div>
+      
 
-      {/* ─── Withdrawal Form ─────────────────────────────────────── */}
-      <form onSubmit={submitWithdrawal} className="bg-white p-4 rounded shadow space-y-3">
+      {/* Withdrawal Form */}
+      <form onSubmit={handleSubmit} className="bg-white p-4 rounded shadow space-y-3">
         <h3 className="text-lg font-semibold">Request Withdrawal</h3>
         <p className="text-sm text-gray-600">
-          You may withdraw up to <strong>₦{max.toLocaleString()}</strong><br/>
+          You may withdraw up to <strong>₦{maxWithdraw.toLocaleString()}</strong><br/>
           <span className="text-red-500 text-xs">₦100 fee applies</span>
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input
             type="number"
+            name="amount"
             min="1"
-            max={max}
-            value={amount}
-            onChange={e=>setAmount(e.target.value)}
+            max={maxWithdraw}
+            value={form.amount}
+            onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
             placeholder="₦ amount"
             required
           />
           <input
             type="text"
-            value={acctName}
-            onChange={e=>setAcctName(e.target.value)}
+            name="account_name"
+            value={form.account_name}
+            onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
             placeholder="Account Name"
             required
           />
           <input
             type="text"
-            value={acctNumber}
-            onChange={e=>setAcctNumber(e.target.value)}
+            name="account_number"
+            value={form.account_number}
+            onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
             placeholder="Account Number"
             required
           />
           <input
             type="text"
-            value={bankName}
-            onChange={e=>setBankName(e.target.value)}
+            name="bank_name"
+            value={form.bank_name}
+            onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
             placeholder="Bank Name"
             required
@@ -194,7 +173,7 @@ export default function Wallet() {
         </div>
         <button
           type="submit"
-          disabled={!amount || amount>max}
+          disabled={!form.amount || form.amount > maxWithdraw}
           className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
         >
           Withdraw
@@ -202,26 +181,24 @@ export default function Wallet() {
         {error && <p className="text-red-600 text-sm">{error}</p>}
       </form>
 
-      {/* ─── Recent Transactions ─────────────────────────────────── */}
+      {/* Recent Transactions */}
       <div className="bg-white p-4 rounded shadow overflow-x-auto">
         <h3 className="font-semibold mb-2">Recent Transactions</h3>
         <table className="w-full text-sm">
           <thead className="bg-gray-100">
             <tr>
-              {['Date','Type','Amount'].map(h=>(
-                <th key={h} className="px-2 py-1 text-left">{h}</th>
-              ))}
+              <th className="px-2 py-1 text-left">Date</th>
+              <th className="px-2 py-1 text-left">Type</th>
+              <th className="px-2 py-1 text-left">Amount</th>
             </tr>
           </thead>
           <tbody>
-            {transactions.map(tx=>(
+            {transactions.map(tx => (
               <tr key={tx.id}>
-                <td className="px-2 py-1">
-                  {new Date(tx.created_at).toLocaleString()}
-                </td>
+                <td className="px-2 py-1">{new Date(tx.created_at).toLocaleString()}</td>
                 <td className="px-2 py-1">{tx.transaction_type}</td>
                 <td className={`px-2 py-1 font-semibold ${
-                  tx.amount<0?'text-red-600':'text-green-600'
+                  tx.amount<0 ? 'text-red-600' : 'text-green-600'
                 }`}>
                   ₦{Math.abs(tx.amount).toLocaleString()}
                 </td>
@@ -231,7 +208,7 @@ export default function Wallet() {
         </table>
       </div>
 
-      {/* ─── Withdrawal History ──────────────────────────────────── */}
+      {/* Withdrawal History */}
       <div className="bg-white p-4 rounded shadow overflow-x-auto">
         <h3 className="font-semibold mb-2">Withdrawal History</h3>
         {loading.withdrawals
@@ -240,34 +217,27 @@ export default function Wallet() {
             <table className="w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  {['Date','Requested','Fee','Total','Status'].map(h=>(
-                    <th key={h} className="px-2 py-1 text-left">{h}</th>
-                  ))}
+                  <th className="px-2 py-1 text-left">Date</th>
+                  <th className="px-2 py-1 text-left">Requested</th>
+                  <th className="px-2 py-1 text-left">Fee</th>
+                  <th className="px-2 py-1 text-left">Total</th>
+                  <th className="px-2 py-1 text-left">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {withdrawals.map(w=>(
+                {withdrawals.map(w => (
                   <tr key={w.id}>
-                    <td className="px-2 py-1">
-                      {new Date(w.requested_at).toLocaleString()}
-                    </td>
-                    <td className="px-2 py-1">
-                      ₦{w.amount.toLocaleString()}
-                    </td>
-                    <td className="px-2 py-1">
-                      ₦{w.fee.toLocaleString()}
-                    </td>
-                    <td className="px-2 py-1">
-                      ₦{(w.amount+w.fee).toLocaleString()}
-                    </td>
+                    <td className="px-2 py-1">{new Date(w.requested_at).toLocaleString()}</td>
+                    <td className="px-2 py-1">₦{w.amount.toLocaleString()}</td>
+                    <td className="px-2 py-1">₦{w.fee.toLocaleString()}</td>
+                    <td className="px-2 py-1">₦{(w.amount + w.fee).toLocaleString()}</td>
                     <td className="px-2 py-1">{w.status}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )
-        }
+          )}
       </div>
     </div>
-  )
+  );
 }

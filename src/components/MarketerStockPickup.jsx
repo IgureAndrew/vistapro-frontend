@@ -12,72 +12,64 @@ export default function MarketerStockPickup() {
     formState: { errors, isSubmitting }
   } = useForm();
 
+  // —— grab my location for transfer UI ——
+  const stored      = localStorage.getItem("user");
+  const currentUser = stored ? JSON.parse(stored) : {};
+  const myLocation  = currentUser.location || "";
+
   const [dealers, setDealers]               = useState([]);
   const [products, setProducts]             = useState([]);
   const [pickups, setPickups]               = useState([]);
   const [selectedDealer, setSelectedDealer] = useState("");
   const [now, setNow]                       = useState(Date.now());
 
-  // track which pickup row is being transferred
+  // track transfer UI
   const [transferringId, setTransferringId] = useState(null);
   const [transferTarget, setTransferTarget] = useState("");
 
-  // grab my location from localStorage
-  const stored      = localStorage.getItem("user");
-  const currentUser = stored ? JSON.parse(stored) : {};
-  const myLocation  = currentUser.location;
-
-  // 1) Live clock for countdowns
+  // Live clock
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // 2) Load dealers in my location
+  // Load dealers
   useEffect(() => {
-    api
-      .get("/stock/pickup/dealers")
-      .then(res => setDealers(res.data.dealers))
-      .catch(console.error);
+    api.get("/stock/pickup/dealers")
+       .then(res => setDealers(res.data.dealers))
+       .catch(console.error);
   }, []);
 
-  // 3) Load my pickups
+  // Load my pickups
   const loadPickups = () => {
-    api
-      .get("/stock/marketer")
-      .then(res => setPickups(res.data.data))
-      .catch(console.error);
+    api.get("/stock/marketer")
+       .then(res => setPickups(res.data.data))
+       .catch(console.error);
   };
   useEffect(loadPickups, []);
 
-  // 4) When dealer changes, load that dealer’s products
-  const handleDealerChange = (e) => {
+  // Dealer → products
+  const handleDealerChange = e => {
     const uid = e.target.value;
     setSelectedDealer(uid);
-    setProducts([]); // clear old
+    setProducts([]);
     if (!uid) return;
-
-    api
-      .get(`/stock/pickup/dealers/${uid}/products`)
-      .then(res => setProducts(res.data.products))
-      .catch(console.error);
+    api.get(`/stock/pickup/dealers/${uid}/products`)
+       .then(res => setProducts(res.data.products))
+       .catch(console.error);
   };
 
-  // Helper to format countdown
-  function formatCountdown(deadline) {
-    const diff = new Date(deadline).getTime() - now;
-    if (diff <= 0) return "Expired";
-    const hrs  = Math.floor(diff / 3_600_000);
-    const mins = Math.floor((diff % 3_600_000) / 60_000);
-    const secs = Math.floor((diff % 60_000) / 1000);
+  // Format remaining time
+  function formatRemaining(ms) {
+    const hrs  = Math.floor(ms / 3_600_000);
+    const mins = Math.floor((ms % 3_600_000) / 60_000);
+    const secs = Math.floor((ms % 60_000) / 1000);
     return `${hrs}h ${mins}m ${secs}s`;
   }
 
-  // 5) Submit a new pickup
-  const onSubmit = async (data) => {
-    if (!selectedDealer) {
-      return alert("Please select a dealer.");
-    }
+  // Submit pickup
+  const onSubmit = async data => {
+    if (!selectedDealer) return alert("Please select a dealer.");
     try {
       await api.post("/stock", {
         product_id: data.product_id,
@@ -94,11 +86,9 @@ export default function MarketerStockPickup() {
     }
   };
 
-  // 6) Submit a transfer request
+  // Submit transfer
   const submitTransfer = async () => {
-    if (!transferTarget.trim()) {
-      return alert("Enter a name or unique ID to transfer to.");
-    }
+    if (!transferTarget.trim()) return alert("Enter a name or unique ID to transfer to.");
     try {
       await api.post(`/stock/${transferringId}/transfer`, {
         targetIdentifier: transferTarget.trim()
@@ -114,7 +104,7 @@ export default function MarketerStockPickup() {
   };
 
   const selectedProductId = watch("product_id");
-  const selectedProd = products.find(p => p.product_id === +selectedProductId);
+  const selectedProd      = products.find(p => p.product_id === +selectedProductId);
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">
@@ -129,9 +119,12 @@ export default function MarketerStockPickup() {
         <div>
           <label className="block font-semibold mb-1">Dealer</label>
           <select
-            className="w-full border rounded p-2"
+            className={`w-full border rounded p-2 ${
+              isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             value={selectedDealer}
             onChange={handleDealerChange}
+            disabled={isSubmitting}
           >
             <option value="">— choose dealer —</option>
             {dealers.map(d => (
@@ -146,9 +139,11 @@ export default function MarketerStockPickup() {
         <div>
           <label className="block font-semibold mb-1">Product</label>
           <select
-            className="w-full border rounded p-2"
+            className={`w-full border rounded p-2 ${
+              isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             {...register("product_id", { required: "Select a product" })}
-            disabled={!selectedDealer}
+            disabled={isSubmitting || !selectedDealer}
           >
             <option value="">— choose product —</option>
             {products.map(p => (
@@ -158,9 +153,7 @@ export default function MarketerStockPickup() {
             ))}
           </select>
           {errors.product_id && (
-            <p className="text-red-500 text-sm mt-1">
-              {errors.product_id.message}
-            </p>
+            <p className="text-red-500 text-sm mt-1">{errors.product_id.message}</p>
           )}
         </div>
 
@@ -170,8 +163,10 @@ export default function MarketerStockPickup() {
           <input
             type="number"
             min="1"
-            max={selectedProd?.qty_available || undefined}
-            className="w-full border rounded p-2"
+            max={selectedProd?.qty_available}
+            className={`w-full border rounded p-2 ${
+              isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             {...register("quantity", {
               required: "Quantity required",
               min: { value: 1, message: "At least 1" },
@@ -184,19 +179,19 @@ export default function MarketerStockPickup() {
                 );
               }
             })}
-            disabled={!selectedProd}
+            disabled={isSubmitting || !selectedProd}
           />
           {errors.quantity && (
-            <p className="text-red-500 text-sm mt-1">
-              {errors.quantity.message}
-            </p>
+            <p className="text-red-500 text-sm mt-1">{errors.quantity.message}</p>
           )}
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+            isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+          }`}
         >
           {isSubmitting ? "Saving…" : "Record Pickup"}
         </button>
@@ -227,8 +222,33 @@ export default function MarketerStockPickup() {
                 </tr>
               ) : (
                 pickups.map(s => {
-                  const label     = `${s.device_name} ${s.device_model}`;
-                  const countdown = formatCountdown(s.deadline);
+                  const label = `${s.device_name} ${s.device_model}`;
+                  const remaining = new Date(s.deadline).getTime() - now;
+                  let countdownCell;
+                  if (s.status === "pending") {
+                    countdownCell = formatRemaining(remaining);
+                  } else if (s.status === "expired") {
+                    countdownCell = (
+                      <span className="text-red-600">
+                        {formatRemaining(now - new Date(s.deadline).getTime())} ago
+                      </span>
+                    );
+                  } else {
+                    countdownCell = "–";
+                  }
+
+                  let statusLabel;
+                  switch (s.status) {
+                    case "pending":  statusLabel = "Pending";  break;
+                    case "sold":     statusLabel = "Sold";     break;
+                    case "returned": statusLabel = "Returned"; break;
+                    case "expired":  statusLabel = "Expired";  break;
+                    default:
+                      statusLabel = s.status
+                        .replace(/_/g, " ")
+                        .replace(/\b\w/g, c => c.toUpperCase());
+                  }
+
                   return (
                     <tr key={s.id}>
                       <td className="px-4 py-2">{label}</td>
@@ -239,10 +259,8 @@ export default function MarketerStockPickup() {
                       <td className="px-4 py-2">
                         {new Date(s.deadline).toLocaleString()}
                       </td>
-                      <td className="px-4 py-2">{countdown}</td>
-                      <td className="px-4 py-2 capitalize">{s.status}</td>
-
-                      {/* Transfer Column */}
+                      <td className="px-4 py-2">{countdownCell}</td>
+                      <td className="px-4 py-2">{statusLabel}</td>
                       <td className="px-4 py-2">
                         {transferringId === s.id ? (
                           <div className="space-y-1">

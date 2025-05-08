@@ -18,6 +18,7 @@ export default function Order() {
     customer_address:  ""
   });
   const [errors, setErrors]         = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchPlaceData();
@@ -77,25 +78,22 @@ export default function Order() {
         errs.number_of_devices = "Enter a valid quantity";
       }
     }
-    if (!form.bnpl_platform)    errs.bnpl_platform    = "Select a BNPL platform";
-    if (!form.customer_name.trim()) 
-                                errs.customer_name    = "Customer name is required";
-    if (!/^[0-9]{7,15}$/.test(form.customer_phone)) 
-                                errs.customer_phone   = "Enter a valid phone number";
-    if (!form.customer_address.trim()) 
-                                errs.customer_address = "Customer address is required";
+    if (!form.bnpl_platform)     errs.bnpl_platform    = "Select a BNPL platform";
+    if (!form.customer_name.trim())    errs.customer_name    = "Customer name is required";
+    if (!/^[0-9]{7,15}$/.test(form.customer_phone))    errs.customer_phone   = "Enter a valid phone number";
+    if (!form.customer_address.trim()) errs.customer_address = "Customer address is required";
     setErrors(errs);
     return !Object.keys(errs).length;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (submitting) return;
     if (!selectedId) {
       return alert("Please select an item first.");
     }
     if (!validate()) return;
 
-    // pick the right record & qty
     const record = isStockMode
       ? placeData.pending.find(p => p.stock_update_id === +selectedId)
       : placeData.products.find(p => p.product_id === +selectedId);
@@ -125,6 +123,7 @@ export default function Order() {
           customer_address:  form.customer_address
         };
 
+    setSubmitting(true);
     try {
       const res = await fetch(PLACE_URL, {
         method: "POST",
@@ -137,10 +136,12 @@ export default function Order() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data);
       alert("Order placed successfully!");
-      fetchPlaceData();
-      fetchOrders();
+      await fetchPlaceData();
+      await fetchOrders();
     } catch (err) {
       alert(err.message || "Failed to place order");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -148,7 +149,6 @@ export default function Order() {
     return <div className="p-4">Loading form…</div>;
   }
 
-  // if any pending pickups exist, force stock mode
   const isStockMode = placeData.mode === "stock" && placeData.pending.length > 0;
   const options     = isStockMode ? placeData.pending : placeData.products;
   const selected    = selectedId
@@ -159,9 +159,9 @@ export default function Order() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-8">
-
       <div className="bg-white p-6 rounded shadow space-y-4">
         <h2 className="text-2xl font-bold">Place Order</h2>
+
         {isStockMode && (
           <p className="text-yellow-700 bg-yellow-100 p-2 rounded">
             ⚠️ You have pending stock pickups—use your reserved stock.
@@ -169,7 +169,7 @@ export default function Order() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-
+          {/* Select */}
           <div>
             <label className="block font-semibold mb-1">
               {isStockMode ? "Select Pickup" : "Select Product"}
@@ -177,20 +177,22 @@ export default function Order() {
             <select
               value={selectedId}
               onChange={handleSelectChange}
-              className="w-full border rounded px-3 py-2"
+              disabled={submitting}
+              className={`w-full border rounded px-3 py-2 ${
+                submitting ? "opacity-50 cursor-not-allowed" : ""
+              }`}
               required
             >
               <option value="">-- choose --</option>
-              {options.map(o => isStockMode
-                ? (
+              {options.map(o =>
+                isStockMode ? (
                   <option
                     key={o.stock_update_id}
                     value={o.stock_update_id}
                   >
                     [{o.qty_reserved}] {o.device_name} {o.device_model}
                   </option>
-                )
-                : (
+                ) : (
                   <option
                     key={o.product_id}
                     value={o.product_id}
@@ -204,177 +206,189 @@ export default function Order() {
 
           {selected && (
             <>
-              {/* Dealer & Location */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold mb-1">Dealer</label>
-                  <input
-                    readOnly
-                    value={selected.dealer_name}
-                    className="w-full border rounded px-3 py-2 bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Location</label>
-                  <input
-                    readOnly
-                    value={selected.dealer_location}
-                    className="w-full border rounded px-3 py-2 bg-gray-100"
-                  />
-                </div>
-              </div>
-
-              {/* Device Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {["device_name","device_model","device_type","selling_price"].map((f,i) => (
-                  <div key={i}>
-                    <label className="block font-semibold mb-1">
-                      {f.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
-                    </label>
-                    <input
-                      readOnly
-                      value={selected[f]}
-                      className="w-full border rounded px-3 py-2 bg-gray-100"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* IMEIs for stock pickups */}
-              {isStockMode && (
-                <div>
-                  <label className="block font-semibold mb-1">IMEI(s)</label>
-                  <textarea
-                    readOnly
-                    rows={(selected.imeis_reserved||[]).length}
-                    value={(selected.imeis_reserved||[]).join("\n")}
-                    className="w-full border rounded px-3 py-2 bg-gray-100"
-                  />
-                </div>
-              )}
-
-              {/* Quantity */}
-              {isStockMode ? (
-                <div>
-                  <label className="block font-semibold mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    name="number_of_devices"
-                    value={1}
-                    readOnly
-                    className="w-full border rounded px-3 py-2 bg-gray-100"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block font-semibold mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    name="number_of_devices"
-                    min="1"
-                    max={selected.qty_available}
-                    value={form.number_of_devices}
-                    onChange={handleChange}
-                    className={`w-full border rounded px-3 py-2 ${
-                      errors.number_of_devices ? "border-red-500" : ""
-                    }`}
-                    required
-                  />
-                  {errors.number_of_devices && (
-                    <p className="text-red-600 text-sm mt-1">
-                      {errors.number_of_devices}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* BNPL */}
+            {/* Dealer & Location */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold mb-1">BNPL Platform</label>
-                <select
-                  name="bnpl_platform"
-                  value={form.bnpl_platform}
+                <label className="block font-semibold mb-1">Dealer</label>
+                <input
+                  readOnly
+                  value={selected.dealer_name}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Location</label>
+                <input
+                  readOnly
+                  value={selected.dealer_location}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+            </div>
+
+            {/* Device Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {["device_name","device_model","device_type","selling_price"].map((f,i) => (
+                <div key={i}>
+                  <label className="block font-semibold mb-1">
+                    {f.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+                  </label>
+                  <input
+                    readOnly
+                    value={selected[f]}
+                    className="w-full border rounded px-3 py-2 bg-gray-100"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* IMEI if stock mode */}
+            {isStockMode && (
+              <div>
+                <label className="block font-semibold mb-1">IMEI</label>
+                <textarea
+                  readOnly
+                  rows={1}
+                  value={(selected.imeis_reserved || [])[0] || ""}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+            )}
+
+            {/* Quantity */}
+            {isStockMode ? (
+              <div>
+                <label className="block font-semibold mb-1">Quantity</label>
+                <input
+                  type="number"
+                  name="number_of_devices"
+                  value={1}
+                  readOnly
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block font-semibold mb-1">Quantity</label>
+                <input
+                  type="number"
+                  name="number_of_devices"
+                  min="1"
+                  max={selected.qty_available}
+                  value={form.number_of_devices}
                   onChange={handleChange}
+                  disabled={submitting}
                   className={`w-full border rounded px-3 py-2 ${
-                    errors.bnpl_platform ? "border-red-500" : ""
-                  }`}
+                    submitting ? "opacity-50 cursor-not-allowed" : ""
+                  } ${errors.number_of_devices ? "border-red-500" : ""}`}
                   required
-                >
-                  <option value="">None</option>
-                  <option value="WATU">WATU</option>
-                  <option value="EASYBUY">EASYBUY</option>
-                  <option value="CREDIT DIRECT">CREDIT DIRECT</option>
-                </select>
-                {errors.bnpl_platform && (
+                />
+                {errors.number_of_devices && (
                   <p className="text-red-600 text-sm mt-1">
-                    {errors.bnpl_platform}
+                    {errors.number_of_devices}
                   </p>
                 )}
               </div>
+            )}
 
-              {/* Customer */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold mb-1">Customer Name</label>
-                  <input
-                    name="customer_name"
-                    value={form.customer_name}
-                    onChange={handleChange}
-                    className={`w-full border rounded px-3 py-2 ${
-                      errors.customer_name ? "border-red-500" : ""
-                    }`}
-                    required
-                  />
-                  {errors.customer_name && (
-                    <p className="text-red-600 text-sm mt-1">
-                      {errors.customer_name}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Customer Phone</label>
-                  <input
-                    name="customer_phone"
-                    value={form.customer_phone}
-                    onChange={handleChange}
-                    className={`w-full border rounded px-3 py-2 ${
-                      errors.customer_phone ? "border-red-500" : ""
-                    }`}
-                    required
-                  />
-                  {errors.customer_phone && (
-                    <p className="text-red-600 text-sm mt-1">
-                      {errors.customer_phone}
-                    </p>
-                  )}
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block font-semibold mb-1">Customer Address</label>
-                  <input
-                    name="customer_address"
-                    value={form.customer_address}
-                    onChange={handleChange}
-                    className={`w-full border rounded px-3 py-2 ${
-                      errors.customer_address ? "border-red-500" : ""
-                    }`}
-                    required
-                  />
-                  {errors.customer_address && (
-                    <p className="text-red-600 text-sm mt-1">
-                      {errors.customer_address}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="mt-4 bg-black text-[#FFD700] font-bold px-6 py-2 rounded"
+            {/* BNPL Platform */}
+            <div>
+              <label className="block font-semibold mb-1">BNPL Platform</label>
+              <select
+                name="bnpl_platform"
+                value={form.bnpl_platform}
+                onChange={handleChange}
+                disabled={submitting}
+                className={`w-full border rounded px-3 py-2 ${
+                  submitting ? "opacity-50 cursor-not-allowed" : ""
+                } ${errors.bnpl_platform ? "border-red-500" : ""}`}
+                required
               >
-                Place Order
-              </button>
+                <option value="">None</option>
+                <option value="WATU">WATU</option>
+                <option value="EASYBUY">EASYBUY</option>
+                <option value="CREDIT DIRECT">CREDIT DIRECT</option>
+              </select>
+              {errors.bnpl_platform && (
+                <p className="text-red-600 text-sm mt-1">
+                  {errors.bnpl_platform}
+                </p>
+              )}
+            </div>
+
+            {/* Customer Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-semibold mb-1">Customer Name</label>
+                <input
+                  name="customer_name"
+                  value={form.customer_name}
+                  onChange={handleChange}
+                  disabled={submitting}
+                  className={`w-full border rounded px-3 py-2 ${
+                    submitting ? "opacity-50 cursor-not-allowed" : ""
+                  } ${errors.customer_name ? "border-red-500" : ""}`}
+                  required
+                />
+                {errors.customer_name && (
+                  <p className="text-red-600 text-sm mt-1">
+                    {errors.customer_name}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Customer Phone</label>
+                <input
+                  name="customer_phone"
+                  value={form.customer_phone}
+                  onChange={handleChange}
+                  disabled={submitting}
+                  className={`w-full border rounded px-3 py-2 ${
+                    submitting ? "opacity-50 cursor-not-allowed" : ""
+                  } ${errors.customer_phone ? "border-red-500" : ""}`}
+                  required
+                />
+                {errors.customer_phone && (
+                  <p className="text-red-600 text-sm mt-1">
+                    {errors.customer_phone}
+                  </p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block font-semibold mb-1">Customer Address</label>
+                <input
+                  name="customer_address"
+                  value={form.customer_address}
+                  onChange={handleChange}
+                  disabled={submitting}
+                  className={`w-full border rounded px-3 py-2 ${
+                    submitting ? "opacity-50 cursor-not-allowed" : ""
+                  } ${errors.customer_address ? "border-red-500" : ""}`}
+                  required
+                />
+                {errors.customer_address && (
+                  <p className="text-red-600 text-sm mt-1">
+                    {errors.customer_address}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`mt-4 font-bold px-6 py-2 rounded ${
+                submitting
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                  : "bg-black text-[#FFD700]"
+              }`}
+            >
+              {submitting ? "Placing..." : "Place Order"}
+            </button>
             </>
           )}
+
         </form>
       </div>
 

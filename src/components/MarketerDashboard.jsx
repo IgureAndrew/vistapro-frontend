@@ -164,7 +164,7 @@ export default function MarketerDashboard() {
           }}
           className={`flex items-center gap-2 px-3 py-2 w-full rounded ${base}`}
         >
-          <Icon size={16} />
+          {Icon && <Icon size={16} />}
           <span>{label}</span>
         </button>
       </li>
