@@ -1,13 +1,13 @@
-// src/api/reportApi.js
 import axios from 'axios';
 
 const reportApi = axios.create({
-  baseURL: import.meta.env.VITE_API_URL + '/api', // e.g. "http://localhost:3000/api"
-  headers: {
-    'Content-Type': 'application/json',
-    // add auth header if needed, e.g.
-    // Authorization: `Bearer ${localStorage.getItem('token')}`
-  },
-});
+    baseURL: import.meta.env.VITE_API_URL + '/api/reports',
+    headers: {
+      'Content-Type': 'application/json',
+      // grab the token from localStorage on init
+      Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+    },
+    withCredentials: true,  // in case you ever use cookies
+  });
 
-export default reportApi;
+  export default reportApi;

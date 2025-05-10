@@ -4,14 +4,14 @@ import { Wallet, CreditCard, ArrowUpCircle } from 'lucide-react';
 import walletApi from '../api/walletApi'; // axios with baseURL="/api/wallets"
 
 export default function SuperAdminWallet() {
-  // your own wallet
+  // 1) your own wallet
   const [ownWallet, setOwnWallet] = useState({
     total_balance:     0,
     available_balance: 0,
     withheld_balance:  0,
   });
 
-  // all admins & marketers under you
+  // 2) all admins & marketers under you
   const [childWallets, setChildWallets] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
@@ -27,9 +27,9 @@ export default function SuperAdminWallet() {
     let mounted = true;
     async function loadAll() {
       try {
-        // 1) your wallet
-        const ownRes = await walletApi.get(`/`);
-        // 2) subordinate wallets & their recent txns
+        // A) fetch your own wallet
+        const ownRes = await walletApi.get(`/super-admin/my`);
+        // B) fetch subordinates' wallets
         const subRes = await walletApi.get(`/super-admin/activities`);
 
         if (!mounted) return;
@@ -53,6 +53,7 @@ export default function SuperAdminWallet() {
     }
     setSubmitting(true);
     try {
+      // POST to /api/wallets/withdraw
       await walletApi.post(`/withdraw`, {
         amount:         Number(withdrawAmt),
         account_name:   acctName,
@@ -60,7 +61,7 @@ export default function SuperAdminWallet() {
         bank_name:      bankName
       });
       alert('Withdrawal request submitted');
-      // reload only your wallet
+      // reload just your wallet
       const { data } = await walletApi.get(`/`);
       setOwnWallet(data.wallet || {});
     } catch (e) {
@@ -121,8 +122,7 @@ export default function SuperAdminWallet() {
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <ArrowUpCircle /> Withdraw Funds
         </h2>
-        <form onSubmit={handleWithdraw}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleWithdraw} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
             type="number"
             placeholder="₦ Amount"

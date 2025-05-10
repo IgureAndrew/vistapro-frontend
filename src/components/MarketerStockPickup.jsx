@@ -27,7 +27,10 @@ export default function MarketerStockPickup() {
   const [transferringId, setTransferringId] = useState(null);
   const [transferTarget, setTransferTarget] = useState("");
 
-  // Live clock
+  // track return UI
+  const [returningId, setReturningId] = useState(null);
+
+  // Live clock for countdown
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -36,14 +39,14 @@ export default function MarketerStockPickup() {
   // Load dealers
   useEffect(() => {
     api.get("/stock/pickup/dealers")
-       .then(res => setDealers(res.data.dealers))
+       .then(res => setDealers(res.data.dealers || []))
        .catch(console.error);
   }, []);
 
   // Load my pickups
   const loadPickups = () => {
     api.get("/stock/marketer")
-       .then(res => setPickups(res.data.data))
+       .then(res => setPickups(res.data.data || []))
        .catch(console.error);
   };
   useEffect(loadPickups, []);
@@ -55,7 +58,7 @@ export default function MarketerStockPickup() {
     setProducts([]);
     if (!uid) return;
     api.get(`/stock/pickup/dealers/${uid}/products`)
-       .then(res => setProducts(res.data.products))
+       .then(res => setProducts(res.data.products || []))
        .catch(console.error);
   };
 
@@ -69,11 +72,14 @@ export default function MarketerStockPickup() {
 
   // Submit pickup
   const onSubmit = async data => {
-    if (!selectedDealer) return alert("Please select a dealer.");
+    if (!selectedDealer) {
+      return alert("Please select a dealer.");
+    }
     try {
       await api.post("/stock", {
-        product_id: data.product_id,
-        quantity:   data.quantity
+        dealer_unique_id: selectedDealer,
+        product_id:       data.product_id,
+        quantity:         data.quantity
       });
       alert("Pickup recorded!");
       reset();
@@ -86,13 +92,16 @@ export default function MarketerStockPickup() {
     }
   };
 
-  // Submit transfer
+  // Submit transfer (PATCH)
   const submitTransfer = async () => {
-    if (!transferTarget.trim()) return alert("Enter a name or unique ID to transfer to.");
+    if (!transferTarget.trim()) {
+      return alert("Enter a name or unique ID to transfer to.");
+    }
     try {
-      await api.post(`/stock/${transferringId}/transfer`, {
-        targetIdentifier: transferTarget.trim()
-      });
+      await api.patch(
+        `/stock/${transferringId}/transfer`,
+        { targetIdentifier: transferTarget.trim() }
+      );
       alert("Transfer requested!");
       setTransferringId(null);
       setTransferTarget("");
@@ -103,11 +112,24 @@ export default function MarketerStockPickup() {
     }
   };
 
+  // Submit return (PATCH)
+  const submitReturn = async () => {
+    try {
+      await api.patch(`/stock/${returningId}/return`);
+      alert("Return requested!");
+      setReturningId(null);
+      loadPickups();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Error requesting return");
+    }
+  };
+
   const selectedProductId = watch("product_id");
   const selectedProd      = products.find(p => p.product_id === +selectedProductId);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8">
+    <div className="w-full">
       <h1 className="text-3xl font-bold">Stock Pickup</h1>
 
       {/* —— New Pickup Form —— */}
@@ -198,10 +220,10 @@ export default function MarketerStockPickup() {
       </form>
 
       {/* —— My Pickups Table —— */}
-      <div>
+      <div className="w-full">
         <h3 className="text-xl font-semibold mb-4">My Stock Pickups</h3>
-        <div className="overflow-x-auto bg-white rounded shadow">
-          <table className="min-w-full text-left text-sm">
+        <div className="overflow-x-auto bg-white rounded shadow w-full">
+          <table className="min-w-full w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
               <tr>
                 <th className="px-4 py-2">Product</th>
@@ -210,7 +232,7 @@ export default function MarketerStockPickup() {
                 <th className="px-4 py-2">Deadline</th>
                 <th className="px-4 py-2">Countdown</th>
                 <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Transfer</th>
+                <th className="px-4 py-2">Transfer / Return</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -222,32 +244,36 @@ export default function MarketerStockPickup() {
                 </tr>
               ) : (
                 pickups.map(s => {
-                  const label = `${s.device_name} ${s.device_model}`;
-                  const remaining = new Date(s.deadline).getTime() - now;
+                  const label      = `${s.device_name} ${s.device_model}`;
+                  const deadlineMs = new Date(s.deadline).getTime();
+                  const diff       = deadlineMs - now;
+
+                  // Countdown cell
                   let countdownCell;
                   if (s.status === "pending") {
-                    countdownCell = formatRemaining(remaining);
+                    countdownCell = formatRemaining(diff);
                   } else if (s.status === "expired") {
                     countdownCell = (
                       <span className="text-red-600">
-                        {formatRemaining(now - new Date(s.deadline).getTime())} ago
+                        {formatRemaining(now - deadlineMs)} ago
                       </span>
                     );
                   } else {
                     countdownCell = "–";
                   }
 
-                  let statusLabel;
-                  switch (s.status) {
-                    case "pending":  statusLabel = "Pending";  break;
-                    case "sold":     statusLabel = "Sold";     break;
-                    case "returned": statusLabel = "Returned"; break;
-                    case "expired":  statusLabel = "Expired";  break;
-                    default:
-                      statusLabel = s.status
-                        .replace(/_/g, " ")
-                        .replace(/\b\w/g, c => c.toUpperCase());
-                  }
+                  // Status label
+                  const statusMap = {
+                    pending:  "Pending",
+                    sold:     "Sold",
+                    returned: "Returned",
+                    expired:  "Expired"
+                  };
+                  const statusLabel =
+                    statusMap[s.status] || s.status.replace(/_/g, " ");
+
+                  // Only allow transfer/return if truly pending & NOT yet placed into an order
+                  const allowActions = s.status === "pending" && !s.in_order;
 
                   return (
                     <tr key={s.id}>
@@ -261,50 +287,81 @@ export default function MarketerStockPickup() {
                       </td>
                       <td className="px-4 py-2">{countdownCell}</td>
                       <td className="px-4 py-2">{statusLabel}</td>
-                      <td className="px-4 py-2">
-                        {transferringId === s.id ? (
-                          <div className="space-y-1">
-                            <p>
-                              Transferring <strong>{label}</strong> from{" "}
-                              <strong>{myLocation}</strong>
-                            </p>
-                            <input
-                              type="text"
-                              placeholder="Name or unique ID"
-                              value={transferTarget}
-                              onChange={e => setTransferTarget(e.target.value)}
-                              className="w-full border rounded px-2 py-1"
-                            />
-                            <div className="flex space-x-2">
+                      <td className="px-4 py-2 space-x-2">
+                        {allowActions ? (
+                          transferringId === s.id ? (
+                            // Transfer inline form
+                            <div className="space-y-1">
+                              <p>
+                                Transfer <strong>{label}</strong> from{" "}
+                                <strong>{myLocation}</strong>
+                              </p>
+                              <input
+                                type="text"
+                                placeholder="Name or unique ID"
+                                value={transferTarget}
+                                onChange={e => setTransferTarget(e.target.value)}
+                                className="w-full border rounded px-2 py-1"
+                              />
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={submitTransfer}
+                                  className="px-2 py-1 bg-green-500 text-white rounded"
+                                >
+                                  Submit
+                                </button>
+                                <button
+                                  onClick={() => setTransferringId(null)}
+                                  className="px-2 py-1 bg-gray-300 rounded"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setTransferringId(s.id);
+                                setReturningId(null);
+                                setTransferTarget("");
+                              }}
+                              className="px-2 py-1 bg-yellow-500 text-white rounded"
+                            >
+                              Transfer
+                            </button>
+                          )
+                        ) : null}
+
+                        {allowActions ? (
+                          returningId === s.id ? (
+                            // Return inline confirm
+                            <>
+                              <span className="italic">Confirm return?</span>
                               <button
-                                onClick={submitTransfer}
-                                className="px-2 py-1 bg-green-500 text-white rounded"
+                                onClick={submitReturn}
+                                className="px-2 py-1 bg-red-600 text-white rounded"
                               >
-                                Submit
+                                Yes
                               </button>
                               <button
-                                onClick={() => setTransferringId(null)}
+                                onClick={() => setReturningId(null)}
                                 className="px-2 py-1 bg-gray-300 rounded"
                               >
-                                Cancel
+                                ×
                               </button>
-                            </div>
-                          </div>
-                        ) : s.transfer_status === "none" && s.status === "pending" ? (
-                          <button
-                            onClick={() => {
-                              setTransferringId(s.id);
-                              setTransferTarget("");
-                            }}
-                            className="px-2 py-1 bg-yellow-500 text-white rounded"
-                          >
-                            Transfer
-                          </button>
-                        ) : (
-                          <span className="text-sm capitalize">
-                            {s.transfer_status}
-                          </span>
-                        )}
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setReturningId(s.id);
+                                setTransferringId(null);
+                              }}
+                              className="px-2 py-1 bg-red-500 text-white rounded"
+                            >
+                              Return
+                            </button>
+                          )
+                        ) : null}
                       </td>
                     </tr>
                   );
