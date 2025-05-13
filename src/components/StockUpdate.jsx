@@ -3,9 +3,9 @@ import React, { useEffect, useState } from "react";
 import api from "../api"; // axios instance w/ baseURL="${VITE_API_URL}/api"
 
 export default function StockUpdates() {
-  const token       = localStorage.getItem("token");
-  const stored      = localStorage.getItem("user");
-  const currentUser = stored ? JSON.parse(stored) : {};
+  const token         = localStorage.getItem("token");
+  const stored        = localStorage.getItem("user");
+  const currentUser   = stored ? JSON.parse(stored) : {};
   const isMasterAdmin = currentUser.role === "MasterAdmin";
 
   const [updates, setUpdates] = useState([]);
@@ -13,13 +13,13 @@ export default function StockUpdates() {
   const [now,     setNow]     = useState(Date.now());
   const [error,   setError]   = useState("");
 
-  // 1) tick clock every second for live countdown / count-up
+  // Live clock tick
   useEffect(() => {
     const tid = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tid);
   }, []);
 
-  // 2) fetch all pickups (with device, dealer & transfer target fields)
+  // Fetch all stock pickups
   const loadUpdates = () => {
     api
       .get("/stock", { headers: { Authorization: `Bearer ${token}` } })
@@ -28,7 +28,7 @@ export default function StockUpdates() {
   };
   useEffect(loadUpdates, [token]);
 
-  // 3) format countdown or count-up if past deadline
+  // Format countdown or elapsed
   const formatCountdown = deadline => {
     const diff = new Date(deadline).getTime() - now;
     if (diff >= 0) {
@@ -45,7 +45,7 @@ export default function StockUpdates() {
     }
   };
 
-  // 4) simple text-filter across marketer, ID, device, dealer, transfer target, status
+  // Simple client-side filter
   const filtered = updates.filter(u => {
     const t = filter.toLowerCase();
     return (
@@ -61,7 +61,7 @@ export default function StockUpdates() {
     );
   });
 
-  // 5) Approve or reject a transfer
+  // Approve / reject transfer
   const handleTransferAction = async (id, action) => {
     try {
       await api.patch(
@@ -72,6 +72,20 @@ export default function StockUpdates() {
       loadUpdates();
     } catch (err) {
       alert(err.response?.data?.message || "Failed to update transfer");
+    }
+  };
+
+  // Confirm return
+  const handleConfirmReturn = async id => {
+    try {
+      await api.patch(
+        `/stock/${id}/return`,
+        null,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      loadUpdates();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to confirm return");
     }
   };
 
@@ -95,47 +109,96 @@ export default function StockUpdates() {
           <thead className="bg-gray-100">
             <tr>
               {[
-                "Marketer","ID","Device","Dealer","Location",
-                "Qty","Picked Up","Deadline","Countdown",
-                "Transfer To","Transfer Status","Actions"
-              ].map(h => (
+                "Marketer",
+                "ID",
+                "Device",
+                "Dealer",
+                "Location",
+                "Qty",
+                "Picked Up",
+                "Deadline",
+                "Countdown",
+                "Status",
+                "Transfer To",
+                "Transfer Status",
+                "Actions"
+              ].map(header => (
                 <th
-                  key={h}
+                  key={header}
                   className="px-4 py-2 text-left text-sm font-medium text-gray-700"
                 >
-                  {h}
+                  {header}
                 </th>
               ))}
             </tr>
           </thead>
+
           <tbody className="bg-white divide-y divide-gray-200">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={13} className="px-4 py-6 text-center text-gray-500">
                   No pickups to display.
                 </td>
               </tr>
-            ) : filtered.map(u => {
+            ) : (
+              filtered.map(u => {
                 const isExpired = new Date(u.deadline).getTime() < now;
+
                 return (
-                  <tr key={u.id}>
-                    <td className="px-4 py-2 text-sm text-gray-800">{u.marketer_name}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{u.marketer_unique_id}</td>
-                    <td className="px-4 py-2 text-sm">{u.device_name} {u.device_model}</td>
-                    <td className="px-4 py-2 text-sm">{u.dealer_name}</td>
-                    <td className="px-4 py-2 text-sm">{u.dealer_location}</td>
-                    <td className="px-4 py-2 text-sm">{u.quantity}</td>
+                  <tr key={u.id} className="hover:bg-gray-50">
+                    {/* Marketer */}
+                    <td className="px-4 py-2 text-sm text-gray-800">
+                      {u.marketer_name}
+                    </td>
+
+                    {/* ID */}
+                    <td className="px-4 py-2 text-sm text-gray-600">
+                      {u.marketer_unique_id}
+                    </td>
+
+                    {/* Device */}
+                    <td className="px-4 py-2 text-sm">
+                      {u.device_name} {u.device_model}
+                    </td>
+
+                    {/* Dealer */}
+                    <td className="px-4 py-2 text-sm">
+                      {u.dealer_name}
+                    </td>
+
+                    {/* Location */}
+                    <td className="px-4 py-2 text-sm">
+                      {u.dealer_location}
+                    </td>
+
+                    {/* Qty */}
+                    <td className="px-4 py-2 text-sm">
+                      {u.quantity}
+                    </td>
+
+                    {/* Picked Up */}
                     <td className="px-4 py-2 text-sm">
                       {new Date(u.pickup_date).toLocaleString()}
                     </td>
+
+                    {/* Deadline */}
                     <td className="px-4 py-2 text-sm">
                       {new Date(u.deadline).toLocaleString()}
                     </td>
+
+                    {/* Countdown */}
                     <td className={`px-4 py-2 text-sm ${isExpired ? "text-red-600" : "text-gray-800"}`}>
-                      {formatCountdown(u.deadline)}
+                      {u.status === "pending"
+                        ? formatCountdown(u.deadline)
+                        : "—"}
                     </td>
 
-                    {/* Transfer target */}
+                    {/* Status */}
+                    <td className="px-4 py-2 text-sm capitalize">
+                      {u.status.replace(/_/g, " ")}
+                    </td>
+
+                    {/* Transfer To */}
                     <td className="px-4 py-2 text-sm">
                       {u.transfer_to_name
                         ? `${u.transfer_to_name} (${u.transfer_to_uid})`
@@ -143,14 +206,15 @@ export default function StockUpdates() {
                       }
                     </td>
 
-                    {/* Transfer status */}
+                    {/* Transfer Status */}
                     <td className="px-4 py-2 text-sm capitalize">
                       {u.transfer_status}
                     </td>
 
                     {/* Actions */}
-                    <td className="px-4 py-2 text-sm">
-                      {u.transfer_status === "pending" && isMasterAdmin ? (
+                    <td className="px-4 py-2 text-sm space-y-2">
+                      {/* Approve/Reject Transfer */}
+                      {u.transfer_status === "pending" && isMasterAdmin && (
                         <div className="flex space-x-2">
                           <button
                             onClick={() => handleTransferAction(u.id, "approve")}
@@ -165,18 +229,22 @@ export default function StockUpdates() {
                             Reject
                           </button>
                         </div>
-                      ) : (
-                        <span className="capitalize">
-                          {u.transfer_status !== "none"
-                            ? u.transfer_status
-                            : "—"
-                          }
-                        </span>
+                      )}
+
+                      {/* Confirm Return */}
+                      {u.status === "return_pending" && isMasterAdmin && (
+                        <button
+                          onClick={() => handleConfirmReturn(u.id)}
+                          className="px-2 py-1 bg-blue-600 text-white rounded"
+                        >
+                          Confirm Return
+                        </button>
                       )}
                     </td>
                   </tr>
                 );
-            })}
+              })
+            )}
           </tbody>
         </table>
       </div>

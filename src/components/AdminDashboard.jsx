@@ -21,6 +21,7 @@ import Verification from "./Verification";
 import AdminOverview from "./AdminOverview"; // Import the new AdminOverview component
 import AvatarDropdown from "./AvatarDropdown";
 import AssignedMarketers from "./AssignedMarketers";
+import AdminWallet from "./AdminWallet";
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -78,7 +79,7 @@ function AdminDashboard() {
       case "verification":
         return <Verification />;
       case "wallet":
-        return <Wallet />;
+        return <AdminWallet />;
       default:
         return <AdminOverview />;
     }

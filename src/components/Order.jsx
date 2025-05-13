@@ -282,20 +282,28 @@ export default function Order() {
 
                 {/* show available IMEIs */}
                 {selectedProductId && (() => {
-                  const prod = dealerProducts.find(p => p.product_id === +selectedProductId);
-                  if (!prod?.imeis_available?.length) return null;
-                  return (
-                    <div className="mt-2">
-                      <label className="block font-semibold mb-1">Available IMEIs</label>
-                      <textarea
-                        readOnly
-                        rows={Math.min(prod.imeis_available.length, 4)}
-                        value={prod.imeis_available.join(", ")}
-                        className="w-full border rounded px-3 py-2 bg-gray-100"
-                      />
-                    </div>
-                  );
-                })()}
+  const prod = dealerProducts.find(p => p.product_id === +selectedProductId);
+  if (!prod?.imeis_available?.length) return null;
+
+  // parse out how many the user requested
+  const qty = parseInt(form.number_of_devices, 10) || 0;
+  // take at most qty, capped by availability
+  const shownImeis = prod.imeis_available.slice(0, qty);
+
+  return (
+    <div className="mt-2">
+      <label className="block font-semibold mb-1">
+        Available IMEIs {qty > shownImeis.length && `(only ${shownImeis.length} available)`}
+      </label>
+      <textarea
+        readOnly
+        rows={Math.min(shownImeis.length, 6)}
+        value={shownImeis.join('\n')}
+        className="w-full border rounded px-3 py-2 bg-gray-100 whitespace-pre-wrap"
+      />
+    </div>
+  );
+})()}
               </>
             )
           }
