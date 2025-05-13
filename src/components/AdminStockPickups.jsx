@@ -19,7 +19,7 @@ export default function AdminStockPickups() {
     async function fetchPickups() {
       try {
         const token = localStorage.getItem("token");
-        const res   = await api.get("/stock-pickup", {
+        const res   = await api.get("/stock/stock-pickup", {
           headers: { Authorization: `Bearer ${token}` }
         });
         setPickups(res.data.data || []);
