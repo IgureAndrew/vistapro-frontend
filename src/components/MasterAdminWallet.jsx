@@ -85,7 +85,11 @@ export default function MasterAdminWallet() {
           <table className="min-w-full text-sm text-left">
             <thead className="bg-gray-100">
               <tr>
-                {['ID','User','Requested','Fee','Net','Date','Actions'].map(h => (
+                {[
+                  'ID','User','Requested','Fee','Net',
+                  'Account Name','Account Number','Bank Name',
+                  'Date','Actions'
+                ].map(h => (
                   <th key={h} className="px-4 py-2">{h}</th>
                 ))}
               </tr>
@@ -100,6 +104,9 @@ export default function MasterAdminWallet() {
                     <td className="px-4 py-2">₦{Number(r.amount).toLocaleString()}</td>
                     <td className="px-4 py-2">₦{Number(r.fee).toLocaleString()}</td>
                     <td className="px-4 py-2">₦{Number(net).toLocaleString()}</td>
+                    <td className="px-4 py-2">{r.account_name}</td>
+                    <td className="px-4 py-2">{r.account_number}</td>
+                    <td className="px-4 py-2">{r.bank_name}</td>
                     <td className="px-4 py-2">{new Date(r.requested_at).toLocaleDateString()}</td>
                     <td className="px-4 py-2 space-x-2">
                       <button
