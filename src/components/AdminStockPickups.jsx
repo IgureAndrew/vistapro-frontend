@@ -1,12 +1,13 @@
+
 // src/components/AdminStockPickups.jsx
 import React, { useState, useEffect } from "react";
-import api from "../api"; // your axios instance
+import api from "../api"; // axios instance with baseURL = '/api'
 
 export default function AdminStockPickups() {
-  const [pickups, setPickups]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
-  const [now, setNow]           = useState(Date.now());
+  const [pickups, setPickups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+  const [now, setNow]         = useState(Date.now());
 
   // Live clock for countdown
   useEffect(() => {
@@ -18,10 +19,10 @@ export default function AdminStockPickups() {
     async function fetchPickups() {
       try {
         const token = localStorage.getItem("token");
-        const res   = await api.get("/admin/stock-pickup", {
+        const res   = await api.get("/stock-pickup", {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setPickups(res.data.data);
+        setPickups(res.data.data || []);
       } catch (err) {
         console.error(err);
         setError(err.response?.data?.message || "Failed to load pickups.");
@@ -33,10 +34,10 @@ export default function AdminStockPickups() {
   }, []);
 
   function formatRemaining(deadline) {
-    const ms  = new Date(deadline).getTime() - now;
-    const hrs = Math.floor(ms / 3_600_000);
-    const mins= Math.floor((ms % 3_600_000) / 60_000);
-    const secs= Math.floor((ms % 60_000) / 1000);
+    const ms   = new Date(deadline).getTime() - now;
+    const hrs  = Math.floor(ms / 3_600_000);
+    const mins = Math.floor((ms % 3_600_000) / 60_000);
+    const secs = Math.floor((ms % 60_000) / 1000);
     return `${hrs}h ${mins}m ${secs}s`;
   }
 
@@ -53,30 +54,27 @@ export default function AdminStockPickups() {
               <tr>
                 {["#","Marketer","Device","Model","Qty","Picked Up","Deadline","Countdown","Status"]
                   .map(h => (
-                  <th
-                    key={h}
-                    className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-600"
-                  >
-                    {h}
-                  </th>
-                ))}
+                    <th
+                      key={h}
+                      className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-600"
+                    >
+                      {h}
+                    </th>
+                  ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {pickups.map(s => {
-                // determine status label
                 let statusLabel;
                 switch (s.status) {
                   case "pending":  statusLabel = "Pending";  break;
                   case "sold":     statusLabel = "Sold";     break;
-                  case "returned": statusLabel = "Returned"; break;
                   case "expired":  statusLabel = "Expired";  break;
                   default:
                     statusLabel = s.status.charAt(0).toUpperCase() +
                                   s.status.slice(1).replace(/_/g, " ");
                 }
 
-                // countdown cell
                 let countdown;
                 if (s.status === "pending") {
                   countdown = formatRemaining(s.deadline);
