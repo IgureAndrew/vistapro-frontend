@@ -10,9 +10,12 @@ import MarketerDashboard from "./components/MarketerDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import SubmissionUnderReview from "./components/SubmissionUnderReview";
 
+
+
 function App() {
   return (
-    
+       
+
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route 

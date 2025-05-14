@@ -1,6 +1,6 @@
 // src/components/SuperAdminWallet.jsx
 import React, { useEffect, useState } from 'react';
-import { Wallet, CreditCard, ArrowUpCircle } from 'lucide-react';
+import { Wallet, ArrowUpCircle } from 'lucide-react';
 import walletApi from '../api/walletApi'; // axios with baseURL="/api/wallets"
 
 export default function SuperAdminWallet() {
@@ -8,7 +8,6 @@ export default function SuperAdminWallet() {
   const [ownWallet, setOwnWallet] = useState({
     total_balance:     0,
     available_balance: 0,
-    withheld_balance:  0,
   });
 
   // 2) all admins & marketers under you
@@ -33,7 +32,8 @@ export default function SuperAdminWallet() {
         const subRes = await walletApi.get(`/super-admin/activities`);
 
         if (!mounted) return;
-        setOwnWallet(ownRes.data.wallet || {});
+        const { total_balance, available_balance } = ownRes.data.wallet || {};
+        setOwnWallet({ total_balance, available_balance });
         setChildWallets(subRes.data.wallets || []);
       } catch (e) {
         console.error(e);
@@ -53,7 +53,6 @@ export default function SuperAdminWallet() {
     }
     setSubmitting(true);
     try {
-      // POST to /api/wallets/withdraw
       await walletApi.post(`/withdraw`, {
         amount:         Number(withdrawAmt),
         account_name:   acctName,
@@ -62,8 +61,9 @@ export default function SuperAdminWallet() {
       });
       alert('Withdrawal request submitted');
       // reload just your wallet
-      const { data } = await walletApi.get(`/`);
-      setOwnWallet(data.wallet || {});
+      const { data } = await walletApi.get(`/super-admin/my`);
+      const { total_balance, available_balance } = data.wallet || {};
+      setOwnWallet({ total_balance, available_balance });
     } catch (e) {
       console.error(e);
       alert(e.response?.data?.message || 'Withdrawal failed');
@@ -79,32 +79,24 @@ export default function SuperAdminWallet() {
   if (loading) return <p className="p-6">Loading…</p>;
   if (error)   return <p className="p-6 text-red-600">{error}</p>;
 
-  const {
-    total_balance     = 0,
-    available_balance = 0,
-    withheld_balance  = 0
-  } = ownWallet;
+  const { total_balance, available_balance } = ownWallet;
 
   return (
     <div className="p-6 space-y-8">
       {/* Your Balances */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
         {[{
           label: 'Total Balance',
           value: total_balance,
-          icon:  <Wallet    className="w-6 h-6" />
+          icon:  <Wallet className="w-6 h-6 text-indigo-600" />
         },{
           label: 'Available',
           value: available_balance,
           icon:  <span className="text-indigo-600 text-xl">₦</span>
-        },{
-          label: 'Withheld',
-          value: withheld_balance,
-          icon:  <CreditCard className="w-6 h-6" />
         }].map(({ label, value, icon }) => (
           <div key={label}
             className="bg-white p-5 rounded-lg shadow flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
+            <div className="p-3 bg-indigo-50 rounded-full">
               {icon}
             </div>
             <div>
@@ -179,7 +171,7 @@ export default function SuperAdminWallet() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {['ID','Role','Total','Available','Withheld'].map(hdr => (
+              {['ID','Role','Total','Available'].map(hdr => (
                 <th key={hdr}
                   className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                   {hdr}
@@ -197,9 +189,6 @@ export default function SuperAdminWallet() {
                 </td>
                 <td className="px-4 py-2 text-sm">
                   ₦{w.available_balance.toLocaleString()}
-                </td>
-                <td className="px-4 py-2 text-sm">
-                  ₦{w.withheld_balance.toLocaleString()}
                 </td>
               </tr>
             ))}

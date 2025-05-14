@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 
 export default function SuperAdminStockPickups() {
-  const API_URL = import.meta.env.VITE_API_URL + "/api/superadmin/stock-updates";
+  const API_URL = import.meta.env.VITE_API_URL + "/api/stock/superadmin/stock-updates";
   const token   = localStorage.getItem("token") || "";
 
   const [pickups, setPickups] = useState([]);
