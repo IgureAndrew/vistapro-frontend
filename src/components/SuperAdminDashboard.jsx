@@ -19,7 +19,6 @@ import {
 
 import SuperAdminOverview   from './SuperAdminOverview';
 import SuperAdminAccountSettings       from './SuperAdminAccountSettings';
-import Reports              from './Reports';
 import SuperAdminStockPickups      from './SuperAdminStockPickups';
 import Product              from './Product';
 import SuperAdminManageOrders         from './SuperAdminManageOrders';
@@ -63,7 +62,6 @@ export default function SuperAdminDashboard() {
     switch (activeModule) {
       case 'overview':      return <SuperAdminOverview />;
       case 'account-settings':       return <SuperAdminAccountSettings />;
-      case 'reports':       return <Reports />;
       case 'stock':         return <SuperAdminStockPickups />;
       case 'product':       return <Product />;
       case 'manage-orders': return <SuperAdminManageOrders />;
@@ -104,7 +102,6 @@ export default function SuperAdminDashboard() {
             <ul className="space-y-2 text-sm">
               <SidebarItem label="Overview"      Icon={Home}          moduleName="overview"      {...{activeModule,setActiveModule,setSidebarOpen}}/>
               <SidebarItem label="Profile"       Icon={User}          moduleName="profile"       {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Reports"       Icon={FileText}      moduleName="reports"       {...{activeModule,setActiveModule,setSidebarOpen}}/>
               <SidebarItem label="Stock"         Icon={Package}       moduleName="stock"         {...{activeModule,setActiveModule,setSidebarOpen}}/>
               <SidebarItem label="Products"      Icon={ShoppingCart}  moduleName="product"       {...{activeModule,setActiveModule,setSidebarOpen}}/>
               <SidebarItem label="Manage Orders" Icon={ClipboardList} moduleName="manage-orders" {...{activeModule,setActiveModule,setSidebarOpen}}/>

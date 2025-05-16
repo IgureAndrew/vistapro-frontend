@@ -22,7 +22,7 @@ import MasterAdminOverview from "./MasterAdminOverview";
 import AvatarDropdown from "./AvatarDropdown";
 import ProfileUpdate from "./ProfileUpdate";
 import UsersManagement from "./UsersManagement";
-import Reports from "./Reports";
+import ProfitReport from "./ProfitReport";
 import MasterAdminWallet from "./MasterAdminWallet";
 import Performance from "./Performance";
 import StockUpdate from "./StockUpdate";
@@ -33,29 +33,20 @@ import Product from "./Product";
 import ManageOrders from "./ManageOrders";
 import Messaging from "./Messaging";
 import Submissions from "./Submissions";
-import NotificationBell from "./NotificationBell"; // <— your custom bell component
+import NotificationBell from "./NotificationBell";
 
 function MasterAdminDashboard() {
   const navigate = useNavigate();
   const storedUser = localStorage.getItem("user");
   const [user] = useState(storedUser ? JSON.parse(storedUser) : null);
 
-  // Current active module state.
   const [activeModule, setActiveModule] = useState("overview");
-
-  // Toggle sidebar for mobile.
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Dark mode toggle.
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Greeting state.
-  const [greeting, setGreeting] = useState("Welcome");
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [isDarkMode, setIsDarkMode]     = useState(false);
+  const [greeting, setGreeting]         = useState("Welcome");
 
   useEffect(() => {
-    if (!user) {
-      navigate("/");
-    }
+    if (!user) navigate("/");
   }, [user, navigate]);
 
   useEffect(() => {
@@ -74,11 +65,8 @@ function MasterAdminDashboard() {
     navigate("/");
   };
 
-  const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
-  };
+  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
-  // Pick which module to render
   const renderModule = () => {
     switch (activeModule) {
       case "overview":
@@ -87,9 +75,9 @@ function MasterAdminDashboard() {
         return <ProfileUpdate />;
       case "users":
         return <UsersManagement />;
-      case "reports":
-        return <Reports />;
-      case "MasterAdminWallet":
+      case "profit":
+        return <ProfitReport />;
+      case "wallet":
         return <MasterAdminWallet />;
       case "performance":
         return <Performance />;
@@ -115,26 +103,17 @@ function MasterAdminDashboard() {
   };
 
   return (
-    <div
-      className={`min-h-screen flex flex-col transition-colors duration-300 ${
-        isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
-      }`}
-    >
+    <div className={`min-h-screen flex flex-col ${
+      isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
+    }`}>
       {/* Mobile Top Navbar */}
-      <header
-        className={`h-16 flex items-center justify-between px-4 border-b md:hidden transition-colors duration-300 ${
-          isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-          <h2 className="text-lg font-bold">Vistapro</h2>
-        </div>
+      <header className={`md:hidden h-16 flex items-center justify-between px-4 border-b ${
+        isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+      }`}>
+        <button onClick={() => setSidebarOpen(!sidebarOpen)}>
+          {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
+        </button>
+        <h2 className="font-bold">Vistapro</h2>
         <div className="flex items-center gap-4">
           <NotificationBell />
           <AvatarDropdown
@@ -147,148 +126,32 @@ function MasterAdminDashboard() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col md:flex-row">
+      <div className="flex flex-1">
         {/* Sidebar */}
-        <aside
-          className={`${
-            sidebarOpen ? "block" : "hidden"
-          } md:block w-full md:w-64 flex-shrink-0 transition-colors duration-300 ${
-            isDarkMode
-              ? "bg-gray-800 border-r border-gray-700"
-              : "bg-white border-r border-gray-200"
-          }`}
-        >
-          <div className="p-4 text-center font-bold text-xl md:text-2xl border-b transition-colors duration-300 dark:border-gray-700">
+        <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-64 border-r ${
+          isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+        }`}>
+          <div className="p-4 text-center font-bold text-lg border-b">
             Vistapro
           </div>
-          <nav className="p-3 flex-1 overflow-auto">
-            <ul className="list-none space-y-2 text-sm">
-              <SidebarItem
-                label="Overview"
-                Icon={Home}
-                moduleName="overview"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Profile"
-                Icon={User}
-                moduleName="profile"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Users"
-                Icon={UsersIcon}
-                moduleName="users"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Reports"
-                Icon={FileText}
-                moduleName="reports"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Wallet"
-                Icon={() => <span className="text-lg">₦</span>}
-                moduleName="MasterAdminWallet"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Performance"
-                Icon={TrendingUp}
-                moduleName="performance"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Stock"
-                Icon={Package}
-                moduleName="stock"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Verification"
-                Icon={CheckCircle}
-                moduleName="verification"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Submissions"
-                Icon={FileText}
-                moduleName="submissions"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Assign"
-                Icon={UserPlus}
-                moduleName="assign"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Products"
-                Icon={ShoppingCart}
-                moduleName="product"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Manage Orders"
-                Icon={ClipboardList}
-                moduleName="manage-orders"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
-              <SidebarItem
-                label="Messages"
-                Icon={MessageSquare}
-                moduleName="messages"
-                activeModule={activeModule}
-                setActiveModule={setActiveModule}
-                setSidebarOpen={setSidebarOpen}
-                isDarkMode={isDarkMode}
-              />
+          <nav className="p-3 overflow-auto">
+            <ul className="space-y-2">
+              <SidebarItem label="Overview"    Icon={Home}      moduleName="overview"        {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Profile"     Icon={User}      moduleName="profile"         {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Users"       Icon={UsersIcon} moduleName="users"           {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Profit"      Icon={FileText}  moduleName="profit"          {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Wallet"      Icon={()=><span className="text-lg">₦</span>} moduleName="wallet" {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Performance" Icon={TrendingUp} moduleName="performance"    {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Stock"       Icon={Package}   moduleName="stock"           {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Verify"      Icon={CheckCircle} moduleName="verification"  {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Submissions" Icon={FileText}   moduleName="submissions"    {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Assign"      Icon={UserPlus}   moduleName="assign"         {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Products"    Icon={ShoppingCart} moduleName="product"       {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Orders"      Icon={ClipboardList} moduleName="manage-orders"{...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
+              <SidebarItem label="Messages"    Icon={MessageSquare} moduleName="messages"     {...{activeModule,setActiveModule,setSidebarOpen,isDarkMode}}/>
               <li>
-                <button
-                  onClick={handleLogout}
-                  className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-                    isDarkMode ? "hover:bg-gray-700 text-white" : "hover:bg-gray-50 text-black"
-                  }`}
-                >
-                  <LogOut size={16} />
-                  Logout
+                <button onClick={handleLogout} className="w-full text-left px-3 py-2 rounded hover:bg-gray-100">
+                  <LogOut size={16}/> Logout
                 </button>
               </li>
             </ul>
@@ -298,16 +161,12 @@ function MasterAdminDashboard() {
         {/* Main Content */}
         <div className="flex-1 flex flex-col">
           {/* Desktop Top Bar */}
-          <header
-            className={`hidden md:flex h-16 border-b px-4 md:px-6 items-center justify-between transition-colors duration-300 ${
-              isDarkMode ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-200 text-gray-800"
-            }`}
-          >
+          <header className={`hidden md:flex items-center justify-between h-16 px-6 border-b ${
+            isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          }`}>
             <div>
-              <h2 className="text-lg md:text-xl font-bold">
-                {greeting}, {user ? `${user.first_name} ${user.last_name}` : "Master Admin"}!
-              </h2>
-              <p className="text-xs md:text-sm">Unique ID: {user ? user.unique_id : ""}</p>
+              <h2 className="font-bold text-xl">{greeting}, {user?.first_name}!</h2>
+              <p className="text-sm">Unique ID: {user?.unique_id}</p>
             </div>
             <div className="flex items-center gap-4">
               <NotificationBell />
@@ -321,12 +180,9 @@ function MasterAdminDashboard() {
             </div>
           </header>
 
-          {/* Module Content */}
-          <main
-            className={`p-3 md:p-6 overflow-auto flex-1 transition-colors duration-300 ${
-              isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
-            }`}
-          >
+          <main className={`flex-1 overflow-auto p-6 ${
+            isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
+          }`}>
             {renderModule()}
           </main>
         </div>
@@ -335,29 +191,20 @@ function MasterAdminDashboard() {
   );
 }
 
-// SidebarItem helper
 function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) {
   const isActive = activeModule === moduleName;
-  const handleClick = () => {
-    setActiveModule(moduleName);
-    setSidebarOpen(false);
-  };
+  const base    = isDarkMode ? "text-white hover:bg-gray-700" : "text-black hover:bg-gray-50";
+  const active  = isDarkMode ? "bg-gray-700 text-white font-semibold" : "bg-blue-100 text-black font-semibold";
   return (
     <li>
       <button
-        onClick={handleClick}
-        className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-          isActive
-            ? isDarkMode
-              ? "bg-gray-700 font-semibold text-white"
-              : "bg-blue-100 font-semibold text-black"
-            : isDarkMode
-            ? "hover:bg-gray-700 text-white"
-            : "hover:bg-gray-50 text-black"
+        onClick={() => { setActiveModule(moduleName); setSidebarOpen(false); }}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+          isActive ? active : base
         }`}
       >
-        {Icon && <Icon size={16} />}
-        <span>{label}</span>
+        {Icon && <Icon size={16}/>}
+        {label}
       </button>
     </li>
   );
