@@ -1,18 +1,20 @@
 // src/components/ManageOrders.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import OrderDetail from "./OrderDetail";
 
 export default function ManageOrders() {
-  const API_ROOT    = import.meta.env.VITE_API_URL + "/api/manage-orders";
-  const PENDING_URL = `${API_ROOT}/orders`;
-  const HISTORY_URL = `${API_ROOT}/orders/history`;
-  const CONFIRM_URL = id => `${API_ROOT}/orders/${id}/confirm`;
-  const token       = localStorage.getItem("token");
+  const API_ROOT     = import.meta.env.VITE_API_URL + "/api/manage-orders";
+  const PENDING_URL  = `${API_ROOT}/orders`;
+  const HISTORY_URL  = `${API_ROOT}/orders/history`;
+  const CONFIRM_URL  = id => `${API_ROOT}/orders/${id}/confirm`;
+  const token        = localStorage.getItem("token");
 
-  const [pending, setPending]   = useState([]);
-  const [history, setHistory]   = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [error, setError]       = useState("");
+  const [pending, setPending]         = useState([]);
+  const [history, setHistory]         = useState([]);
+  const [selected, setSelected]       = useState([]);
+  const [error, setError]             = useState("");
+  const [detailOrderId, setDetailOrderId] = useState(null);
 
   useEffect(() => {
     if (!token) return;
@@ -31,9 +33,7 @@ export default function ManageOrders() {
   };
 
   const confirmAll = async () => {
-    if (!selected.length) {
-      return alert("Select at least one order");
-    }
+    if (!selected.length) return alert("Select at least one order");
     try {
       await Promise.all(
         selected.map(id =>
@@ -59,7 +59,7 @@ export default function ManageOrders() {
   };
 
   return (
-    <div className="p-6 bg-white rounded shadow">
+    <div className="p-6 bg-white rounded shadow relative">
       <h2 className="text-xl font-semibold mb-4">Manage Orders</h2>
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
@@ -73,7 +73,7 @@ export default function ManageOrders() {
             <table className="w-full table-auto mb-3 border">
               <thead className="bg-gray-100">
                 <tr>
-                  {["Select","ID","Marketer","BNPL","Device","Type","Qty","Amount","Date","Status"]
+                  {["Select","ID","Marketer","BNPL","Device","Type","Qty","Amount","Date","Status","Detail"]
                     .map(h => (
                       <th key={h} className="px-2 py-1 border">{h}</th>
                     ))}
@@ -91,13 +91,21 @@ export default function ManageOrders() {
                     </td>
                     <td className="border px-2">{o.id}</td>
                     <td className="border px-2">{o.marketer_name}</td>
-                    <td className="border px-2">{o.bnpl_platform || "—"}</td>
+                    <td className="border px-2">{o.bnpl_platform||"—"}</td>
                     <td className="border px-2">{o.device_name} {o.device_model}</td>
                     <td className="border px-2">{o.device_type}</td>
                     <td className="border px-2">{o.number_of_devices}</td>
                     <td className="border px-2">{o.sold_amount}</td>
                     <td className="border px-2">{new Date(o.sale_date).toLocaleString()}</td>
                     <td className="border px-2">{o.status}</td>
+                    <td className="border px-2 text-center">
+                      <button
+                        onClick={() => setDetailOrderId(o.id)}
+                        className="text-blue-600 underline"
+                      >
+                        View
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -122,8 +130,10 @@ export default function ManageOrders() {
           <table className="w-full table-auto border">
             <thead className="bg-gray-100">
               <tr>
-                {["ID","Marketer","BNPL","Device","Type","Qty","Amount","Date","Status"]
-                  .map(h => <th key={h} className="px-2 py-1 border">{h}</th>)}
+                {["ID","Marketer","BNPL","Device","Type","Qty","Amount","Date","Status","Detail"]
+                  .map(h => (
+                    <th key={h} className="px-2 py-1 border">{h}</th>
+                  ))}
               </tr>
             </thead>
             <tbody>
@@ -131,19 +141,34 @@ export default function ManageOrders() {
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="border px-2">{o.id}</td>
                   <td className="border px-2">{o.marketer_name}</td>
-                  <td className="border px-2">{o.bnpl_platform || "—"}</td>
+                  <td className="border px-2">{o.bnpl_platform||"—"}</td>
                   <td className="border px-2">{o.device_name} {o.device_model}</td>
                   <td className="border px-2">{o.device_type}</td>
                   <td className="border px-2">{o.number_of_devices}</td>
                   <td className="border px-2">{o.sold_amount}</td>
                   <td className="border px-2">{new Date(o.sale_date).toLocaleString()}</td>
                   <td className="border px-2">{o.status}</td>
+                  <td className="border px-2 text-center">
+                    <button
+                      onClick={() => setDetailOrderId(o.id)}
+                      className="text-blue-600 underline"
+                    >
+                      View
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
+
+      {detailOrderId && (
+        <OrderDetail
+          orderId={detailOrderId}
+          onClose={() => setDetailOrderId(null)}
+        />
+      )}
     </div>
   );
 }
