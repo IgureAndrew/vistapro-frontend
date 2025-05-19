@@ -1,4 +1,3 @@
-// src/components/Order.jsx
 import React, { useState, useEffect } from "react";
 
 export default function Order() {
@@ -16,10 +15,10 @@ export default function Order() {
   const [errors,    setErrors]       = useState({});
   const [submitting, setSubmitting]  = useState(false);
 
-  // stock‐mode
+  // stock-mode
   const [selectedPickupId, setSelectedPickupId] = useState("");
 
-  // free‐mode
+  // free-mode
   const [dealers,           setDealers]           = useState([]);
   const [selectedDealer,    setSelectedDealer]    = useState("");
   const [dealerProducts,    setDealerProducts]    = useState([]);
@@ -58,13 +57,7 @@ export default function Order() {
     setSelectedDealer("");
     setSelectedProductId("");
     setDealerProducts([]);
-    setForm({
-      number_of_devices: "",
-      bnpl_platform:     "",
-      customer_name:     "",
-      customer_phone:    "",
-      customer_address:  ""
-    });
+    setForm({ number_of_devices: "", bnpl_platform: "", customer_name: "", customer_phone: "", customer_address: "" });
 
     if (data.mode === "free") {
       const r = await fetch(DEALERS_URL, { headers: { Authorization: `Bearer ${token}` } });
@@ -98,19 +91,20 @@ export default function Order() {
 
   function validate() {
     const errs = {};
-    if (placeData.mode === "free") {
-      if (!selectedDealer)           errs.dealer = "Select a dealer";
-      if (!selectedProductId)        errs.product = "Select a product";
+    const mode = placeData.mode;
+    if (mode === "free") {
+      if (!selectedDealer)                       errs.dealer = "Select a dealer";
+      if (!selectedProductId)                    errs.product = "Select a product";
       if (!form.number_of_devices || Number(form.number_of_devices) < 1)
         errs.number_of_devices = "Enter a valid quantity";
     } else {
-      if (!selectedPickupId)         errs.pickup = "Select a pickup";
+      if (!selectedPickupId)                     errs.pickup = "Select a pickup";
     }
-    if (!form.bnpl_platform)         errs.bnpl_platform    = "Select a BNPL platform";
-    if (!form.customer_name.trim())  errs.customer_name    = "Customer name is required";
+    if (!form.bnpl_platform)                     errs.bnpl_platform    = "Select a BNPL platform";
+    if (!form.customer_name.trim())              errs.customer_name    = "Customer name is required";
     if (!/^[0-9]{7,15}$/.test(form.customer_phone))
-                                    errs.customer_phone   = "Enter a valid phone number";
-    if (!form.customer_address.trim()) errs.customer_address = "Customer address is required";
+                                                errs.customer_phone   = "Enter a valid phone number";
+    if (!form.customer_address.trim())           errs.customer_address = "Customer address is required";
 
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -126,9 +120,9 @@ export default function Order() {
       customer_name:    form.customer_name,
       customer_phone:   form.customer_phone,
       customer_address: form.customer_address,
-      number_of_devices: placeData.mode==="free"
+      number_of_devices: placeData.mode === "free"
         ? Number(form.number_of_devices)
-        : 1, // always 1 in stock mode
+        : 1,
     };
 
     if (placeData.mode === "stock") {
@@ -142,10 +136,7 @@ export default function Order() {
     setSubmitting(true);
     const res  = await fetch(PLACE_URL, {
       method: "POST",
-      headers: {
-        "Content-Type":  "application/json",
-        "Authorization": `Bearer ${token}`
-      },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify(body)
     });
     const data = await res.json();
@@ -167,248 +158,212 @@ export default function Order() {
     : null;
 
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-8">
-
-      {/* ── PLACE ORDER ───────────────────────── */}
-      <div className="bg-white p-6 rounded shadow space-y-4">
+    <div className="px-4 py-6 mx-auto max-w-4xl space-y-8">
+      {/* Place Order */}
+      <section className="bg-white p-6 rounded-lg shadow space-y-6">
         <h2 className="text-2xl font-bold">Place Order</h2>
-
         {isStockMode && (
-          <p className="text-yellow-700 bg-yellow-100 p-2 rounded">
+          <p className="text-yellow-800 bg-yellow-100 p-3 rounded">
             ⚠️ You have pending stock pickups—use your reserved stock.
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {isStockMode ? (
+            <div className="col-span-2">
+              <label className="block mb-1 font-medium">Select Pickup</label>
+              <select
+                value={selectedPickupId}
+                onChange={e => setSelectedPickupId(e.target.value)}
+                disabled={submitting}
+                className={`w-full border rounded px-3 py-2 ${errors.pickup ? 'border-red-500' : ''}`}>
+                <option value="">-- choose --</option>
+                {placeData.pending.map(p => (
+                  <option key={p.stock_update_id} value={p.stock_update_id}>
+                    [{p.qty_reserved}] {p.device_name} {p.device_model} — {p.dealer_name} ({p.dealer_location})
+                  </option>
+                ))}
+              </select>
+              {errors.pickup && <p className="mt-1 text-red-600 text-sm">{errors.pickup}</p>}
 
-          {isStockMode
-            ? (
+              {selectedPickup && selectedPickup.imeis_reserved?.length > 0 && (
+                <div className="mt-4 bg-gray-50 p-4 rounded">
+                  <p className="font-medium mb-2">Reserved IMEIs</p>
+                  <ul className="list-disc list-inside text-sm">
+                    {selectedPickup.imeis_reserved.map(imei => (
+                      <li key={imei}>{imei}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>  
               <div>
-                <label className="block font-semibold mb-1">Select Pickup</label>
+                <label className="block mb-1 font-medium">Select Dealer</label>
                 <select
-                  value={selectedPickupId}
-                  onChange={e => setSelectedPickupId(e.target.value)}
+                  value={selectedDealer}
+                  onChange={handleDealerChange}
                   disabled={submitting}
-                  className={`w-full border rounded px-3 py-2 ${errors.pickup ? "border-red-500" : ""}`}
-                >
-                  <option value="">-- choose --</option>
-                  {placeData.pending.map(p => (
-                    <option key={p.stock_update_id} value={p.stock_update_id}>
-                      {/* show dealer_name & dealer_location */}
-                      [{p.qty_reserved}] {p.device_name} {p.device_model} —{" "}
-                      {p.dealer_name} ({p.dealer_location})
+                  className={`w-full border rounded px-3 py-2 ${errors.dealer ? 'border-red-500' : ''}`}>
+                  <option value="">-- choose dealer --</option>
+                  {dealers.map(d => (
+                    <option key={d.unique_id} value={d.unique_id}>
+                      {d.business_name} ({d.location})
                     </option>
                   ))}
                 </select>
-                {errors.pickup && <p className="text-red-600 text-sm">{errors.pickup}</p>}
-
-                {/* show IMEIs when one is selected */}
-                {selectedPickup && selectedPickup.imeis_reserved?.length > 0 && (
-                  <div className="mt-2 bg-gray-50 p-3 rounded">
-                    <p className="font-semibold mb-1">Reserved IMEIs</p>
-                    <ul className="list-disc list-inside text-sm">
-                      {selectedPickup.imeis_reserved.map(imei => (
-                        <li key={imei}>{imei}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {errors.dealer && <p className="mt-1 text-red-600 text-sm">{errors.dealer}</p>}
               </div>
-            )
-            : (
-              <>
-                {/* free‐mode dealer */}
-                <div>
-                  <label className="block font-semibold mb-1">Select Dealer</label>
-                  <select
-                    value={selectedDealer}
-                    onChange={handleDealerChange}
-                    disabled={submitting}
-                    className={`w-full border rounded px-3 py-2 ${errors.dealer ? "border-red-500" : ""}`}
-                  >
-                    <option value="">-- choose dealer --</option>
-                    {dealers.map(d => (
-                      <option key={d.unique_id} value={d.unique_id}>
-                        {d.business_name} ({d.location})
-                      </option>
-                    ))}
-                  </select>
-                  {errors.dealer && <p className="text-red-600 text-sm">{errors.dealer}</p>}
+
+              <div>
+                <label className="block mb-1 font-medium">Select Product</label>
+                <select
+                  value={selectedProductId}
+                  onChange={e => setSelectedProductId(e.target.value)}
+                  disabled={submitting || !selectedDealer}
+                  className={`w-full border rounded px-3 py-2 ${errors.product ? 'border-red-500' : ''}`}>
+                  <option value="">-- choose product --</option>
+                  {dealerProducts.map(p => (
+                    <option key={p.product_id} value={p.product_id}>
+                      [{p.qty_available}] {p.device_name} {p.device_model}
+                    </option>
+                  ))}
+                </select>
+                {errors.product && <p className="mt-1 text-red-600 text-sm">{errors.product}</p>}
+              </div>
+
+              <div>
+                <label className="block mb-1 font-medium">Quantity</label>
+                <input
+                  type="number"
+                  name="number_of_devices"
+                  min="1"
+                  max={dealerProducts.find(p => p.product_id === +selectedProductId)?.qty_available || 1}
+                  value={form.number_of_devices}
+                  onChange={handleChange}
+                  disabled={submitting || !selectedProductId}
+                  className={`w-full border rounded px-3 py-2 ${errors.number_of_devices ? 'border-red-500' : ''}`} />
+                {errors.number_of_devices && <p className="mt-1 text-red-600 text-sm">{errors.number_of_devices}</p>}
+              </div>
+
+              {selectedProductId && (
+                <div className="md:col-span-2">
+                  <label className="block mb-1 font-medium">Available IMEIs</label>
+                  <textarea
+                    readOnly
+                    rows={4}
+                    value={dealerProducts.find(p => p.product_id === +selectedProductId)
+                      ?.imeis_available.slice(0, form.number_of_devices || 0).join('\n')}
+                    className="w-full bg-gray-100 border rounded px-3 py-2 whitespace-pre-wrap text-sm"
+                  />
                 </div>
+              )}
+            </>
+          )}
 
-                {/* free‐mode product */}
-                {selectedDealer && (
-                  <div>
-                    <label className="block font-semibold mb-1">Select Product</label>
-                    <select
-                      value={selectedProductId}
-                      onChange={e => setSelectedProductId(e.target.value)}
-                      disabled={submitting}
-                      className={`w-full border rounded px-3 py-2 ${errors.product ? "border-red-500" : ""}`}
-                    >
-                      <option value="">-- choose product --</option>
-                      {dealerProducts.map(p => (
-                        <option key={p.product_id} value={p.product_id}>
-                          [{p.qty_available}] {p.device_name} {p.device_model}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.product && <p className="text-red-600 text-sm">{errors.product}</p>}
-                  </div>
-                )}
-
-                {/* free‐mode quantity */}
-                {selectedProductId && (
-                  <div>
-                    <label className="block font-semibold mb-1">Quantity</label>
-                    <input
-                      type="number"
-                      name="number_of_devices"
-                      min="1"
-                      max={
-                        dealerProducts.find(p => p.product_id === +selectedProductId)
-                          ?.qty_available || 1
-                      }
-                      value={form.number_of_devices}
-                      onChange={handleChange}
-                      disabled={submitting}
-                      className={`w-full border rounded px-3 py-2 ${errors.number_of_devices ? "border-red-500" : ""}`}
-                    />
-                    {errors.number_of_devices && (
-                      <p className="text-red-600 text-sm">{errors.number_of_devices}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* show available IMEIs */}
-                {selectedProductId && (() => {
-  const prod = dealerProducts.find(p => p.product_id === +selectedProductId);
-  if (!prod?.imeis_available?.length) return null;
-
-  // parse out how many the user requested
-  const qty = parseInt(form.number_of_devices, 10) || 0;
-  // take at most qty, capped by availability
-  const shownImeis = prod.imeis_available.slice(0, qty);
-
-  return (
-    <div className="mt-2">
-      <label className="block font-semibold mb-1">
-        Available IMEIs {qty > shownImeis.length && `(only ${shownImeis.length} available)`}
-      </label>
-      <textarea
-        readOnly
-        rows={Math.min(shownImeis.length, 6)}
-        value={shownImeis.join('\n')}
-        className="w-full border rounded px-3 py-2 bg-gray-100 whitespace-pre-wrap"
-      />
-    </div>
-  );
-})()}
-              </>
-            )
-          }
-
-          {/* BNPL */}
-          <div>
-            <label className="block font-semibold mb-1">BNPL Platform</label>
+          {/* BNPL Platform */}
+          <div className="md:col-span-2 lg:col-span-1">
+            <label className="block mb-1 font-medium">BNPL Platform</label>
             <select
               name="bnpl_platform"
               value={form.bnpl_platform}
               onChange={handleChange}
               disabled={submitting}
-              className={`w-full border rounded px-3 py-2 ${errors.bnpl_platform ? "border-red-500" : ""}`}
-            >
+              className={`w-full border rounded px-3 py-2 ${errors.bnpl_platform ? 'border-red-500' : ''}`}>
               <option value="">None</option>
               <option value="WATU">WATU</option>
               <option value="EASYBUY">EASYBUY</option>
               <option value="CREDIT DIRECT">CREDIT DIRECT</option>
             </select>
-            {errors.bnpl_platform && <p className="text-red-600 text-sm">{errors.bnpl_platform}</p>}
+            {errors.bnpl_platform && <p className="mt-1 text-red-600 text-sm">{errors.bnpl_platform}</p>}
           </div>
 
           {/* Customer Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2 lg:col-span-1 grid grid-cols-1 gap-4">
             <div>
-              <label className="block font-semibold mb-1">Customer Name</label>
+              <label className="block mb-1 font-medium">Customer Name</label>
               <input
                 name="customer_name"
                 value={form.customer_name}
                 onChange={handleChange}
                 disabled={submitting}
-                className={`w-full border rounded px-3 py-2 ${errors.customer_name ? "border-red-500" : ""}`}
-              />
-              {errors.customer_name && <p className="text-red-600 text-sm">{errors.customer_name}</p>}
+                className={`w-full border rounded px-3 py-2 ${errors.customer_name ? 'border-red-500' : ''}`} />
+              {errors.customer_name && <p className="mt-1 text-red-600 text-sm">{errors.customer_name}</p>}
             </div>
             <div>
-              <label className="block font-semibold mb-1">Customer Phone</label>
+              <label className="block mb-1 font-medium">Customer Phone</label>
               <input
                 name="customer_phone"
                 value={form.customer_phone}
                 onChange={handleChange}
                 disabled={submitting}
-                className={`w-full border rounded px-3 py-2 ${errors.customer_phone ? "border-red-500" : ""}`}
-              />
-              {errors.customer_phone && <p className="text-red-600 text-sm">{errors.customer_phone}</p>}
+                className={`w-full border rounded px-3 py-2 ${errors.customer_phone ? 'border-red-500' : ''}`} />
+              {errors.customer_phone && <p className="mt-1 text-red-600 text-sm">{errors.customer_phone}</p>}
             </div>
             <div className="md:col-span-2">
-              <label className="block font-semibold mb-1">Customer Address</label>
-              <input
+              <label className="block mb-1 font-medium">Customer Address</label>
+              <textarea
                 name="customer_address"
                 value={form.customer_address}
                 onChange={handleChange}
                 disabled={submitting}
-                className={`w-full border rounded px-3 py-2 ${errors.customer_address ? "border-red-500" : ""}`}
-              />
-              {errors.customer_address && <p className="text-red-600 text-sm">{errors.customer_address}</p>}
+                rows={2}
+                className={`w-full border rounded px-3 py-2 ${errors.customer_address ? 'border-red-500' : ''}`} />
+              {errors.customer_address && <p className="mt-1 text-red-600 text-sm">{errors.customer_address}</p>}
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className={`mt-4 w-full py-2 font-bold rounded ${
-              submitting
-                ? "bg-gray-400 text-gray-200 cursor-not-allowed"
-                : "bg-black text-[#FFD700]"
-            }`}
-          >
-            {submitting ? "Placing..." : "Place Order"}
-          </button>
+          <div className="md:col-span-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`w-full py-3 text-white rounded font-semibold transition-colors ${
+                submitting
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-black hover:bg-gray-800'
+              }`}
+            >
+              {submitting ? 'Placing...' : 'Place Order'}
+            </button>
+          </div>
         </form>
-      </div>
+      </section>
 
-      {/* ── YOUR ORDERS ───────────────────────── */}
-      <div className="bg-white p-6 rounded shadow overflow-x-auto">
+      {/* Your Orders */}
+      <section className="bg-white p-6 rounded-lg shadow overflow-x-auto">
         <h3 className="text-xl font-bold mb-4">Your Orders</h3>
         {orders.length ? (
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {["#","Device","Model","Qty","Amount","Date","Status"].map((h,i) => (
-                  <th key={i} className="px-4 py-2 text-left text-xs font-semibold uppercase">
-                    {h}
-                  </th>
-                ))}
+                <th className="px-2 py-1 text-left font-semibold">#</th>
+                <th className="px-2 py-1 text-left font-semibold">Device</th>
+                <th className="hidden sm:table-cell px-2 py-1 text-left font-semibold">Model</th>
+                <th className="px-2 py-1 text-left font-semibold">Qty</th>
+                <th className="px-2 py-1 text-right font-semibold">Amount</th>
+                <th className="hidden md:table-cell px-2 py-1 text-left font-semibold">Date</th>
+                <th className="px-2 py-1 text-left font-semibold">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {orders.map(o => (
                 <tr key={o.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm">{o.id}</td>
-                  <td className="px-4 py-2 text-sm">{o.device_name}</td>
-                  <td className="px-4 py-2 text-sm">{o.device_model}</td>
-                  <td className="px-4 py-2 text-sm">{o.number_of_devices}</td>
-                  <td className="px-4 py-2 text-sm">{o.sold_amount}</td>
-                  <td className="px-4 py-2 text-sm">{new Date(o.sale_date).toLocaleString()}</td>
-                  <td className="px-4 py-2 text-sm">{o.status || "pending"}</td>
+                  <td className="px-2 py-1">{o.id}</td>
+                  <td className="px-2 py-1">{o.device_name}</td>
+                  <td className="hidden sm:table-cell px-2 py-1">{o.device_model}</td>
+                  <td className="px-2 py-1">{o.number_of_devices}</td>
+                  <td className="px-2 py-1 text-right">₦{Number(o.sold_amount).toLocaleString()}</td>
+                  <td className="hidden md:table-cell px-2 py-1">{new Date(o.sale_date).toLocaleDateString()}</td>
+                  <td className="px-2 py-1 capitalize">{o.status}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="text-center text-gray-500 font-medium">No orders found.</p>
+          <p className="text-center text-gray-500">No orders found.</p>
         )}
-      </div>
+      </section>
     </div>
   );
 }

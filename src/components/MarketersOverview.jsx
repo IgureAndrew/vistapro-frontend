@@ -1,7 +1,6 @@
 // src/components/MarketersOverview.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { io } from "socket.io-client";
-import { useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
   Clock,
@@ -12,7 +11,6 @@ import {
 import api from "../api";
 
 export default function MarketersOverview() {
-  const navigate = useNavigate();
   const stored = localStorage.getItem("user");
   const currentUser = stored ? JSON.parse(stored) : {};
   const marketerName = currentUser.first_name
@@ -20,21 +18,16 @@ export default function MarketersOverview() {
     : currentUser.name || "You";
   const marketerId = currentUser.unique_id || "";
 
-  // All orders fetched/pushed
   const [orders, setOrders] = useState([]);
-
-  // Dashboard stats
-  const [stats, setStats] = useState({
+  const [stats,  setStats]  = useState({
     totalOrders: 0,
-    totalSales: 0,
+    totalSales:  0,
     pendingOrders: 0,
-    wallet: 0,              // ← commission earned
+    wallet:      0,
   });
-
-  // Date filter controls
   const [dateFilter, setDateFilter] = useState("All Time");
 
-  // 1) Real‑time socket listener for new orders
+  // live socket updates
   useEffect(() => {
     const socket = io(import.meta.env.VITE_API_URL, { transports: ["websocket"] });
     socket.on("new-order", newOrder => {
@@ -42,52 +35,44 @@ export default function MarketersOverview() {
         const amt = Number(newOrder.sold_amount) || 0;
         setOrders(prev => [newOrder, ...prev]);
         setStats(prev => ({
-          totalOrders: prev.totalOrders + 1,
-          totalSales: prev.totalSales + amt,
+          ...prev,
+          totalOrders:   prev.totalOrders + 1,
+          totalSales:    prev.totalSales + amt,
           pendingOrders: prev.pendingOrders + (newOrder.status === "pending" ? 1 : 0),
-          wallet: prev.wallet,
         }));
       }
     });
     return () => socket.disconnect();
   }, [marketerId]);
 
-  // 2) Initial fetch of orders + wallet balance
+  // initial fetch
   useEffect(() => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-
-        // a) fetch orders
-        const { data: orderData } = await api.get("/marketer/orders", {
-          headers: { Authorization: `Bearer ${token}` },
+        // orders
+        const { data: orderData } = await api.get("/marketer/orders/history", {
+          headers: { Authorization: `Bearer ${token}` }
         });
         const fetched = orderData.orders || [];
         setOrders(fetched);
 
-        // derive order stats
-        const derived = fetched.reduce(
-          (acc, o) => {
-            acc.totalOrders += 1;
-            acc.totalSales += Number(o.sold_amount) || 0;
-            if (o.status === "pending") acc.pendingOrders += 1;
-            return acc;
-          },
-          { totalOrders: 0, totalSales: 0, pendingOrders: 0 }
-        );
+        // derive stats from orders
+        const derived = fetched.reduce((acc, o) => {
+          acc.totalOrders++;
+          acc.totalSales += Number(o.sold_amount) || 0;
+          if (o.status === "pending") acc.pendingOrders++;
+          return acc;
+        }, { totalOrders: 0, totalSales: 0, pendingOrders: 0 });
+        setStats({ ...derived, wallet: 0 });
 
-        setStats({
-          ...derived,
-          wallet: 0, // placeholder until we fetch it
-        });
-
-        // b) fetch wallet/commission balance
-        const { data: walletData } = await api.get("/wallets", {
-          headers: { Authorization: `Bearer ${token}` },
+        // wallet
+        const { data } = await api.get("/wallets", {
+          headers: { Authorization: `Bearer ${token}` }
         });
         setStats(prev => ({
           ...prev,
-          wallet: walletData.balance ?? 0,
+          wallet: data.wallet.available_balance || 0
         }));
       } catch (err) {
         console.error("Error loading dashboard data:", err);
@@ -95,138 +80,124 @@ export default function MarketersOverview() {
     })();
   }, []);
 
-  // 3) Filter orders by date
+  // date filtering
   const filteredOrders = useMemo(() => {
     const now = new Date();
     return orders.filter(o => {
       const d = new Date(o.sale_date);
-      if (dateFilter === "Last 7 Days") {
+      if (dateFilter === "Last 7 Days")
         return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-      }
-      if (dateFilter === "Last 30 Days") {
+      if (dateFilter === "Last 30 Days")
         return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-      }
-      return true; // All Time
+      return true;
     });
   }, [orders, dateFilter]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 py-6 md:px-6 lg:px-12 space-y-6">
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {[
+          { icon: <ShoppingCart />, label: "Total Orders",   value: stats.totalOrders },
+          { icon: <Clock />,        label: "Pending Orders", value: stats.pendingOrders },
           {
-            icon: <ShoppingCart size={20} className="text-gray-500" />,
-            label: "Total Orders",
-            value: stats.totalOrders,
-            change: "+5.5%",
-            changeColor: "text-green-600",
-          },
-          {
-            icon: <Clock size={20} className="text-gray-500" />,
-            label: "Pending Orders",
-            value: stats.pendingOrders,
-            change: "+8.5%",
-            changeColor: "text-red-600",
-          },
-          {
-            icon: <BarChart2 size={20} className="text-gray-500" />,
+            icon: <BarChart2 />,
             label: "Total Sales",
-            value: `₦${stats.totalSales.toFixed(2)}`,
-            change: "+8.1%",
-            changeColor: "text-blue-600",
+            value: `₦${(Number(stats.totalSales) || 0).toFixed(2)}`
           },
           {
-            icon: <Wallet size={20} className="text-gray-500" />,
+            icon: <Wallet />,
             label: "Wallet",
-            value: `₦${stats.wallet.toFixed(2)}`,
-            change: "+12.3%",
-            changeColor: "text-purple-600",
+            value: `₦${(Number(stats.wallet) || 0).toFixed(2)}`
           },
-        ].map(({ icon, label, value, change, changeColor }, i) => (
+        ].map(({ icon, label, value }, i) => (
           <div
             key={i}
-            className="bg-white p-5 rounded-lg shadow flex flex-col justify-between"
+            className="bg-white p-4 sm:p-5 rounded-lg shadow flex flex-col justify-between"
           >
-            <div className="flex justify-between items-start">
-              {icon}
-              <MoreVertical size={16} className="text-gray-400 cursor-pointer" />
+            <div className="flex justify-between items-center">
+              <div className="text-gray-500">{icon}</div>
+              <MoreVertical className="text-gray-300 cursor-pointer" />
             </div>
-            <div className="mt-4">
-              <h3 className="text-sm text-gray-500">{label}</h3>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-            </div>
-            <p className={`mt-3 text-xs font-medium ${changeColor}`}>{change}</p>
-            <p className="text-xs text-gray-400">increased from last month</p>
+            <h3 className="mt-4 text-sm text-gray-500">{label}</h3>
+            <p className="mt-2 text-2xl font-bold truncate">{value}</p>
           </div>
         ))}
       </div>
 
-      {/* Recent Activity Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-lg font-semibold">Recent Activity 📝</h2>
-        <div className="flex items-center gap-3">
-          <select
-            className="border rounded px-3 py-1 text-sm"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-          >
-            {["All Time", "Last 7 Days", "Last 30 Days"].map(opt => (
-              <option key={opt}>{opt}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => navigate("/dashboard/order")}
-            className="bg-indigo-600 text-white px-4 py-1 rounded text-sm hover:bg-indigo-700"
-          >
-            New Order
-          </button>
-          <button className="bg-purple-600 text-white px-4 py-1 rounded text-sm hover:bg-purple-700">
-            Download Report
-          </button>
-        </div>
+      {/* Recent Activity Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h2 className="text-lg font-semibold text-indigo-600 border-b-2 border-indigo-600 pb-1">
+          Recent Activity 📝
+        </h2>
+        <select
+          className="w-full sm:w-auto border rounded px-3 py-1 text-sm"
+          value={dateFilter}
+          onChange={e => setDateFilter(e.target.value)}
+        >
+          {["All Time", "Last 7 Days", "Last 30 Days"].map(opt => (
+            <option key={opt}>{opt}</option>
+          ))}
+        </select>
       </div>
 
       {/* Recent Activity Table */}
-      <div className="overflow-x-auto bg-white rounded-lg shadow">
+      <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {[
-                "Marketer Name",
-                "Unique ID",
-                "Device Name",
-                "Device Model",
-                "Device Type",
-                "Price",
-                "BNPL Platform",
-                "Status",
-              ].map(hdr => (
-                <th
-                  key={hdr}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-                >
-                  {hdr}
-                </th>
-              ))}
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                Marketer
+              </th>
+              <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                ID
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                Device
+              </th>
+              <th className="hidden md:table-cell px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                Model
+              </th>
+              <th className="hidden lg:table-cell px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                Type
+              </th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                Price
+              </th>
+              <th className="hidden md:table-cell px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                BNPL
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                Status
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredOrders.length > 0 ? (
               filteredOrders.map(o => (
-                <tr key={o.id}>
-                  <td className="px-4 py-2 text-sm text-gray-700">{marketerName}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">{marketerId}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">{o.device_name}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">{o.device_model}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">{o.device_type}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
+                <tr key={o.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+                    {marketerName}
+                  </td>
+                  <td className="hidden sm:table-cell px-3 py-2 text-sm text-gray-700">
+                    {marketerId}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+                    {o.device_name}
+                  </td>
+                  <td className="hidden md:table-cell px-3 py-2 text-sm text-gray-700">
+                    {o.device_model}
+                  </td>
+                  <td className="hidden lg:table-cell px-3 py-2 text-sm text-gray-700">
+                    {o.device_type}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-700 text-right whitespace-nowrap">
                     ₦{Number(o.sold_amount).toLocaleString()}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
+                  <td className="hidden md:table-cell px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
                     {o.bnpl_platform || "No"}
                   </td>
-                  <td className="px-4 py-2 text-sm">
+                  <td className="px-3 py-2 text-sm">
                     <span
                       className={`px-2 inline-flex text-xs font-semibold rounded-full ${
                         o.status === "completed"
@@ -243,7 +214,7 @@ export default function MarketersOverview() {
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={8} className="px-3 py-6 text-center text-gray-500">
                   No orders found.
                 </td>
               </tr>
