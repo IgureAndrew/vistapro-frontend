@@ -13,6 +13,8 @@
     "@headlessui/react": "^2.2.3",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.0.1",
+    "@radix-ui/react-portal": "^1.1.8",
+    "@radix-ui/react-primitive": "^2.1.2",
     "@shadcn/ui": "^0.0.4",
     "@tailwindcss/vite": "^4.0.12",
     "axios": "^1.9.0",
@@ -23,6 +25,7 @@
     "react-chartjs-2": "^5.3.0",
     "react-datepicker": "^8.3.0",
     "react-dom": "^19.0.0",
+    "react-grid-layout": "^1.5.1",
     "react-hook-form": "^7.55.0",
     "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
@@ -41,6 +44,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
+    "path": "^0.12.7",
     "vite": "^6.2.0"
   }
 }

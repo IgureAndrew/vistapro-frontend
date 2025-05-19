@@ -178,59 +178,6 @@ export default function MarketerStockPickup() {
             )}
           </div>
 
-          <div>
-            <label className="block mb-1 font-medium">BNPL Platform</label>
-            <select
-              {...register("bnpl_platform", { required: true })}
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="">None</option>
-              <option value="WATU">WATU</option>
-              <option value="EASYBUY">EASYBUY</option>
-              <option value="CREDIT DIRECT">CREDIT DIRECT</option>
-            </select>
-            {errors.bnpl_platform && (
-              <p className="text-red-500 text-sm">Required.</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block mb-1 font-medium">Customer Name</label>
-            <input
-              {...register("customer_name", { required: true })}
-              className="w-full border rounded px-3 py-2"
-            />
-            {errors.customer_name && (
-              <p className="text-red-500 text-sm">Required.</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block mb-1 font-medium">Customer Phone</label>
-            <input
-              {...register("customer_phone", {
-                required: true,
-                pattern: /^[0-9]{7,15}$/
-              })}
-              className="w-full border rounded px-3 py-2"
-            />
-            {errors.customer_phone && (
-              <p className="text-red-500 text-sm">7–15 digits required.</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block mb-1 font-medium">Customer Address</label>
-            <textarea
-              rows={2}
-              {...register("customer_address", { required: true })}
-              className="w-full border rounded px-3 py-2"
-            />
-            {errors.customer_address && (
-              <p className="text-red-500 text-sm">Required.</p>
-            )}
-          </div>
-
           <button
             type="submit"
             disabled={isSubmitting}

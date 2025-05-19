@@ -155,7 +155,16 @@ export default function Product() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm("Delete this product?")) return;
+       // strong warning that this is irreversible and cascades to stock + inventory
+   const ok = window.confirm(
+     "⚠️ WARNING: You’re about to permanently delete this product “" +
+       products.find(p => p.id === id)?.device_name +
+       "” and ALL related stock-updates and inventory records.\n\n" +
+       "This action CANNOT be undone. Continue?"
+   );
+   if (!ok) return;
+
+
     try {
       const res = await fetch(`${PRODUCTS_URL}/${id}`, {
         method: "DELETE",
