@@ -12,7 +12,7 @@ export default function StockUpdates() {
   const [filter,  setFilter]  = useState("");
   const [now,     setNow]     = useState(Date.now());
   const [error,   setError]   = useState("");
-
+  const [notification, setNotification] = useState({ message: "", type: "" });
   // Live clock tick
   useEffect(() => {
     const tid = setInterval(() => setNow(Date.now()), 1000);
@@ -61,6 +61,15 @@ export default function StockUpdates() {
     );
   });
 
+  // Auto‐clear notification after 3s
+ useEffect(() => {
+   if (!notification.message) return;
+   const tid = setTimeout(() => {
+     setNotification({ message: "", type: "" });
+   }, 3000);
+   return () => clearTimeout(tid);
+ }, [notification]);
+
   // Approve / reject transfer
   const handleTransferAction = async (id, action) => {
     try {
@@ -69,8 +78,16 @@ export default function StockUpdates() {
         { action },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      setNotification({
+       message: `Transfer ${action}d successfully.`,
+       type: "success"
+     });
       loadUpdates();
     } catch (err) {
+      setNotification({
+       message: err.response?.data?.message || "Failed to update transfer",
+       type: "error"
+     });
       alert(err.response?.data?.message || "Failed to update transfer");
     }
   };
@@ -232,7 +249,7 @@ export default function StockUpdates() {
                       )}
 
                       {/* Confirm Return */}
-                      {u.status === "return_pending" && isMasterAdmin && (
+                      {u.status === "Pending Return" && isMasterAdmin && (
                         <button
                           onClick={() => handleConfirmReturn(u.id)}
                           className="px-2 py-1 bg-blue-600 text-white rounded"

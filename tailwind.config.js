@@ -1,16 +1,13 @@
-// tailwind.config.js
-import { shadcn } from '@shadcn/ui/tailwind'
-
-export default {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: [
-    './index.html',
-    './src/**/*.{js,ts,jsx,tsx}',
-    './components/ui/**/*.{js,ts,jsx,tsx}',  // ← your generated shadcn components
+    "./src/**/*.{js,jsx,ts,tsx}",
+    "./components/**/*.{js,jsx,ts,tsx}"   // ← where shadcn-ui dumped its files
   ],
   theme: {
     extend: {},
   },
   plugins: [
-    shadcn(),  // ← adds the tiny utilities that shadcn/ui components rely on
+    require("@shadcn/ui/tailwind")(),      // ← enable the plugin
   ],
-}
+};

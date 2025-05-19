@@ -13,7 +13,6 @@ export default function Product() {
   const [showForm, setShowForm] = useState(false);
   const [editing,  setEditing]  = useState(null);
 
-  // Static list of Nigerian states
   const nigeriaStates = [
     "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue",
     "Borno","Cross River","Delta","Ebonyi","Edo","Ekiti","Enugu","Gombe",
@@ -22,11 +21,9 @@ export default function Product() {
     "Rivers","Sokoto","Taraba","Yobe","Zamfara","FCT"
   ];
 
-  // Form state
   const [formData, setFormData] = useState({
     state: "",
     dealer_id: "",
-    dealer_business_name: "",
     device_type: "Android",
     device_name: "",
     device_model: "",
@@ -42,9 +39,7 @@ export default function Product() {
 
   async function fetchDealers() {
     try {
-      const res  = await fetch(DEALERS_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res  = await fetch(DEALERS_URL, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setDealers(data.dealers);
@@ -55,9 +50,7 @@ export default function Product() {
 
   async function fetchProducts() {
     try {
-      const res  = await fetch(PRODUCTS_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res  = await fetch(PRODUCTS_URL, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setProducts(data.products);
@@ -66,43 +59,30 @@ export default function Product() {
     }
   }
 
-  // Handle form field changes
   function handleChange(e) {
     const { name, value } = e.target;
     if (name === "state") {
-      // When state changes, clear dealer selection
-      setFormData(fd => ({
-        ...fd,
-        state: value,
-        dealer_id: "",
-        dealer_business_name: ""
-      }));
-    }
-    else if (name === "dealer_id") {
-      // When dealer changes, auto-flush business name
+      setFormData(fd => ({ ...fd, state: value, dealer_id: "" }));
+    } else if (name === "dealer_id") {
       const sel = dealers.find(d => d.id === +value);
       setFormData(fd => ({
         ...fd,
         dealer_id: +value,
-        dealer_business_name: sel?.business_name || "",
         state: sel?.location || fd.state
       }));
-    }
-    else {
+    } else {
       setFormData(fd => ({ ...fd, [name]: value }));
     }
   }
 
-  // IMEI helpers
   function addImeiField() {
     setFormData(fd => ({ ...fd, imeis: [...fd.imeis, ""] }));
   }
+
   function removeImeiField(idx) {
-    setFormData(fd => ({
-      ...fd,
-      imeis: fd.imeis.filter((_, i) => i !== idx)
-    }));
+    setFormData(fd => ({ ...fd, imeis: fd.imeis.filter((_, i) => i !== idx) }));
   }
+
   function handleImeiChange(idx, val) {
     setFormData(fd => {
       const imeis = [...fd.imeis];
@@ -111,23 +91,26 @@ export default function Product() {
     });
   }
 
-  // Submit new or updated product
   async function handleSubmit(e) {
     e.preventDefault();
+    const cleaned = formData.imeis.map(i => i.trim()).filter(i => i);
+    if (cleaned.some(i => !/^\d{15}$/.test(i))) {
+      return alert("All IMEIs must be 15 digits.");
+    }
+
     const method = editing ? "PUT" : "POST";
-    const url    = editing
-      ? `${PRODUCTS_URL}/${editing.id}`
-      : PRODUCTS_URL;
+    const url    = editing ? `${PRODUCTS_URL}/${editing.id}` : PRODUCTS_URL;
 
     const payload = {
-      dealer_id: formData.dealer_id,
-      dealer_business_name: formData.dealer_business_name,
-      device_type: formData.device_type,
-      device_name: formData.device_name,
-      device_model: formData.device_model,
-      cost_price: formData.cost_price,
-      selling_price: formData.selling_price,
-      ...(editing ? {} : { imeis: formData.imeis })
+      dealer_id:     formData.dealer_id,
+      device_type:   formData.device_type,
+      device_name:   formData.device_name,
+      device_model:  formData.device_model,
+      cost_price:    parseFloat(formData.cost_price),
+      selling_price: parseFloat(formData.selling_price),
+      ...(editing
+        ? (cleaned.length && { newImeis: cleaned })
+        : { imeis: cleaned })
     };
 
     try {
@@ -142,18 +125,12 @@ export default function Product() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // Reset form & refresh list
       setShowForm(false);
       setEditing(null);
       setFormData({
-        state: "",
-        dealer_id: "",
-        dealer_business_name: "",
-        device_type: "Android",
-        device_name: "",
-        device_model: "",
-        cost_price: "",
-        selling_price: "",
+        state: "", dealer_id: "", device_type: "Android",
+        device_name: "", device_model: "",
+        cost_price: "", selling_price: "",
         imeis: [""],
       });
       fetchProducts();
@@ -162,13 +139,11 @@ export default function Product() {
     }
   }
 
-  // Begin editing
   function handleEdit(p) {
     setEditing(p);
     setFormData({
       state: p.dealer_location,
       dealer_id: p.dealer_id,
-      dealer_business_name: p.dealer_name,
       device_type: p.device_type,
       device_name: p.device_name,
       device_model: p.device_model,
@@ -179,7 +154,6 @@ export default function Product() {
     setShowForm(true);
   }
 
-  // Delete product
   async function handleDelete(id) {
     if (!window.confirm("Delete this product?")) return;
     try {
@@ -195,7 +169,6 @@ export default function Product() {
     }
   }
 
-  // Filter for search bar
   const displayed = products.filter(p => {
     const q = filter.toLowerCase();
     return (
@@ -208,8 +181,8 @@ export default function Product() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Product Management</h1>
 
-      {/* Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 space-y-4 lg:space-y-0">
+      {/* Search & Add */}
+      <div className="flex flex-col lg:flex-row lg:justify-between mb-4 gap-4">
         <input
           type="text"
           placeholder="Search by device or dealer…"
@@ -219,26 +192,22 @@ export default function Product() {
         />
         <button
           onClick={() => { setShowForm(true); setEditing(null); }}
-          className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-medium"
+          className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-4 py-2"
         >
           Add Product
         </button>
       </div>
 
-      {/* Products Table */}
+      {/* Product Table */}
       <div className="bg-white shadow rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               {[
                 "ID","Dealer","Location","Type","Device","Model",
-                "Cost","Sell","Qty Available","Low Stock?","Available?",
-                "Profit","IMEIs","Actions"
+                "Cost","Sell","Qty","Low","Avail","Profit","IMEIs","Actions"
               ].map(h => (
-                <th
-                  key={h}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
+                <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   {h}
                 </th>
               ))}
@@ -249,23 +218,23 @@ export default function Product() {
               const profit = (parseFloat(p.selling_price) - parseFloat(p.cost_price) || 0).toFixed(2);
               return (
                 <tr key={p.id} className={!p.is_available ? "opacity-50" : ""}>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.id}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.dealer_name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.dealer_location}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.device_type}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.device_name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.device_model}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.cost_price}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.selling_price}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.quantity_available}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.is_low_stock ? "⚠️" : ""}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{p.is_available ? "✅" : "❌"}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{profit}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm">{p.id}</td>
+                  <td className="px-6 py-4 text-sm">{p.dealer_name}</td>
+                  <td className="px-6 py-4 text-sm">{p.dealer_location}</td>
+                  <td className="px-6 py-4 text-sm">{p.device_type}</td>
+                  <td className="px-6 py-4 text-sm">{p.device_name}</td>
+                  <td className="px-6 py-4 text-sm">{p.device_model}</td>
+                  <td className="px-6 py-4 text-sm">{p.cost_price}</td>
+                  <td className="px-6 py-4 text-sm">{p.selling_price}</td>
+                  <td className="px-6 py-4 text-sm">{p.quantity_available}</td>
+                  <td className="px-6 py-4 text-sm">{p.is_low_stock ? "⚠️" : ""}</td>
+                  <td className="px-6 py-4 text-sm">{p.is_available ? "✅" : "❌"}</td>
+                  <td className="px-6 py-4 text-sm">{profit}</td>
+                  <td className="px-6 py-4 text-sm">
                     {(p.available_imeis ?? []).slice(0,3).join(", ")}
-                    {p.available_imeis?.length > 3 ? ` +${p.available_imeis.length-3} more` : ""}
+                    {p.available_imeis?.length > 3 ? ` +${p.available_imeis.length-3}` : ""}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium space-x-2">
+                  <td className="px-6 py-4 text-sm space-x-2">
                     <button onClick={() => handleEdit(p)} className="text-indigo-600 hover:text-indigo-900">Edit</button>
                     <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-900">Delete</button>
                   </td>
@@ -282,13 +251,15 @@ export default function Product() {
         </table>
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Responsive Add/Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-lg">
-            <h2 className="text-xl mb-4">{editing ? "Edit Product" : "Add Product"}</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-md max-h-full overflow-y-auto p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {editing ? "Edit Product" : "Add Product"}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* State Selector */}
+              {/* State */}
               <div>
                 <label className="block text-sm mb-1">State</label>
                 <select
@@ -304,7 +275,7 @@ export default function Product() {
                 </select>
               </div>
 
-              {/* Dealer filtered by state */}
+              {/* Dealer */}
               <div>
                 <label className="block text-sm mb-1">Dealer</label>
                 <select
@@ -382,28 +353,55 @@ export default function Product() {
                 </div>
               </div>
 
-              {/* IMEIs (only on create) */}
-              {!editing && formData.imeis.map((imei,i) => (
-                <div key={i} className="flex items-center space-x-2">
-                  <input
-                    placeholder="15-digit IMEI"
-                    value={imei}
-                    onChange={e => handleImeiChange(i,e.target.value)}
-                    className="flex-1 border px-2 py-1"
-                  />
-                  <button type="button" onClick={() => removeImeiField(i)} className="text-red-600">✕</button>
-                </div>
-              ))}
-              {!editing && (
-                <button type="button" onClick={addImeiField} className="text-sm text-indigo-600">+ Add another IMEI</button>
-              )}
+              {/* IMEIs */}
+              <div>
+                <label className="block text-sm mb-1">
+                  {editing ? "Add New IMEIs" : "IMEIs (one per field)"}
+                </label>
+                {formData.imeis.map((imei, i) => (
+                  <div key={i} className="flex items-center space-x-2 mb-1">
+                    <input
+                      placeholder="15-digit IMEI"
+                      value={imei}
+                      onChange={e => handleImeiChange(i, e.target.value)}
+                      className="flex-1 border px-2 py-1"
+                    />
+                    {formData.imeis.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeImeiField(i)}
+                        className="text-red-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addImeiField}
+                  className="text-sm text-indigo-600"
+                >
+                  + Add another IMEI
+                </button>
+                <p className="text-xs text-gray-500 mt-1">
+                  Each IMEI must be 15 digits.
+                </p>
+              </div>
 
-              {/* Actions */}
-              <div className="flex justify-end space-x-2 pt-4">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded">
+              {/* Sticky footer */}
+              <div className="sticky bottom-0 bg-white -mx-6 px-6 py-4 border-t flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 border rounded hover:bg-gray-100"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
                   {editing ? "Save Changes" : "Create Product"}
                 </button>
               </div>
