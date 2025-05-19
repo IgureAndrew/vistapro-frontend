@@ -3,25 +3,26 @@ import React, { useEffect, useState } from 'react'
 import walletApi from '../api/walletApi'
 
 export default function Wallet() {
-  const [wallet,     setWallet]     = useState({
-    total_balance:     0,
+  const [wallet, setWallet] = useState({
+    total_balance: 0,
     available_balance: 0,
-    withheld_balance:  0,
-    account_name:      '',
-    account_number:    '',
-    bank_name:         '',
+    withheld_balance: 0,
+    account_name: '',
+    account_number: '',
+    bank_name: '',
   })
   const [transactions, setTransactions] = useState([])
-  const [withdrawals,  setWithdrawals]  = useState([])
-  const [form,         setForm]         = useState({
-    amount:         '',
-    account_name:   '',
+  const [withdrawals, setWithdrawals] = useState([])
+  const [form, setForm] = useState({
+    amount: '',
+    account_name: '',
     account_number: '',
-    bank_name:      ''
+    bank_name: '',
   })
-  const [error,   setError]   = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // Load balances, txns, withdrawals
   const loadAll = async () => {
     setLoading(true)
     try {
@@ -31,9 +32,9 @@ export default function Wallet() {
       setWithdrawals(data.withdrawals)
       setForm(f => ({
         ...f,
-        account_name:   data.wallet.account_name,
+        account_name: data.wallet.account_name,
         account_number: data.wallet.account_number,
-        bank_name:      data.wallet.bank_name
+        bank_name: data.wallet.bank_name
       }))
     } catch {
       setError('Failed to load wallet data')
@@ -42,10 +43,11 @@ export default function Wallet() {
     }
   }
 
-  useEffect(loadAll, [])
+  useEffect(() => {
+    loadAll()
+  }, [])
 
-  const fee = 100
-  const maxWithdraw = Math.max(wallet.available_balance - fee, 0)
+  const maxWithdraw = Math.max(wallet.available_balance - 100, 0)
 
   const handleChange = e => {
     const { name, value } = e.target
@@ -57,10 +59,10 @@ export default function Wallet() {
     setError('')
     try {
       await walletApi.post('/withdraw', {
-        amount:         Number(form.amount),
-        account_name:   form.account_name,
+        amount: Number(form.amount),
+        account_name: form.account_name,
         account_number: form.account_number,
-        bank_name:      form.bank_name
+        bank_name: form.bank_name
       })
       setForm(f => ({ ...f, amount: '' }))
       await loadAll()
@@ -74,28 +76,38 @@ export default function Wallet() {
   }
 
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-6">
+    <div className="px-4 py-6 max-w-3xl mx-auto space-y-6">
+
       {/* Balances */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           ['Total Balance', wallet.total_balance],
-          ['Available',     wallet.available_balance],
-          ['Withheld',      wallet.withheld_balance]
+          ['Available', wallet.available_balance],
+          ['Withheld', wallet.withheld_balance]
         ].map(([label, val]) => (
-          <div key={label} className="bg-white p-4 rounded-lg shadow flex flex-col">
-            <span className="text-sm text-gray-500">{label}</span>
-            <span className="mt-2 text-2xl font-bold">₦{(val||0).toLocaleString()}</span>
+          <div key={label} className="bg-white p-4 rounded-lg shadow">
+            <p className="text-sm text-gray-500">{label}</p>
+            <p className="mt-1 text-2xl font-bold">₦{(val || 0).toLocaleString()}</p>
           </div>
         ))}
       </div>
 
       {/* Withdrawal Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-4 rounded-lg shadow grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
-        <div>
-          <label className="block mb-1 font-medium">Amount</label>
+      <form onSubmit={handleSubmit} className="bg-white p-4 rounded-lg shadow space-y-4">
+        <h3 className="text-lg font-semibold">Request Withdrawal</h3>
+        <p className="text-sm text-gray-600">
+          Up to <strong>₦{maxWithdraw.toLocaleString()}</strong> (₦100 fee)
+        </p>
+
+        {/* Gross preview */}
+        {form.amount && Number(form.amount) > 0 && (
+          <p className="text-sm text-gray-700">
+            ₦{Number(form.amount).toLocaleString()} + ₦100 ={' '}
+            <strong>₦{(Number(form.amount) + 100).toLocaleString()}</strong>
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input
             type="number"
             name="amount"
@@ -103,125 +115,148 @@ export default function Wallet() {
             max={maxWithdraw}
             value={form.amount}
             onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            placeholder="₦ amount"
+            placeholder="Amount ₦"
             required
+            className="w-full border rounded px-3 py-2"
           />
-        </div>
-        <div>
-          <label className="block mb-1 font-medium">Account Name</label>
           <input
             type="text"
             name="account_name"
             value={form.account_name}
             onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
             placeholder="Account Name"
             required
+            className="w-full border rounded px-3 py-2"
           />
-        </div>
-        <div>
-          <label className="block mb-1 font-medium">Account Number</label>
           <input
             type="text"
             name="account_number"
             value={form.account_number}
             onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
             placeholder="Account Number"
             required
+            className="w-full border rounded px-3 py-2"
           />
-        </div>
-        <div>
-          <label className="block mb-1 font-medium">Bank Name</label>
           <input
             type="text"
             name="bank_name"
             value={form.bank_name}
             onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
             placeholder="Bank Name"
             required
+            className="w-full border rounded px-3 py-2"
           />
         </div>
 
-        {/* Fee & Gross Preview spans both columns */}
-        <div className="md:col-span-2 text-sm text-gray-700">
-          You may withdraw up to <strong>₦{maxWithdraw.toLocaleString()}</strong>
-          <span className="text-red-500 block">₦{fee.toLocaleString()} fee applies</span>
-          {form.amount && Number(form.amount) > 0 && (
-            <div className="mt-1 italic">
-              Gross total: ₦{Number(form.amount).toLocaleString()} + ₦{fee.toLocaleString()} ={' '}
-              <strong>₦{(Number(form.amount) + fee).toLocaleString()}</strong>
-            </div>
-          )}
-        </div>
-
-        {/* Submit spans both */}
         <button
           type="submit"
-          disabled={!form.amount || Number(form.amount) > maxWithdraw}
-          className="md:col-span-2 w-full py-2 font-semibold text-white rounded bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+          disabled={!form.amount || form.amount > maxWithdraw}
+          className="w-full bg-indigo-600 text-white py-2 rounded disabled:opacity-50"
         >
           Withdraw
         </button>
-
-        {error && <p className="md:col-span-2 text-red-600">{error}</p>}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
       </form>
 
       {/* Recent Transactions */}
-      <div className="bg-white p-4 rounded-lg shadow overflow-x-auto">
-        <h3 className="font-semibold mb-2">Recent Transactions</h3>
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-2 py-1 text-left">Date</th>
-              <th className="hidden sm:table-cell px-2 py-1 text-left">Type</th>
-              <th className="px-2 py-1 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map(tx => (
-              <tr key={tx.id} className="hover:bg-gray-50">
-                <td className="px-2 py-1">{new Date(tx.created_at).toLocaleString()}</td>
-                <td className="hidden sm:table-cell px-2 py-1">{tx.transaction_type}</td>
-                <td className={`px-2 py-1 text-right font-semibold ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  ₦{Math.abs(tx.amount).toLocaleString()}
-                </td>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Recent Transactions</h3>
+
+        {/* Mobile cards */}
+        <div className="sm:hidden space-y-3">
+          {transactions.length === 0 ? (
+            <p className="text-gray-500">No transactions.</p>
+          ) : transactions.map(tx => (
+            <div key={tx.id} className="bg-white p-3 rounded-lg shadow">
+              <p className="text-sm text-gray-600">
+                {new Date(tx.created_at).toLocaleString()}
+              </p>
+              <p className="font-medium">{tx.transaction_type}</p>
+              <p className={`mt-1 font-semibold ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                ₦{Math.abs(tx.amount).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table on sm+ */}
+        <div className="hidden sm:block bg-white rounded-lg shadow overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 text-gray-600">
+              <tr>
+                <th className="px-3 py-2 text-left">Date</th>
+                <th className="px-3 py-2 text-left">Type</th>
+                <th className="px-3 py-2 text-left">Amount</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {transactions.map(tx => (
+                <tr key={tx.id} className="border-b">
+                  <td className="px-3 py-2">{new Date(tx.created_at).toLocaleString()}</td>
+                  <td className="px-3 py-2">{tx.transaction_type}</td>
+                  <td className={`px-3 py-2 font-semibold ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ₦{Math.abs(tx.amount).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Withdrawal History */}
-      <div className="bg-white p-4 rounded-lg shadow overflow-x-auto">
-        <h3 className="font-semibold mb-2">Withdrawal History</h3>
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-2 py-1 text-left">Date</th>
-              <th className="hidden sm:table-cell px-2 py-1 text-right">Amount</th>
-              <th className="px-2 py-1 text-right">Fee</th>
-              <th className="px-2 py-1 text-right">Total</th>
-              <th className="hidden md:table-cell px-2 py-1 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {withdrawals.map(w => {
-              const gross = w.amount + w.fee
-              return (
-                <tr key={w.id} className="hover:bg-gray-50">
-                  <td className="px-2 py-1">{new Date(w.requested_at).toLocaleString()}</td>
-                  <td className="hidden sm:table-cell px-2 py-1 text-right">₦{w.amount.toLocaleString()}</td>
-                  <td className="px-2 py-1 text-right">₦{w.fee.toLocaleString()}</td>
-                  <td className="px-2 py-1 text-right">₦{gross.toLocaleString()}</td>
-                  <td className="hidden md:table-cell px-2 py-1">{w.status}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Withdrawal History</h3>
+
+        {/* Mobile cards */}
+        <div className="sm:hidden space-y-3">
+          {withdrawals.length === 0 ? (
+            <p className="text-gray-500">No withdrawals.</p>
+          ) : withdrawals.map(w => {
+            const gross = w.amount + w.fee
+            return (
+              <div key={w.id} className="bg-white p-3 rounded-lg shadow">
+                <p className="text-sm text-gray-600">
+                  {new Date(w.requested_at).toLocaleString()}
+                </p>
+                <p className="mt-1">
+                  ₦{w.amount.toLocaleString()} + ₦{w.fee.toLocaleString()}
+                </p>
+                <p className="font-semibold">Total ₦{gross.toLocaleString()}</p>
+                <p className="mt-1">{w.status}</p>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Table on sm+ */}
+        <div className="hidden sm:block bg-white rounded-lg shadow overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 text-gray-600">
+              <tr>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Amt + Fee</th>
+                <th className="px-3 py-2">Total</th>
+                <th className="px-3 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {withdrawals.map(w => {
+                const gross = w.amount + w.fee
+                return (
+                  <tr key={w.id} className="border-b">
+                    <td className="px-3 py-2">{new Date(w.requested_at).toLocaleString()}</td>
+                    <td className="px-3 py-2">
+                      ₦{w.amount.toLocaleString()} + ₦{w.fee.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2">₦{gross.toLocaleString()}</td>
+                    <td className="px-3 py-2">{w.status}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
