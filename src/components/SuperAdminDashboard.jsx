@@ -1,20 +1,18 @@
-// src/components/SuperAdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Menu,
   X,
+  LogOut,
   Home,
   User,
-  FileText,
   Package,
   ShoppingCart,
   ClipboardList,
-  LogOut,
   MessageSquare,
   CheckCircle,
   FilePlus,
-  UserPlus,
+  UserPlus
 } from 'lucide-react';
 
 import SuperAdminOverview   from './SuperAdminOverview';
@@ -74,116 +72,96 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      {/* Mobile Header */}
-      <header className="md:hidden h-16 flex items-center justify-between px-4 border-b border-gray-200 bg-white">
-        <button onClick={() => setSidebarOpen(o => !o)} className="p-2">
-          {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
-        </button>
-        <h2 className="font-bold text-lg">Vistapro</h2>
-        <div className="flex items-center gap-4">
-          <NotificationBell />
-          <AvatarDropdown
-            user={user}
-            onLogout={handleLogout}
-            onNavigate={setActiveModule}
-          />
-        </div>
-      </header>
+  // Define sidebar items
+  const sidebarItems = [
+    { label: 'Overview', icon: Home,         key: 'overview' },
+    { label: 'Profile',  icon: User,         key: 'profile' },
+    { label: 'Stock',    icon: Package,      key: 'stock' },
+    { label: 'Products', icon: ShoppingCart, key: 'product' },
+    { label: 'Orders',   icon: ClipboardList,key: 'manage-orders' },
+    { label: 'Wallet',   icon: () => <span className="text-xl">₦</span>, key: 'wallet' },
+    { label: 'Messages', icon: MessageSquare,key: 'messages' },
+    { label: 'Verify',   icon: CheckCircle,  key: 'verification' },
+    { label: 'Subs',     icon: FilePlus,     key: 'submissions' },
+    { label: 'Assign',   icon: UserPlus,     key: 'assign' }
+  ];
 
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <aside className={`${sidebarOpen ? 'block' : 'hidden'} md:block w-64 bg-white border-r border-gray-200`}>
-          <div className="p-4 text-center font-bold text-xl border-b border-gray-200">
-            Vistapro
-          </div>
-          <nav className="p-3">
-            <ul className="space-y-2 text-sm">
-              <SidebarItem label="Overview"      Icon={Home}          moduleName="overview"      {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Profile"       Icon={User}          moduleName="profile"       {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Stock"         Icon={Package}       moduleName="stock"         {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Products"      Icon={ShoppingCart}  moduleName="product"       {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Manage Orders" Icon={ClipboardList} moduleName="manage-orders" {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem
-                label="Wallet"
-                Icon={() => <span className="text-xl">₦</span>}
-                moduleName="wallet"
-                {...{activeModule,setActiveModule,setSidebarOpen}}
-              />
-              <SidebarItem label="Messages"     Icon={MessageSquare} moduleName="messages"      {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Verification" Icon={CheckCircle}   moduleName="verification"  {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Submissions"  Icon={FilePlus}      moduleName="submissions"   {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <SidebarItem label="Assign"       Icon={UserPlus}      moduleName="assign"        {...{activeModule,setActiveModule,setSidebarOpen}}/>
-              <li>
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r p-4 flex flex-col transition-transform ease-in-out duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <div className="text-2xl font-bold mb-8 text-center">Vistapro</div>
+        <nav className="flex-1 overflow-auto">
+          <ul className="space-y-2">
+            {sidebarItems.map(({ label, icon: Icon, key }) => (
+              <li key={key}>
                 <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100"
+                  onClick={() => { setActiveModule(key); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${activeModule===key ? 'bg-blue-100 font-semibold' : 'hover:bg-gray-100'}`}
                 >
-                  <LogOut size={16}/> Logout
+                  <Icon size={18} />
+                  <span>{label}</span>
                 </button>
               </li>
-            </ul>
-          </nav>
-        </aside>
+            ))}
+          </ul>
+        </nav>
+        <button
+          onClick={handleLogout}
+          className="mt-auto flex items-center gap-2 text-red-600 hover:text-red-800 p-2 rounded-lg"
+        >
+          <LogOut size={16} /> Logout
+        </button>
+      </aside>
 
-        {/* Main content */}
-        <div className="flex-1 flex flex-col">
-          {/* Desktop Header */}
-          <header className="hidden md:flex h-16 items-center justify-between px-6 border-b border-gray-200 bg-white">
-            <div>
-              <h2 className="text-xl font-bold">
-                {greeting}, {user ? `${user.first_name} ${user.last_name}` : 'Super Admin'}!
-              </h2>
-              {user?.unique_id && (
-                <p className="text-sm text-gray-500">ID: {user.unique_id}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              <NotificationBell />
-              <AvatarDropdown
-                user={user}
-                onLogout={handleLogout}
-                onNavigate={setActiveModule}
-              />
-            </div>
-          </header>
+      <div className="flex-1 flex flex-col ml-0 md:ml-64">
+        {/* Header */}
+        <header className="flex items-center justify-between h-16 bg-white border-b px-6">
+          <div className="flex items-center gap-4 md:hidden">
+            <button onClick={() => setSidebarOpen(o => !o)}>
+              {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
+            </button>
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold">{greeting}, {user && `${user.first_name} ${user.last_name}`}!</h1>
+            <p className="text-sm text-gray-500">ID: {user?.unique_id}</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <AvatarDropdown user={user} onLogout={handleLogout} onNavigate={setActiveModule}/>
+          </div>
+        </header>
 
-          {/* Rendered Module */}
-          <main className="flex-1 overflow-auto p-6 bg-gray-50">
-            {renderModule()}
-          </main>
-        </div>
+        {/* Main */}
+        <main className="flex-1 overflow-auto p-6">
+          {/* Metric Cards (only on overview) */}
+          {activeModule === 'overview' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white p-4 rounded-lg shadow">
+                <p className="text-sm text-gray-500">Total Orders</p>
+                <p className="text-2xl font-bold">--</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow">
+                <p className="text-sm text-gray-500">Pending Orders</p>
+                <p className="text-2xl font-bold">--</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow">
+                <p className="text-sm text-gray-500">Confirmed Sales</p>
+                <p className="text-2xl font-bold">--</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow">
+                <p className="text-sm text-gray-500">Total Commission</p>
+                <p className="text-2xl font-bold">₦--</p>
+              </div>
+            </div>
+          )}
+
+          {/* Content Panel */}
+          <div className="bg-white rounded-lg shadow p-6">
+            { renderModule() }
+          </div>
+        </main>
       </div>
     </div>
-  );
-}
-
-// Sidebar item helper
-function SidebarItem({
-  label,
-  Icon,
-  moduleName,
-  activeModule,
-  setActiveModule,
-  setSidebarOpen
-}) {
-  const isActive = activeModule === moduleName;
-  const onClick = () => {
-    setActiveModule(moduleName);
-    setSidebarOpen(false);
-  };
-  return (
-    <li>
-      <button
-        onClick={onClick}
-        className={`w-full flex items-center gap-2 px-3 py-2 rounded transition ${
-          isActive ? 'bg-blue-100 font-semibold' : 'hover:bg-gray-100'
-        }`}
-      >
-        {Icon && <Icon size={16}/>}
-        <span>{label}</span>
-      </button>
-    </li>
   );
 }

@@ -118,6 +118,13 @@ export default function VerificationMarketer({ onComplete }) {
     );
   }
 
+  // Build steps with tick icons
+  const steps = [
+    { key: "biodata",    label: "Biodata",    icon: completed[0] ? "✅" : "1" },
+    { key: "guarantor",  label: "Guarantor",  icon: completed[1] ? "✅" : "2" },
+    { key: "commitment", label: "Commitment", icon: completed[2] ? "✅" : "3" },
+  ];
+
   const renderForm = () => {
     switch (FORM_KEYS[activeIndex]) {
       case "biodata":
@@ -139,11 +146,7 @@ export default function VerificationMarketer({ onComplete }) {
         </h1>
 
         <FormStepper
-          steps={[
-            { key: "biodata",    label: "Biodata" },
-            { key: "guarantor",  label: "Guarantor" },
-            { key: "commitment", label: "Commitment" },
-          ]}
+          steps={steps}
           activeIndex={activeIndex}
           completed={completed}
           onStepClick={idx => {

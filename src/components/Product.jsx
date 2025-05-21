@@ -2,7 +2,12 @@
 import React, { useState, useEffect } from "react";
 
 export default function Product() {
-  const API_ROOT      = import.meta.env.VITE_API_URL + "/api";
+  // get current user & role
+  const stored      = localStorage.getItem("user");
+  const currentUser = stored ? JSON.parse(stored) : {};
+  const role        = currentUser.role; // "MasterAdmin", "Admin", or "SuperAdmin"
+
+  const API_ROOT     = import.meta.env.VITE_API_URL + "/api";
   const PRODUCTS_URL = `${API_ROOT}/products`;
   const DEALERS_URL  = `${API_ROOT}/master-admin/dealers`;
   const token        = localStorage.getItem("token") || "";
@@ -32,6 +37,7 @@ export default function Product() {
     imeis: [""],
   });
 
+  // ── Fetch dealers & products ───────────────────────
   useEffect(() => {
     fetchDealers();
     fetchProducts();
@@ -39,7 +45,9 @@ export default function Product() {
 
   async function fetchDealers() {
     try {
-      const res  = await fetch(DEALERS_URL, { headers: { Authorization: `Bearer ${token}` } });
+      const res  = await fetch(DEALERS_URL, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setDealers(data.dealers);
@@ -50,7 +58,9 @@ export default function Product() {
 
   async function fetchProducts() {
     try {
-      const res  = await fetch(PRODUCTS_URL, { headers: { Authorization: `Bearer ${token}` } });
+      const res  = await fetch(PRODUCTS_URL, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setProducts(data.products);
@@ -59,6 +69,7 @@ export default function Product() {
     }
   }
 
+  // ── Form handlers ───────────────────────────────────
   function handleChange(e) {
     const { name, value } = e.target;
     if (name === "state") {
@@ -80,7 +91,10 @@ export default function Product() {
   }
 
   function removeImeiField(idx) {
-    setFormData(fd => ({ ...fd, imeis: fd.imeis.filter((_, i) => i !== idx) }));
+    setFormData(fd => ({
+      ...fd,
+      imeis: fd.imeis.filter((_, i) => i !== idx)
+    }));
   }
 
   function handleImeiChange(idx, val) {
@@ -93,13 +107,16 @@ export default function Product() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    // validate 15-digit IMEIs
     const cleaned = formData.imeis.map(i => i.trim()).filter(i => i);
     if (cleaned.some(i => !/^\d{15}$/.test(i))) {
-      return alert("All IMEIs must be 15 digits.");
+      return alert("All IMEIs must be exactly 15 digits.");
     }
 
     const method = editing ? "PUT" : "POST";
-    const url    = editing ? `${PRODUCTS_URL}/${editing.id}` : PRODUCTS_URL;
+    const url    = editing
+      ? `${PRODUCTS_URL}/${editing.id}`
+      : PRODUCTS_URL;
 
     const payload = {
       dealer_id:     formData.dealer_id,
@@ -108,17 +125,15 @@ export default function Product() {
       device_model:  formData.device_model,
       cost_price:    parseFloat(formData.cost_price),
       selling_price: parseFloat(formData.selling_price),
-      ...(editing
-        ? (cleaned.length && { newImeis: cleaned })
-        : { imeis: cleaned })
+      imeis:         cleaned,
     };
 
     try {
-      const res  = await fetch(url, {
+      const res = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          Authorization:  `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       });
@@ -127,43 +142,31 @@ export default function Product() {
 
       setShowForm(false);
       setEditing(null);
-      setFormData({
-        state: "", dealer_id: "", device_type: "Android",
-        device_name: "", device_model: "",
-        cost_price: "", selling_price: "",
-        imeis: [""],
-      });
       fetchProducts();
     } catch (err) {
       alert(err.message || "Operation failed");
     }
   }
 
-  function handleEdit(p) {
+  function startEdit(p) {
     setEditing(p);
-    setFormData({
-      state: p.dealer_location,
-      dealer_id: p.dealer_id,
-      device_type: p.device_type,
-      device_name: p.device_name,
-      device_model: p.device_model,
-      cost_price: String(p.cost_price),
-      selling_price: String(p.selling_price),
-      imeis: [""],
-    });
     setShowForm(true);
+    setFormData({
+      state:         p.dealer_location,
+      dealer_id:     p.dealer_id,
+      device_type:   p.device_type,
+      device_name:   p.device_name,
+      device_model:  p.device_model,
+      cost_price:    String(p.cost_price),
+      selling_price: String(p.selling_price),
+      imeis:         [""],
+    });
   }
 
   async function handleDelete(id) {
-       // strong warning that this is irreversible and cascades to stock + inventory
-   const ok = window.confirm(
-     "⚠️ WARNING: You’re about to permanently delete this product “" +
-       products.find(p => p.id === id)?.device_name +
-       "” and ALL related stock-updates and inventory records.\n\n" +
-       "This action CANNOT be undone. Continue?"
-   );
-   if (!ok) return;
-
+    if (!window.confirm(
+      "⚠️ This will permanently delete this product and its related stock.\nContinue?"
+    )) return;
 
     try {
       const res = await fetch(`${PRODUCTS_URL}/${id}`, {
@@ -178,6 +181,7 @@ export default function Product() {
     }
   }
 
+  // ── Filtered list ────────────────────────────────
   const displayed = products.filter(p => {
     const q = filter.toLowerCase();
     return (
@@ -190,24 +194,30 @@ export default function Product() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Product Management</h1>
 
-      {/* Search & Add */}
-      <div className="flex flex-col lg:flex-row lg:justify-between mb-4 gap-4">
+      {/* Add button only for MasterAdmin */}
+      {role === "MasterAdmin" && (
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => { setShowForm(true); setEditing(null); }}
+            className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-4 py-2"
+          >
+            Add Product
+          </button>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="mb-4">
         <input
           type="text"
           placeholder="Search by device or dealer…"
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          className="w-full lg:w-1/3 border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+          className="w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
         />
-        <button
-          onClick={() => { setShowForm(true); setEditing(null); }}
-          className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-4 py-2"
-        >
-          Add Product
-        </button>
       </div>
 
-      {/* Product Table */}
+      {/* Table */}
       <div className="bg-white shadow rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -216,7 +226,10 @@ export default function Product() {
                 "ID","Dealer","Location","Type","Device","Model",
                 "Cost","Sell","Qty","Low","Avail","Profit","IMEIs","Actions"
               ].map(h => (
-                <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th
+                  key={h}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+                >
                   {h}
                 </th>
               ))}
@@ -224,7 +237,7 @@ export default function Product() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {displayed.length ? displayed.map(p => {
-              const profit = (parseFloat(p.selling_price) - parseFloat(p.cost_price) || 0).toFixed(2);
+              const profit = (p.selling_price - p.cost_price).toFixed(2);
               return (
                 <tr key={p.id} className={!p.is_available ? "opacity-50" : ""}>
                   <td className="px-6 py-4 text-sm">{p.id}</td>
@@ -241,17 +254,39 @@ export default function Product() {
                   <td className="px-6 py-4 text-sm">{profit}</td>
                   <td className="px-6 py-4 text-sm">
                     {(p.available_imeis ?? []).slice(0,3).join(", ")}
-                    {p.available_imeis?.length > 3 ? ` +${p.available_imeis.length-3}` : ""}
+                    {p.available_imeis?.length > 3
+                      ? ` +${p.available_imeis.length - 3}`
+                      : ""}
                   </td>
                   <td className="px-6 py-4 text-sm space-x-2">
-                    <button onClick={() => handleEdit(p)} className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                    <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                    {/* only MasterAdmin can edit/delete */}
+                    {role === "MasterAdmin" ? (
+                      <>
+                        <button
+                          onClick={() => startEdit(p)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-gray-400 italic">—</span>
+                    )}
                   </td>
                 </tr>
               );
             }) : (
               <tr>
-                <td colSpan={14} className="px-6 py-4 text-center text-sm text-gray-500">
+                <td
+                  colSpan={14}
+                  className="px-6 py-4 text-center text-sm text-gray-500"
+                >
                   No products found.
                 </td>
               </tr>
@@ -260,8 +295,8 @@ export default function Product() {
         </table>
       </div>
 
-      {/* Responsive Add/Edit Modal */}
-      {showForm && (
+      {/* Modal (only for MasterAdmin) */}
+      {showForm && role === "MasterAdmin" && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg w-full max-w-md max-h-full overflow-y-auto p-6">
             <h2 className="text-xl font-semibold mb-4">
@@ -365,7 +400,7 @@ export default function Product() {
               {/* IMEIs */}
               <div>
                 <label className="block text-sm mb-1">
-                  {editing ? "Add New IMEIs" : "IMEIs (one per field)"}
+                  {editing ? "Add New IMEIs" : "IMEIs (15-digit each)"}
                 </label>
                 {formData.imeis.map((imei, i) => (
                   <div key={i} className="flex items-center space-x-2 mb-1">
@@ -393,12 +428,9 @@ export default function Product() {
                 >
                   + Add another IMEI
                 </button>
-                <p className="text-xs text-gray-500 mt-1">
-                  Each IMEI must be 15 digits.
-                </p>
               </div>
 
-              {/* Sticky footer */}
+              {/* Sticky Footer */}
               <div className="sticky bottom-0 bg-white -mx-6 px-6 py-4 border-t flex justify-between">
                 <button
                   type="button"

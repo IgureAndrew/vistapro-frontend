@@ -43,10 +43,12 @@ export default function ApplicantBiodataForm({ onSuccess }) {
   });
   const [passportPhoto, setPassportPhoto] = useState(null);
   const [identificationFile, setIdentificationFile] = useState(null);
+  const [errors, setErrors] = useState({});
 
   const handleChange = e => {
     const { name, value } = e.target;
     setFormData(f => ({ ...f, [name]: value }));
+    setErrors(errs => ({ ...errs, [name]: null }));
   };
   const handlePassportPhotoChange = e =>
     e.target.files[0] && setPassportPhoto(e.target.files[0]);
@@ -58,11 +60,14 @@ export default function ApplicantBiodataForm({ onSuccess }) {
 
   const handleSubmit = async e => {
     e.preventDefault();
+    // client-side format checks
     if (!isValidPhone(formData.phone)) {
-      return alert("Phone number must be exactly 11 digits.");
+      setErrors({ phone: "Phone number must be exactly 11 digits." });
+      return;
     }
     if (!isValidAccountNumber(formData.account_number)) {
-      return alert("Account number must be exactly 10 digits.");
+      setErrors({ account_number: "Account number must be exactly 10 digits." });
+      return;
     }
 
     const payload = new FormData();
@@ -71,6 +76,7 @@ export default function ApplicantBiodataForm({ onSuccess }) {
     if (formData.means_of_identification && identificationFile) {
       payload.append("id_document", identificationFile);
     }
+
 
     try {
       const res1 = await api.post("/verification/bio-data", payload);
@@ -108,9 +114,14 @@ export default function ApplicantBiodataForm({ onSuccess }) {
       });
       setPassportPhoto(null);
       setIdentificationFile(null);
+     setErrors({});
     } catch (err) {
-      console.error(err);
-      alert("Error submitting biodata.");
+      const { field, message } = err.response?.data || {};
+      if (field) {
+        setErrors({ [field]: message });
+      } else {
+        alert("Unexpected error, please try again.");
+      }
     }
   };
 
@@ -146,15 +157,17 @@ export default function ApplicantBiodataForm({ onSuccess }) {
 
           <div>
             <label className="block text-sm font-medium">PHONE NO:</label>
-            <input
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              required
-              pattern="\d{11}"
-              placeholder="08012345678"
-              className="mt-1 block w-full border rounded p-2"
-            />
+             <input
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            required
+            placeholder="08012345678"
+            className="mt-1 block w-full border rounded p-2"
+          />
+          {errors.phone && (
+            <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+          )}
           </div>
           <div>
             <label className="block text-sm font-medium">RELIGION:</label>
@@ -399,15 +412,18 @@ export default function ApplicantBiodataForm({ onSuccess }) {
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium">ACCOUNT NO:</label>
-            <input
-              name="account_number"
-              value={formData.account_number}
-              onChange={handleChange}
-              required
-              placeholder="10 digits only"
-              pattern="\d{10}"
-              className="mt-1 block w-full border rounded p-2"
-            />
+            <label className="block text-sm font-medium">ACCOUNT NO:</label>
+          <input
+            name="account_number"
+            value={formData.account_number}
+            onChange={handleChange}
+            required
+            placeholder="10 digits only"
+            className="mt-1 block w-full border rounded p-2"
+          />
+          {errors.account_number && (
+            <p className="text-red-500 text-sm mt-1">{errors.account_number}</p>
+          )}
           </div>
         </div>
 

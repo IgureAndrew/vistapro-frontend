@@ -1,15 +1,15 @@
-// src/components/ProfitReport.jsx
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import profitReportApi from '../api/profitReportApi'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
-  LineChart,
-  Line,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer
+  Legend
 } from 'recharts'
 
 export default function ProfitReport() {
@@ -18,48 +18,88 @@ export default function ProfitReport() {
   const [endDate, setEndDate]       = useState(new Date())
   const [deviceType, setDeviceType] = useState('')
   const [deviceName, setDeviceName] = useState('')
+  const [groupBy, setGroupBy]       = useState('daily') // 'daily'|'weekly'|'monthly'
   const [loading, setLoading]       = useState(false)
 
   // ─── Data ───────────────────────────────────────────────────────────────────
-  const [snapshot, setSnapshot]     = useState({ expected_profit_before: '0.00' })
-  const [goals, setGoals]           = useState({ goal_units: 0, goal_profit_after: 0 })
-  const [daily, setDaily]           = useState([])
   const [aggregated, setAggregated] = useState([])
 
-  // format YYYY-MM-DD
+  // format YYYY-MM-DD helper
   const fmt = d => d.toISOString().slice(0,10)
 
-  // ─── Load static once ───────────────────────────────────────────────────────
-  useEffect(() => {
-    profitReportApi.get('/inventory-snapshot')
-      .then(res => setSnapshot(res.data))
-      .catch(console.error)
-
-    profitReportApi.get('/goals')
-      .then(res => setGoals(res.data))
-      .catch(console.error)
-  }, [])
-
-  // ─── Fetch dynamic on filter ─────────────────────────────────────────────────
-  const fetchReports = () => {
+  // ─── Fetch aggregated on filter apply ────────────────────────────────────────
+  const fetchReports = useCallback(async () => {
     setLoading(true)
-    const params = {
-      start: fmt(startDate),
-      end:   fmt(endDate),
-      ...(deviceType && { deviceType }),
-      ...(deviceName && { deviceName })
+    try {
+      const params = {
+        start: fmt(startDate),
+        end:   fmt(endDate),
+        ...(deviceType && { deviceType }),
+        ...(deviceName && { deviceName })
+      }
+      const res = await profitReportApi.get('/aggregated', { params })
+      setAggregated(res.data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
+  }, [startDate, endDate, deviceType, deviceName])
 
-    profitReportApi.get('/aggregated', { params })
-      .then(res => setAggregated(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
+  useEffect(() => {
+    fetchReports()
+  }, [fetchReports])
+
+  // weekly/monthly grouping helpers
+  function getWeekLabel(dateString) {
+    const d = new Date(dateString)
+    const target = new Date(d.valueOf())
+    const dayNr = (d.getDay() + 6) % 7
+    target.setDate(target.getDate() - dayNr + 3)
+    const firstThursday = target.valueOf()
+    const yearStart = new Date(target.getFullYear(),0,1).valueOf()
+    const weekNo = 1 + Math.round((firstThursday - yearStart) / (7 * 864e5))
+    return `${target.getFullYear()}-W${String(weekNo).padStart(2,'0')}`
+  }
+  function getMonthLabel(dateString) {
+    const d = new Date(dateString)
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
   }
 
-  useEffect(fetchReports, [])
+  // ─── Prepare display rows ───────────────────────────────────────────────────
+  const displayData = useMemo(() => {
+    if (!aggregated.length) return []
 
-  // ─── Totals ─────────────────────────────────────────────────────────────────
-  const totalUnits = aggregated.reduce((sum, row) => sum + (row.total_units_sold || 0), 0)
+    if (groupBy === 'daily') {
+      return aggregated.map(r => ({
+        period:  r.sale_day,
+        units:   Number(r.total_units_sold),
+        device:  r.device_name,
+        model:   r.device_model,
+        revenue: Number(r.total_revenue),
+        before:  Number(r.total_initial_profit),
+        expense: Number(r.total_commission_expense),
+        after:   Number(r.total_final_profit)
+      }))
+    }
+
+    const bucket = {}
+    aggregated.forEach(r => {
+      const key = groupBy === 'weekly'
+        ? getWeekLabel(r.sale_day)
+        : getMonthLabel(r.sale_day)
+      if (!bucket[key]) {
+        bucket[key] = { period: key, units:0, revenue:0, before:0, expense:0, after:0 }
+      }
+      bucket[key].units   += Number(r.total_units_sold)
+      bucket[key].revenue += Number(r.total_revenue)
+      bucket[key].before  += Number(r.total_initial_profit)
+      bucket[key].expense += Number(r.total_commission_expense)
+      bucket[key].after   += Number(r.total_final_profit)
+    })
+
+    return Object.values(bucket).sort((a,b) => a.period.localeCompare(b.period))
+  }, [aggregated, groupBy])
 
   return (
     <div className="p-6 space-y-8">
@@ -106,88 +146,81 @@ export default function ProfitReport() {
             className="mt-1 p-2 border rounded w-full"
           />
         </div>
+        <div>
+          <label className="block text-sm">Group By</label>
+          <select
+            value={groupBy}
+            onChange={e => setGroupBy(e.target.value)}
+            className="mt-1 p-2 border rounded w-36"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
         <button
           onClick={fetchReports}
           disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-indigo-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           {loading ? 'Loading…' : 'Apply Filters'}
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Expected Profit Before</div>
-          <div className="text-2xl font-bold">
-            ₦{snapshot.expected_profit_before}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Expected Profit After</div>
-          <div className="text-2xl font-bold">
-            ₦{goals.goal_profit_after?.toFixed(2) || '0.00'}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Units Goal</div>
-          <div className="text-2xl font-bold">{goals.goal_units}</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-500">Units Sold</div>
-          <div className="text-2xl font-bold">{totalUnits}</div>
-        </div>
+      {/* Summary Table */}
+      <div className="bg-white p-4 rounded shadow overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                {groupBy === 'daily' ? 'Date' : groupBy === 'weekly' ? 'Week' : 'Month'}
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Units Sold</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Profit Before</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Expenses</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Net Profit</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {displayData.map((row, idx) => (
+              <tr key={idx} className="hover:bg-gray-50">
+                <td className="px-3 py-2 text-sm text-gray-700">{row.period}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">{row.units}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">{row.device}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">{row.model}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">₦{row.revenue.toLocaleString()}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">₦{row.before.toLocaleString()}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">₦{row.expense.toLocaleString()}</td>
+                <td className="px-3 py-2 text-sm text-gray-700">₦{row.after.toLocaleString()}</td>
+              </tr>
+            ))}
+            {displayData.length===0 && (
+              <tr>
+                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                  No data for this range.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Profit Over Time Chart */}
+      {/* Bar Chart */}
       <div className="bg-white p-4 rounded shadow h-64">
         <h2 className="text-xl font-semibold mb-2">Profit Over Time</h2>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={aggregated}>
-            <XAxis dataKey="sale_day" />
+          <BarChart data={displayData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <XAxis dataKey="period" />
             <YAxis />
-            <Tooltip />
-            <Line dataKey="total_initial_profit" stroke="#4f46e5" />
-            <Line dataKey="total_final_profit"   stroke="#16a34a" />
-          </LineChart>
+            <Tooltip formatter={val => `₦${val.toLocaleString()}`} />
+            <Legend />
+            <Bar dataKey="before" name="Profit Before" fill="#4f46e5" />
+            <Bar dataKey="after"  name="Net Profit"   fill="#16a34a" />
+          </BarChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Daily Aggregated Totals */}
-      <div className="overflow-auto bg-white rounded shadow">
-        <h2 className="text-xl font-semibold p-4 border-b">Daily Totals by Device</h2>
-        <table className="min-w-full divide-y">
-          <thead className="bg-gray-100">
-            <tr>
-              {[
-                'Date','Type','Model','Name','Qty','Revenue',
-                'Profit Before','Expenses','Profit After'
-              ].map(h => (
-                <th
-                  key={h}
-                  className="px-2 py-2 text-left text-xs uppercase"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {aggregated.map((r, i) => (
-              <tr key={i}>
-                <td className="px-2 py-1">{r.sale_day}</td>
-                <td className="px-2 py-1">{r.device_type}</td>
-                <td className="px-2 py-1">{r.device_model}</td>
-                <td className="px-2 py-1">{r.device_name}</td>
-                <td className="px-2 py-1">{r.total_units_sold}</td>
-                <td className="px-2 py-1">₦{r.total_revenue}</td>
-                <td className="px-2 py-1">₦{r.total_initial_profit}</td>
-                <td className="px-2 py-1">₦{r.total_commission_expense}</td>
-                <td className="px-2 py-1">₦{r.total_final_profit}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   )
