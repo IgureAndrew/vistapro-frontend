@@ -205,9 +205,9 @@ export default function StockUpdates() {
 
                     {/* Countdown */}
                     <td className={`px-4 py-2 text-sm ${isExpired ? "text-red-600" : "text-gray-800"}`}>
-                      {u.status === "pending"
-                        ? formatCountdown(u.deadline)
-                        : "—"}
+                      {u.status === "Pending"
+   ? formatCountdown(u.deadline)
+   : "—"}
                     </td>
 
                     {/* Status */}
