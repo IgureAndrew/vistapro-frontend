@@ -1,76 +1,63 @@
-// src/components/ManageOrders.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import OrderDetail from "./OrderDetail";
 
 export default function ManageOrders() {
-  const navigate = useNavigate();
+  const navigate    = useNavigate();
   const stored      = localStorage.getItem("user");
   const currentUser = stored ? JSON.parse(stored) : {};
-  const role        = currentUser.role;          // 'MasterAdmin', 'Admin', or 'SuperAdmin'
-  const uid         = currentUser.unique_id;     // their own unique id
+  const role        = currentUser.role;          
+  const uid         = currentUser.unique_id;     
   const token       = localStorage.getItem("token");
 
   const API_ROOT     = import.meta.env.VITE_API_URL + "/api/manage-orders";
   const PENDING_URL  = `${API_ROOT}/orders`;
   const HISTORY_URL  = `${API_ROOT}/orders/history`;
   const CONFIRM_URL  = id => `${API_ROOT}/orders/${id}/confirm`;
+  const CANCEL_URL   = id => `${API_ROOT}/orders/${id}/cancel`;
 
-  const [pending, setPending]             = useState([]);
-  const [history, setHistory]             = useState([]);
-  const [selected, setSelected]           = useState([]);
-  const [error, setError]                 = useState("");
-  const [detailOrderId, setDetailOrderId] = useState(null);
+  const [pending, setPending]   = useState([]);
+  const [history, setHistory]   = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [error, setError]       = useState("");
 
-  // Fetch data
-  useEffect(() => {
+  // Date filters
+  const [fromDate, setFromDate] = useState("");
+  const [toDate,   setToDate]   = useState("");
+
+  // reload both lists
+  const reload = () => {
     if (!token) return;
-
     const headers = { Authorization: `Bearer ${token}` };
 
-    // MasterAdmin: load both pending & full history
     if (role === "MasterAdmin") {
       axios.get(PENDING_URL, { headers })
-        .then(r => setPending(r.data.orders))
-        .catch(e => setError(e.response?.data?.message || e.message));
-
+           .then(r => setPending(r.data.orders))
+           .catch(e => setError(e.response?.data?.message || e.message));
       axios.get(HISTORY_URL, { headers })
-        .then(r => setHistory(r.data.orders))
-        .catch(e => setError(e.response?.data?.message || e.message));
-
-    // Admin: only load their marketers' history
+           .then(r => setHistory(r.data.orders))
+           .catch(e => setError(e.response?.data?.message || e.message));
     } else if (role === "Admin") {
-      axios.get(HISTORY_URL, {
-        headers,
-        params: { adminId: uid }
-      })
-        .then(r => setHistory(r.data.orders))
-        .catch(e => setError(e.response?.data?.message || e.message));
-
-    // SuperAdmin: only load history under their admins
+      axios.get(HISTORY_URL, { headers, params: { adminId: uid } })
+           .then(r => setHistory(r.data.orders))
+           .catch(e => setError(e.response?.data?.message || e.message));
     } else if (role === "SuperAdmin") {
-      axios.get(HISTORY_URL, {
-        headers,
-        params: { superAdminId: uid }
-      })
-        .then(r => setHistory(r.data.orders))
-        .catch(e => setError(e.response?.data?.message || e.message));
-
-    // Others: redirect away
+      axios.get(HISTORY_URL, { headers, params: { superAdminId: uid } })
+           .then(r => setHistory(r.data.orders))
+           .catch(e => setError(e.response?.data?.message || e.message));
     } else {
       navigate("/dashboard");
     }
-  }, [role, uid, token, navigate]);
-
-  // toggle selection for MasterAdmin bulk‐confirm
-  const toggle = id => {
-    setSelected(sel =>
-      sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]
-    );
   };
 
-  // MasterAdmin: confirm all selected
+  useEffect(reload, [role, uid, token, navigate]);
+
+  // toggle bulk‐select
+  const toggle = id => {
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  };
+
+  // confirm selected
   const confirmAll = async () => {
     if (!selected.length) return alert("Select at least one order.");
     try {
@@ -83,16 +70,32 @@ export default function ManageOrders() {
       );
       alert("Confirmed!");
       setSelected([]);
-      // reload pending & history
-      const [pRes, hRes] = await Promise.all([
-        axios.get(PENDING_URL, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(HISTORY_URL, { headers: { Authorization: `Bearer ${token}` } })
-      ]);
-      setPending(pRes.data.orders);
-      setHistory(hRes.data.orders);
+      reload();
     } catch (e) {
       alert(e.response?.data?.message || "Failed to confirm.");
     }
+  };
+
+  // cancel one
+  const cancelOne = async id => {
+    if (!window.confirm("Really cancel this order?")) return;
+    try {
+      await axios.patch(CANCEL_URL(id), {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert("Order canceled and inventory returned.");
+      reload();
+    } catch (e) {
+      alert(e.response?.data?.message || "Failed to cancel.");
+    }
+  };
+
+  // date‐range matcher
+  const inRange = o => {
+    const sd = new Date(o.sale_date);
+    if (fromDate && sd < new Date(fromDate)) return false;
+    if (toDate   && sd > new Date(toDate  + "T23:59:59")) return false;
+    return true;
   };
 
   return (
@@ -100,12 +103,34 @@ export default function ManageOrders() {
       <h2 className="text-2xl font-semibold">Manage Orders</h2>
       {error && <p className="text-red-500">{error}</p>}
 
-      {/* ─── Pending (MasterAdmin only) ───────────────────────── */}
+      {/* Date Filter */}
+      <div className="flex space-x-4 mb-6">
+        <div>
+          <label className="block text-sm">From:</label>
+          <input
+            type="date"
+            className="border px-2 py-1 rounded"
+            value={fromDate}
+            onChange={e => setFromDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm">To:</label>
+          <input
+            type="date"
+            className="border px-2 py-1 rounded"
+            value={toDate}
+            onChange={e => setToDate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Pending (MasterAdmin) */}
       {role === "MasterAdmin" && (
         <section>
           <h3 className="text-lg font-medium mb-3">Pending Orders</h3>
-          {pending.length === 0 ? (
-            <p>No pending orders.</p>
+          {pending.filter(inRange).length === 0 ? (
+            <p>No pending orders in that range.</p>
           ) : (
             <>
               <table className="w-full table-auto mb-4 border">
@@ -113,14 +138,20 @@ export default function ManageOrders() {
                   <tr>
                     {[
                       "Select","ID","Marketer","BNPL","Device",
-                      "Type","Qty","Amount","Date","Status","Detail"
+                      "Type","Qty","Amount","Date","Status",
+                      "IMEIs","Cancel"
                     ].map(col => (
-                      <th key={col} className="px-2 py-1 border text-sm">{col}</th>
+                      <th
+                        key={col}
+                        className="px-2 py-1 border text-sm"
+                      >
+                        {col}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {pending.map(o => (
+                  {pending.filter(inRange).map(o => (
                     <tr key={o.id} className="hover:bg-gray-50">
                       <td className="border px-2 text-center">
                         <input
@@ -132,18 +163,28 @@ export default function ManageOrders() {
                       <td className="border px-2">{o.id}</td>
                       <td className="border px-2">{o.marketer_name}</td>
                       <td className="border px-2">{o.bnpl_platform||"—"}</td>
-                      <td className="border px-2">{o.device_name} {o.device_model}</td>
+                      <td className="border px-2">
+                        {o.device_name} {o.device_model}
+                      </td>
                       <td className="border px-2">{o.device_type}</td>
                       <td className="border px-2">{o.number_of_devices}</td>
                       <td className="border px-2">₦{o.sold_amount}</td>
-                      <td className="border px-2">{new Date(o.sale_date).toLocaleString()}</td>
+                      <td className="border px-2">
+                        {new Date(o.sale_date).toLocaleString()}
+                      </td>
                       <td className="border px-2">{o.status}</td>
+                      <td className="border px-2 whitespace-nowrap text-xs">
+                        {(o.imeis||[]).slice(0,3).join(", ")}
+                        {o.imeis?.length>3
+                          ? ` +${o.imeis.length-3}`
+                          : ""}
+                      </td>
                       <td className="border px-2 text-center">
                         <button
-                          onClick={() => setDetailOrderId(o.id)}
-                          className="text-blue-600 underline"
+                          className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+                          onClick={() => cancelOne(o.id)}
                         >
-                          View
+                          Cancel
                         </button>
                       </td>
                     </tr>
@@ -162,42 +203,49 @@ export default function ManageOrders() {
         </section>
       )}
 
-      {/* ─── Order History (All roles but filtered server‐side) ──── */}
+      {/* History */}
       <section>
         <h3 className="text-lg font-medium mb-3">Order History</h3>
-        {history.length === 0 ? (
-          <p>No orders in history.</p>
+        {history.filter(inRange).length === 0 ? (
+          <p>No orders in history for that date range.</p>
         ) : (
           <table className="w-full table-auto border">
             <thead className="bg-gray-100">
               <tr>
                 {[
                   "ID","Marketer","BNPL","Device",
-                  "Type","Qty","Amount","Date","Status","Detail"
+                  "Type","Qty","Amount","Date","Status","IMEIs"
                 ].map(col => (
-                  <th key={col} className="px-2 py-1 border text-sm">{col}</th>
+                  <th
+                    key={col}
+                    className="px-2 py-1 border text-sm"
+                  >
+                    {col}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {history.map(o => (
+              {history.filter(inRange).map(o => (
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="border px-2">{o.id}</td>
                   <td className="border px-2">{o.marketer_name}</td>
                   <td className="border px-2">{o.bnpl_platform||"—"}</td>
-                  <td className="border px-2">{o.device_name} {o.device_model}</td>
+                  <td className="border px-2">
+                    {o.device_name} {o.device_model}
+                  </td>
                   <td className="border px-2">{o.device_type}</td>
                   <td className="border px-2">{o.number_of_devices}</td>
                   <td className="border px-2">₦{o.sold_amount}</td>
-                  <td className="border px-2">{new Date(o.sale_date).toLocaleString()}</td>
+                  <td className="border px-2">
+                    {new Date(o.sale_date).toLocaleString()}
+                  </td>
                   <td className="border px-2">{o.status}</td>
-                  <td className="border px-2 text-center">
-                    <button
-                      onClick={() => setDetailOrderId(o.id)}
-                      className="text-blue-600 underline"
-                    >
-                      View
-                    </button>
+                  <td className="border px-2 whitespace-nowrap text-xs">
+                    {(o.imeis||[]).slice(0,3).join(", ")}
+                    {o.imeis?.length>3
+                      ? ` +${o.imeis.length-3}`
+                      : ""}
                   </td>
                 </tr>
               ))}
@@ -205,14 +253,6 @@ export default function ManageOrders() {
           </table>
         )}
       </section>
-
-      {/* ─── Detail Drawer ─────────────────────────────────────── */}
-      {detailOrderId && (
-        <OrderDetail
-          orderId={detailOrderId}
-          onClose={() => setDetailOrderId(null)}
-        />
-      )}
     </div>
   );
 }
