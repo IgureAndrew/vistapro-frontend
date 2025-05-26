@@ -26,18 +26,19 @@ export default function Product() {
     "Rivers","Sokoto","Taraba","Yobe","Zamfara","FCT"
   ];
 
+  // form state no longer includes imeis
   const [formData, setFormData] = useState({
-    state: "",
-    dealer_id: "",
-    device_type: "Android",
-    device_name: "",
-    device_model: "",
-    cost_price: "",
+    state:         "",
+    dealer_id:     "",
+    device_type:   "Android",
+    device_name:   "",
+    device_model:  "",
+    cost_price:    "",
     selling_price: "",
-    imeis: [""],
+    add_quantity:  0,
   });
 
-  // ── Fetch dealers & products ───────────────────────
+  // fetch dealers & products once
   useEffect(() => {
     fetchDealers();
     fetchProducts();
@@ -45,9 +46,7 @@ export default function Product() {
 
   async function fetchDealers() {
     try {
-      const res  = await fetch(DEALERS_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res  = await fetch(DEALERS_URL, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setDealers(data.dealers);
@@ -58,9 +57,7 @@ export default function Product() {
 
   async function fetchProducts() {
     try {
-      const res  = await fetch(PRODUCTS_URL, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res  = await fetch(PRODUCTS_URL, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setProducts(data.products);
@@ -69,7 +66,6 @@ export default function Product() {
     }
   }
 
-  // ── Form handlers ───────────────────────────────────
   function handleChange(e) {
     const { name, value } = e.target;
     if (name === "state") {
@@ -86,32 +82,8 @@ export default function Product() {
     }
   }
 
-  function addImeiField() {
-    setFormData(fd => ({ ...fd, imeis: [...fd.imeis, ""] }));
-  }
-
-  function removeImeiField(idx) {
-    setFormData(fd => ({
-      ...fd,
-      imeis: fd.imeis.filter((_, i) => i !== idx)
-    }));
-  }
-
-  function handleImeiChange(idx, val) {
-    setFormData(fd => {
-      const imeis = [...fd.imeis];
-      imeis[idx] = val;
-      return { ...fd, imeis };
-    });
-  }
-
   async function handleSubmit(e) {
     e.preventDefault();
-    // validate 15-digit IMEIs
-    const cleaned = formData.imeis.map(i => i.trim()).filter(i => i);
-    if (cleaned.some(i => !/^\d{15}$/.test(i))) {
-      return alert("All IMEIs must be exactly 15 digits.");
-    }
 
     const method = editing ? "PUT" : "POST";
     const url    = editing
@@ -125,7 +97,7 @@ export default function Product() {
       device_model:  formData.device_model,
       cost_price:    parseFloat(formData.cost_price),
       selling_price: parseFloat(formData.selling_price),
-      imeis:         cleaned,
+      add_quantity:  Number(formData.add_quantity),
     };
 
     try {
@@ -142,6 +114,17 @@ export default function Product() {
 
       setShowForm(false);
       setEditing(null);
+      // reset form
+      setFormData({
+        state:         "",
+        dealer_id:     "",
+        device_type:   "Android",
+        device_name:   "",
+        device_model:  "",
+        cost_price:    "",
+        selling_price: "",
+        add_quantity:  0,
+      });
       fetchProducts();
     } catch (err) {
       alert(err.message || "Operation failed");
@@ -159,7 +142,7 @@ export default function Product() {
       device_model:  p.device_model,
       cost_price:    String(p.cost_price),
       selling_price: String(p.selling_price),
-      imeis:         [""],
+      add_quantity:  0, // start at zero when editing
     });
   }
 
@@ -181,7 +164,6 @@ export default function Product() {
     }
   }
 
-  // ── Filtered list ────────────────────────────────
   const displayed = products.filter(p => {
     const q = filter.toLowerCase();
     return (
@@ -194,7 +176,6 @@ export default function Product() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Product Management</h1>
 
-      {/* Add button only for MasterAdmin */}
       {role === "MasterAdmin" && (
         <div className="flex justify-end mb-4">
           <button
@@ -206,7 +187,6 @@ export default function Product() {
         </div>
       )}
 
-      {/* Search */}
       <div className="mb-4">
         <input
           type="text"
@@ -217,14 +197,13 @@ export default function Product() {
         />
       </div>
 
-      {/* Table */}
       <div className="bg-white shadow rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               {[
                 "ID","Dealer","Location","Type","Device","Model",
-                "Cost","Sell","Qty","Low","Avail","Profit","IMEIs","Actions"
+                "Cost","Sell","Qty","Low","Avail","Profit","Actions"
               ].map(h => (
                 <th
                   key={h}
@@ -252,14 +231,7 @@ export default function Product() {
                   <td className="px-6 py-4 text-sm">{p.is_low_stock ? "⚠️" : ""}</td>
                   <td className="px-6 py-4 text-sm">{p.is_available ? "✅" : "❌"}</td>
                   <td className="px-6 py-4 text-sm">{profit}</td>
-                  <td className="px-6 py-4 text-sm">
-                    {(p.available_imeis ?? []).slice(0,3).join(", ")}
-                    {p.available_imeis?.length > 3
-                      ? ` +${p.available_imeis.length - 3}`
-                      : ""}
-                  </td>
                   <td className="px-6 py-4 text-sm space-x-2">
-                    {/* only MasterAdmin can edit/delete */}
                     {role === "MasterAdmin" ? (
                       <>
                         <button
@@ -283,10 +255,7 @@ export default function Product() {
               );
             }) : (
               <tr>
-                <td
-                  colSpan={14}
-                  className="px-6 py-4 text-center text-sm text-gray-500"
-                >
+                <td colSpan={13} className="px-6 py-4 text-center text-sm text-gray-500">
                   No products found.
                 </td>
               </tr>
@@ -295,7 +264,6 @@ export default function Product() {
         </table>
       </div>
 
-      {/* Modal (only for MasterAdmin) */}
       {showForm && role === "MasterAdmin" && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg w-full max-w-md max-h-full overflow-y-auto p-6">
@@ -397,37 +365,17 @@ export default function Product() {
                 </div>
               </div>
 
-              {/* IMEIs */}
+              {/* Quantity to Add */}
               <div>
-                <label className="block text-sm mb-1">
-                  {editing ? "Add New IMEIs" : "IMEIs (15-digit each)"}
-                </label>
-                {formData.imeis.map((imei, i) => (
-                  <div key={i} className="flex items-center space-x-2 mb-1">
-                    <input
-                      placeholder="15-digit IMEI"
-                      value={imei}
-                      onChange={e => handleImeiChange(i, e.target.value)}
-                      className="flex-1 border px-2 py-1"
-                    />
-                    {formData.imeis.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeImeiField(i)}
-                        className="text-red-600"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addImeiField}
-                  className="text-sm text-indigo-600"
-                >
-                  + Add another IMEI
-                </button>
+                <label className="block text-sm mb-1">Quantity to Add</label>
+                <input
+                  name="add_quantity"
+                  type="number"
+                  min="0"
+                  value={formData.add_quantity}
+                  onChange={handleChange}
+                  className="w-full border px-2 py-1"
+                />
               </div>
 
               {/* Sticky Footer */}

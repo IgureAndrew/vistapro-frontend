@@ -22,13 +22,17 @@ export default function MarketerStockPickup() {
   const [now, setNow] = useState(Date.now());
   const [transferringId, setTransferringId] = useState(null);
   const [transferTarget, setTransferTarget] = useState("");
+
+  // allowance: { [productId]: maxQtyAllowed }
   const [allowance, setAllowance] = useState({});
+  // request flow
   const [requesting, setRequesting] = useState(false);
   const [requestProduct, setRequestProduct] = useState("");
   const [requestQty, setRequestQty] = useState(2);
 
   const selectedProductId = watch("product_id");
   const selectedProd = products.find(p => p.product_id === +selectedProductId);
+  // if not requested additional, default max = 1
   const maxQty = allowance[selectedProductId] || 1;
 
   useEffect(() => {
@@ -37,23 +41,23 @@ export default function MarketerStockPickup() {
   }, []);
 
   useEffect(() => {
-    api.get("/stock/pickup/dealers")
-       .then(res => setDealers(res.data.dealers || []))
-       .catch(console.error);
-    loadPickups();
-    fetchAllowance();
+    Promise.all([
+      api.get("/stock/pickup/dealers").then(r => setDealers(r.data.dealers || [])),
+      api.get("/stock/marketer").then(r => setPickups(r.data.data || [])),
+      api.get("/stock/marketer/allowance").then(r => setAllowance(r.data.allowance || {}))
+    ]).catch(console.error);
   }, []);
 
   function loadPickups() {
     api.get("/stock/marketer")
-       .then(res => setPickups(res.data.data || []))
-       .catch(console.error);
+      .then(res => setPickups(res.data.data || []))
+      .catch(console.error);
   }
 
   function fetchAllowance() {
     api.get("/stock/marketer/allowance")
-       .then(res => setAllowance(res.data.allowance || {}))
-       .catch(console.error);
+      .then(res => setAllowance(res.data.allowance || {}))
+      .catch(console.error);
   }
 
   function formatRemaining(ms) {
@@ -193,7 +197,7 @@ export default function MarketerStockPickup() {
             )}
           </div>
 
-          {/* Quantity */}
+          {/* Quantity (1 if none extra, or up to maxQty) */}
           {selectedProd && (
             <div>
               <label className="block mb-1 font-medium">Quantity</label>
@@ -210,7 +214,9 @@ export default function MarketerStockPickup() {
                 />
               )}
               {errors.quantity && (
-                <p className="text-red-500 text-sm">Invalid quantity (max {maxQty}).</p>
+                <p className="text-red-500 text-sm">
+                  Invalid quantity (max {maxQty}).
+                </p>
               )}
             </div>
           )}
@@ -282,70 +288,68 @@ export default function MarketerStockPickup() {
         <div className="sm:hidden space-y-4">
           {pickups.length === 0 ? (
             <p className="text-gray-500">No pickups yet.</p>
-          ) : (
-            pickups.map(s => {
-              const deadlineMs = new Date(s.deadline).getTime();
-              const diff       = deadlineMs - now;
-              const remaining  =
-                s.status === "pending"
-                  ? formatRemaining(diff)
-                  : s.status === "expired"
-                  ? `${formatRemaining(now - deadlineMs)} ago`
-                  : "—";
-              return (
-                <div key={s.id} className="bg-white p-4 rounded-lg shadow">
-                  <div className="flex justify-between mb-2">
-                    <span className="font-medium">
-                      {s.device_name} {s.device_model}
-                    </span>
-                    <span className="text-sm text-gray-600">{s.status}</span>
-                  </div>
-                  <p className="text-sm"><strong>Qty:</strong> {s.quantity}</p>
-                  <p className="text-xs text-gray-500">
-                    <strong>Picked:</strong> {new Date(s.pickup_date).toLocaleDateString()}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    <strong>Remaining:</strong> {remaining}
-                  </p>
-                  {s.status === "pending" && (
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        onClick={() => { setTransferringId(s.id); setTransferTarget(""); }}
-                        className="flex-1 bg-yellow-500 text-white py-1 rounded"
-                      >
-                        Transfer
-                      </button>
-                      <button
-                        onClick={() => submitReturn(s.id)}
-                        className="flex-1 bg-red-500 text-white py-1 rounded"
-                      >
-                        Return
-                      </button>
-                    </div>
-                  )}
-                  {transferringId === s.id && (
-                    <div className="mt-2 space-y-2">
-                      <input
-                        type="text"
-                        placeholder="Target unique ID"
-                        value={transferTarget}
-                        onChange={e => setTransferTarget(e.target.value)}
-                        className="w-full border rounded px-2 py-1"
-                      />
-                      <div className="flex gap-2">
-                        <button onClick={submitTransfer} className="flex-1 bg-green-500 text-white py-1 rounded">
-                          Submit
-                        </button>
-                        <button onClick={() => setTransferringId(null)} className="flex-1 bg-gray-300 py-1 rounded">
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
+          ) : pickups.map(s => {
+            const deadlineMs = new Date(s.deadline).getTime();
+            const diff       = deadlineMs - now;
+            const remaining  =
+              s.status === "pending"
+                ? formatRemaining(diff)
+                : s.status === "expired"
+                ? `${formatRemaining(now - deadlineMs)} ago`
+                : "—";
+            return (
+              <div key={s.id} className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between mb-2">
+                  <span className="font-medium">
+                    {s.device_name} {s.device_model}
+                  </span>
+                  <span className="text-sm text-gray-600">{s.status}</span>
                 </div>
-              );
-            })
-          )}
+                <p className="text-sm"><strong>Qty:</strong> {s.quantity}</p>
+                <p className="text-xs text-gray-500">
+                  <strong>Picked:</strong> {new Date(s.pickup_date).toLocaleDateString()}
+                </p>
+                <p className="text-xs text-gray-500">
+                  <strong>Remaining:</strong> {remaining}
+                </p>
+                {s.status === "pending" && (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => { setTransferringId(s.id); setTransferTarget(""); }}
+                      className="flex-1 bg-yellow-500 text-white py-1 rounded"
+                    >
+                      Transfer
+                    </button>
+                    <button
+                      onClick={() => submitReturn(s.id)}
+                      className="flex-1 bg-red-500 text-white py-1 rounded"
+                    >
+                      Return
+                    </button>
+                  </div>
+                )}
+                {transferringId === s.id && (
+                  <div className="mt-2 space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Target unique ID"
+                      value={transferTarget}
+                      onChange={e => setTransferTarget(e.target.value)}
+                      className="w-full border rounded px-2 py-1"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={submitTransfer} className="flex-1 bg-green-500 text-white py-1 rounded">
+                        Submit
+                      </button>
+                      <button onClick={() => setTransferringId(null)} className="flex-1 bg-gray-300 py-1 rounded">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Desktop table */}
