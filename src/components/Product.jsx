@@ -91,17 +91,17 @@ export default function Product() {
       : PRODUCTS_URL;
 
     const payload = {
-      dealer_id:     formData.dealer_id,
-      device_type:   formData.device_type,
-      device_name:   formData.device_name,
-      device_model:  formData.device_model,
-      cost_price:    parseFloat(formData.cost_price),
-      selling_price: parseFloat(formData.selling_price),
-      add_quantity:  Number(formData.add_quantity),
+      dealer_id:        formData.dealer_id,
+      device_type:      formData.device_type,
+      device_name:      formData.device_name,
+      device_model:     formData.device_model,
+      cost_price:       parseFloat(formData.cost_price),
+      selling_price:    parseFloat(formData.selling_price),
+      quantity_to_add:  Number(formData.add_quantity),   // 🔑 match API
     };
 
     try {
-      const res = await fetch(url, {
+      const res  = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -111,6 +111,9 @@ export default function Product() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
+
+      // 🔔 show back-end’s success message
+      alert(data.message);
 
       setShowForm(false);
       setEditing(null);
@@ -142,7 +145,7 @@ export default function Product() {
       device_model:  p.device_model,
       cost_price:    String(p.cost_price),
       selling_price: String(p.selling_price),
-      add_quantity:  0, // start at zero when editing
+      add_quantity:  0, // always start at 0
     });
   }
 
@@ -152,7 +155,7 @@ export default function Product() {
     )) return;
 
     try {
-      const res = await fetch(`${PRODUCTS_URL}/${id}`, {
+      const res  = await fetch(`${PRODUCTS_URL}/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
