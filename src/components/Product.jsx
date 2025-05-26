@@ -26,7 +26,6 @@ export default function Product() {
     "Rivers","Sokoto","Taraba","Yobe","Zamfara","FCT"
   ];
 
-  // form state no longer includes imeis
   const [formData, setFormData] = useState({
     state:         "",
     dealer_id:     "",
@@ -38,7 +37,6 @@ export default function Product() {
     add_quantity:  0,
   });
 
-  // fetch dealers & products once
   useEffect(() => {
     fetchDealers();
     fetchProducts();
@@ -91,13 +89,13 @@ export default function Product() {
       : PRODUCTS_URL;
 
     const payload = {
-      dealer_id:        formData.dealer_id,
-      device_type:      formData.device_type,
-      device_name:      formData.device_name,
-      device_model:     formData.device_model,
-      cost_price:       parseFloat(formData.cost_price),
-      selling_price:    parseFloat(formData.selling_price),
-      quantity_to_add:  Number(formData.add_quantity),   // 🔑 match API
+      dealer_id:       formData.dealer_id,
+      device_type:     formData.device_type,
+      device_name:     formData.device_name,
+      device_model:    formData.device_model,
+      cost_price:      parseFloat(formData.cost_price),
+      selling_price:   parseFloat(formData.selling_price),
+      quantity_to_add: Number(formData.add_quantity),   // match API
     };
 
     try {
@@ -112,12 +110,10 @@ export default function Product() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // 🔔 show back-end’s success message
-      alert(data.message);
+      alert(data.message);  // show success message
 
       setShowForm(false);
       setEditing(null);
-      // reset form
       setFormData({
         state:         "",
         dealer_id:     "",
@@ -145,7 +141,7 @@ export default function Product() {
       device_model:  p.device_model,
       cost_price:    String(p.cost_price),
       selling_price: String(p.selling_price),
-      add_quantity:  0, // always start at 0
+      add_quantity:  0,
     });
   }
 
@@ -164,6 +160,30 @@ export default function Product() {
       fetchProducts();
     } catch (err) {
       alert(err.message || "Delete failed");
+    }
+  }
+
+  // new: adjustQuantity inline
+  async function adjustQty(productId, delta) {
+    try {
+      const res  = await fetch(`${PRODUCTS_URL}/${productId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`
+        },
+        body: JSON.stringify({ quantity_to_add: delta })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      alert(data.message);
+      fetchProducts();
+      // if editing same product, reset its add_quantity
+      if (editing?.id === productId) {
+        setFormData(fd => ({ ...fd, add_quantity: 0 }));
+      }
+    } catch (err) {
+      alert(err.message || "Couldn’t adjust stock");
     }
   }
 
@@ -230,7 +250,29 @@ export default function Product() {
                   <td className="px-6 py-4 text-sm">{p.device_model}</td>
                   <td className="px-6 py-4 text-sm">{p.cost_price}</td>
                   <td className="px-6 py-4 text-sm">{p.selling_price}</td>
-                  <td className="px-6 py-4 text-sm">{p.quantity_available}</td>
+
+                  {/* inline – / + control */}
+                  <td className="px-6 py-4 text-sm flex items-center space-x-2">
+                    {role === "MasterAdmin" ? (
+                      <>
+                        <button
+                          onClick={() => adjustQty(p.id, -1)}
+                          disabled={p.quantity_available <= 0}
+                          className="w-6 h-6 flex items-center justify-center bg-red-100 text-red-600 rounded"
+                          title="Remove one"
+                        >–</button>
+                        <span>{p.quantity_available}</span>
+                        <button
+                          onClick={() => adjustQty(p.id, +1)}
+                          className="w-6 h-6 flex items-center justify-center bg-green-100 text-green-600 rounded"
+                          title="Add one"
+                        >+</button>
+                      </>
+                    ) : (
+                      <span>{p.quantity_available}</span>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4 text-sm">{p.is_low_stock ? "⚠️" : ""}</td>
                   <td className="px-6 py-4 text-sm">{p.is_available ? "✅" : "❌"}</td>
                   <td className="px-6 py-4 text-sm">{profit}</td>
@@ -240,15 +282,11 @@ export default function Product() {
                         <button
                           onClick={() => startEdit(p)}
                           className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          Edit
-                        </button>
+                        >Edit</button>
                         <button
                           onClick={() => handleDelete(p.id)}
                           className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
+                        >Delete</button>
                       </>
                     ) : (
                       <span className="text-gray-400 italic">—</span>
