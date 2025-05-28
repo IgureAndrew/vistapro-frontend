@@ -15,6 +15,11 @@ export default function MasterAdminWallet() {
   const [wallets,  setWallets]  = useState([])
   const [pending,  setPending]  = useState([])
 
+  // ── Pending Withheld Releases ─────────────────────────────────
+  const [withheldReqs, setWithheldReqs]       = useState([])
+  const [withheldLoading, setWithheldLoading] = useState(true)
+  const [withheldError, setWithheldError]     = useState(null)
+
   // ── Withdrawal History ───────────────────────────────────────
   const [history,  setHistory]  = useState([])
   const [filters,  setFilters]  = useState({ startDate:'', endDate:'', name:'', role:'' })
@@ -35,22 +40,28 @@ export default function MasterAdminWallet() {
   // ── Single-click guard for approve/reject ────────────────────
   const [actioning, setActioning] = useState(false)
 
-  // ── loadAll: summary (marketers) + pending requests ───────────
+  // ── loadAll: summary + pending cashouts + withheld releases ────
   const loadAll = async () => {
     setLoading(true)
     setError(null)
+    setWithheldLoading(true)
+    setWithheldError(null)
     try {
-      const [mkRes, reqRes] = await Promise.all([
+      const [mkRes, reqRes, wRes] = await Promise.all([
         walletApi.get('/master-admin/marketers'),
         walletApi.get('/master-admin/requests'),
+        walletApi.get('/master-admin/releases/pending')
       ])
       setWallets( mkRes.data.wallets   || [] )
       setPending( reqRes.data.requests || [] )
+      setWithheldReqs(wRes.data.requests || [])
     } catch (e) {
       console.error(e)
       setError('Failed to load wallets or requests')
+      setWithheldError('Failed to load withheld releases')
     } finally {
       setLoading(false)
+      setWithheldLoading(false)
     }
   }
 
@@ -65,7 +76,7 @@ export default function MasterAdminWallet() {
       setTabData(d => ({ ...d, [key]: res.data.wallets || [] }))
     } catch (e) {
       console.error(e)
-      setTabError(`Failed to load ${tab.label}`)
+      setTabError(`Failed to load ${TABS.find(t=>t.key===key)?.label}`)
     } finally {
       setTabLoading(false)
     }
@@ -100,7 +111,7 @@ export default function MasterAdminWallet() {
     loadTab(activeTab)
   }, [activeTab])
 
-  // ── Approve / Reject ─────────────────────────────────────────
+  // ── Approve / Reject cashouts ─────────────────────────────────
   const handleReview = async (id, action) => {
     if (actioning) return
     setActioning(true)
@@ -112,6 +123,21 @@ export default function MasterAdminWallet() {
     } catch (e) {
       console.error(e)
       alert(e.response?.data?.message || 'Failed to update request')
+    } finally {
+      setActioning(false)
+    }
+  }
+
+  // ── Approve / Reject withheld releases ────────────────────────
+  const handleRelease = async (id, action) => {
+    if (actioning) return
+    setActioning(true)
+    try {
+      await walletApi.patch(`/master-admin/releases/${id}`, { action })
+      await loadAll()
+    } catch (e) {
+      console.error(e)
+      alert(e.response?.data?.message || 'Failed to update release')
     } finally {
       setActioning(false)
     }
@@ -209,6 +235,55 @@ export default function MasterAdminWallet() {
                 })}
               </tbody>
             </table>
+        }
+      </div>
+
+      {/* Pending Withheld Releases */}
+      <div className="bg-white p-6 rounded-2xl shadow overflow-x-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Pending Withheld Releases</h2>
+          <button onClick={loadAll} className="flex items-center text-sm text-gray-600 hover:text-gray-800">
+            Refresh <ChevronDown className="w-4 h-4 ml-1"/>
+          </button>
+        </div>
+        {withheldLoading
+          ? <p>Loading releases…</p>
+          : withheldError
+            ? <p className="text-red-600">{withheldError}</p>
+            : withheldReqs.length === 0
+              ? <p className="text-gray-500">No pending releases.</p>
+              : (
+                <table className="min-w-full text-sm text-left">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      {['ID','User','Amount','Requested','Actions']
+                        .map(h => <th key={h} className="px-4 py-2">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {withheldReqs.map(r => (
+                      <tr key={r.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2">{r.id}</td>
+                        <td className="px-4 py-2">{r.user_unique_id}</td>
+                        <td className="px-4 py-2">₦{Number(r.amount).toLocaleString()}</td>
+                        <td className="px-4 py-2">{new Date(r.requested_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-2 space-x-2">
+                          <button
+                            disabled={actioning}
+                            onClick={()=>handleRelease(r.id,'approve')}
+                            className="px-2 py-1 bg-green-500 text-white rounded"
+                          >Approve</button>
+                          <button
+                            disabled={actioning}
+                            onClick={()=>handleRelease(r.id,'reject')}
+                            className="px-2 py-1 bg-red-500 text-white rounded"
+                          >Reject</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
         }
       </div>
 

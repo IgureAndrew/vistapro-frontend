@@ -22,12 +22,18 @@ export default function StockUpdates() {
   }, []);
 
   // Load both pickups & additional‐pickup requests
-  const loadUpdates  = () => api.get("/stock",    { headers: { Authorization: `Bearer ${token}` } })
-                                 .then(r => setUpdates(r.data.data || []))
-                                 .catch(e => setError(e.response?.data?.message || e.message));
-  const loadRequests = () => api.get("/stock/requests", { headers: { Authorization: `Bearer ${token}` } })
-                                 .then(r => setRequests(r.data.data || []))
-                                 .catch(e => setError(e.response?.data?.message || e.message));
+  const loadUpdates  = () =>
+    api
+      .get("/stock", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setUpdates(r.data.data || []))
+      .catch(e => setError(e.response?.data?.message || e.message));
+
+  // ← changed endpoint and response key here
+  const loadRequests = () =>
+    api
+      .get("/stock/pickup/requests", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setRequests(r.data.requests || []))
+      .catch(e => setError(e.response?.data?.message || e.message));
 
   useEffect(() => {
     loadUpdates();
@@ -61,8 +67,9 @@ export default function StockUpdates() {
   // Approve/reject a pickup‐request
   const handleRequestAction = async (id, action) => {
     try {
+      // ← changed PATCH URL to match your backend:
       await api.patch(
-        `/stock/request/${id}`,
+        `/stock/pickup/requests/${id}`,
         { action },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -224,8 +231,10 @@ export default function StockUpdates() {
                   <td className="px-4 py-2">{new Date(u.pickup_date).toLocaleString()}</td>
                   <td className="px-4 py-2">{new Date(u.deadline).toLocaleString()}</td>
                   <td className={`px-4 py-2 ${isExpired ? "text-red-600" : ""}`}>
-                    {u.status === "Pending" ? formatCountdown(u.deadline) : "—"}
-                  </td>
+                  {u.status.toLowerCase() === "pending"
+                    ? formatCountdown(u.deadline)
+                    : "—"}
+                </td>
                   <td className="px-4 py-2 capitalize">{u.status.replace(/_/g, " ")}</td>
                   <td className="px-4 py-2">
                     {u.transfer_to_name
