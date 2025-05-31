@@ -16,9 +16,14 @@ export default function MasterAdminWallet() {
   const [pending,  setPending]  = useState([])
 
   // ── Pending Withheld Releases ─────────────────────────────────
-  const [withheldReqs, setWithheldReqs]       = useState([])
+  const [withheldReqs, setWithheldReqs]       = useState([])  // “manual” / pending requests
   const [withheldLoading, setWithheldLoading] = useState(true)
   const [withheldError, setWithheldError]     = useState(null)
+
+  // ── RELEASE HISTORY (NEW) ────────────────────────────────────
+  const [releaseHistory, setReleaseHistory] = useState([])    // ← NEW: holds approved/rejected
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [historyError, setHistoryError]     = useState(null)
 
   // ── Withdrawal History ───────────────────────────────────────
   const [history,  setHistory]  = useState([])
@@ -46,22 +51,30 @@ export default function MasterAdminWallet() {
     setError(null)
     setWithheldLoading(true)
     setWithheldError(null)
+    setHistoryLoading(true)         // ← NEW: start loading for “history”
+    setHistoryError(null)
+
     try {
-      const [mkRes, reqRes, wRes] = await Promise.all([
+      const [mkRes, reqRes, wRes, histRes] = await Promise.all([
         walletApi.get('/master-admin/marketers'),
         walletApi.get('/master-admin/requests'),
-        walletApi.get('/master-admin/releases/pending')
+        walletApi.get('/master-admin/marketers/withheld'),
+        walletApi.get('/master-admin/releases/history')  // ← NEW
       ])
+
       setWallets( mkRes.data.wallets   || [] )
       setPending( reqRes.data.requests || [] )
-      setWithheldReqs(wRes.data.requests || [])
+      setWithheldReqs(wRes.data.manual || [])         // note: controller returns { manual: [ … ] }
+      setReleaseHistory(histRes.data.history || [])   // ← NEW: pull down “history” array
     } catch (e) {
       console.error(e)
       setError('Failed to load wallets or requests')
       setWithheldError('Failed to load withheld releases')
+      setHistoryError('Failed to load release history')
     } finally {
       setLoading(false)
       setWithheldLoading(false)
+      setHistoryLoading(false)         // ← NEW: done loading history
     }
   }
 
@@ -71,12 +84,12 @@ export default function MasterAdminWallet() {
     setTabError(null)
     try {
       const tab = TABS.find(t => t.key === key)
-      if (!tab) throw new Error('Unknown tab '+key)
+      if (!tab) throw new Error('Unknown tab ' + key)
       const res = await walletApi.get(tab.endpoint)
       setTabData(d => ({ ...d, [key]: res.data.wallets || [] }))
     } catch (e) {
       console.error(e)
-      setTabError(`Failed to load ${TABS.find(t=>t.key===key)?.label}`)
+      setTabError(`Failed to load ${TABS.find(t => t.key === key)?.label}`)
     } finally {
       setTabLoading(false)
     }
@@ -128,12 +141,13 @@ export default function MasterAdminWallet() {
     }
   }
 
-  // ── Approve / Reject withheld releases ────────────────────────
+  // ── Approve / Reject withheld releases (pending) ──────────────
   const handleRelease = async (id, action) => {
     if (actioning) return
     setActioning(true)
     try {
-      await walletApi.patch(`/master-admin/releases/${id}`, { action })
+      await walletApi.patch(`/master-admin/marketers/${id}/withheld/${action}`, {})  
+      // note: we pass action = 'approve' or 'reject' in the URL
       await loadAll()
     } catch (e) {
       console.error(e)
@@ -256,26 +270,25 @@ export default function MasterAdminWallet() {
                 <table className="min-w-full text-sm text-left">
                   <thead className="bg-gray-100">
                     <tr>
-                      {['ID','User','Amount','Requested','Actions']
+                      {['User UID','Name','Withheld Amount','Actions']
                         .map(h => <th key={h} className="px-4 py-2">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {withheldReqs.map(r => (
-                      <tr key={r.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-2">{r.id}</td>
+                      <tr key={r.user_unique_id} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-2">{r.user_unique_id}</td>
-                        <td className="px-4 py-2">₦{Number(r.amount).toLocaleString()}</td>
-                        <td className="px-4 py-2">{new Date(r.requested_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-2">{r.name}</td>
+                        <td className="px-4 py-2">₦{Number(r.withheld_balance).toLocaleString()}</td>
                         <td className="px-4 py-2 space-x-2">
                           <button
                             disabled={actioning}
-                            onClick={()=>handleRelease(r.id,'approve')}
+                            onClick={()=>handleRelease(r.user_unique_id,'approve')}
                             className="px-2 py-1 bg-green-500 text-white rounded"
-                          >Approve</button>
+                          >Release</button>
                           <button
                             disabled={actioning}
-                            onClick={()=>handleRelease(r.id,'reject')}
+                            onClick={()=>handleRelease(r.user_unique_id,'reject')}
                             className="px-2 py-1 bg-red-500 text-white rounded"
                           >Reject</button>
                         </td>
@@ -286,6 +299,49 @@ export default function MasterAdminWallet() {
               )
         }
       </div>
+
+      {/* ─── NEW SECTION: Release History ────────────────────────── */}
+      <div className="bg-white p-6 rounded-2xl shadow overflow-x-auto">
+        <h2 className="text-lg font-semibold mb-4">Release History (Approved &amp; Rejected)</h2>
+        {historyLoading
+          ? <p>Loading history…</p>
+          : historyError
+            ? <p className="text-red-600">{historyError}</p>
+            : releaseHistory.length === 0
+              ? <p className="text-gray-500">No releases have been processed yet.</p>
+              : (
+                <table className="min-w-full text-sm text-left">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-2">Request ID</th>
+                      <th className="px-4 py-2">User UID</th>
+                      <th className="px-4 py-2">Amount (₦)</th>
+                      <th className="px-4 py-2">Status</th>
+                      <th className="px-4 py-2">Requested At</th>
+                      <th className="px-4 py-2">Reviewed At</th>
+                      <th className="px-4 py-2">Reviewer UID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {releaseHistory.map(r => (
+                      <tr key={r.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2">{r.id}</td>
+                        <td className="px-4 py-2">{r.user_unique_id}</td>
+                        <td className="px-4 py-2">₦{Number(r.amount).toLocaleString()}</td>
+                        <td className={`px-4 py-2 ${r.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>
+                          {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                        </td>
+                        <td className="px-4 py-2">{new Date(r.requested_at).toLocaleString()}</td>
+                        <td className="px-4 py-2">{r.reviewed_at ? new Date(r.reviewed_at).toLocaleString() : '—'}</td>
+                        <td className="px-4 py-2">{r.reviewer_uid || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+        }
+      </div>
+      {/* ──────────────────────────────────────────────────────────── */}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
