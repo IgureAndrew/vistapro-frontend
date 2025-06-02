@@ -171,24 +171,31 @@ export default function SuperAdminWallet() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {['ID','Role','Total','Available'].map(hdr => (
-                <th key={hdr}
-                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+              {['ID', 'Name', 'Role', 'Total', 'Available', 'Withheld'].map((hdr) => (
+                <th
+                  key={hdr}
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+                >
                   {hdr}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {childWallets.map(w => (
+
+          <tbody className="divide-y divide-gray-200 bg-white">
+            {childWallets.map((w) => (
               <tr key={w.user_unique_id}>
                 <td className="px-4 py-2 text-sm">{w.user_unique_id}</td>
+                <td className="px-4 py-2 text-sm">{w.name}</td>
                 <td className="px-4 py-2 text-sm capitalize">{w.role}</td>
                 <td className="px-4 py-2 text-sm">
-                  ₦{w.total_balance.toLocaleString()}
+                  ₦{Number(w.total_balance).toLocaleString()}
                 </td>
                 <td className="px-4 py-2 text-sm">
-                  ₦{w.available_balance.toLocaleString()}
+                  ₦{Number(w.available_balance).toLocaleString()}
+                </td>
+                <td className="px-4 py-2 text-sm">
+                  ₦{Number(w.withheld_balance).toLocaleString()}
                 </td>
               </tr>
             ))}
