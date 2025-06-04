@@ -53,7 +53,7 @@ export default function SuperAdminWallet() {
     }
     setSubmitting(true);
     try {
-      await walletApi.post(`/withdraw`, {
+      await walletApi.post(`/super-admin/withdraw`,{
         amount:         Number(withdrawAmt),
         account_name:   acctName,
         account_number: acctNo,
