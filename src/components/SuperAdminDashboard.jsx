@@ -25,7 +25,7 @@ import SuperAdminWallet            from './SuperAdminWallet';
 import Messaging                   from './Messaging';
 import Verification                from './Verification';
 import Submissions                 from './Submissions';
-import AssignUsers                 from './AssignUsers';
+import SuperAdminHierarchy         from './SuperAdminHierarchy';
 import NotificationBell            from './NotificationBell';
 import AvatarDropdown              from './AvatarDropdown';
 
@@ -70,7 +70,7 @@ export default function SuperAdminDashboard() {
       case 'messages':         return <Messaging />;
       case 'verification':     return <Verification />;
       case 'submissions':      return <Submissions />;
-      case 'assign':           return <AssignUsers />;
+      case 'assigned':           return <SuperAdminHierarchy />;
       default:                 return <SuperAdminOverview />;
     }
   };
@@ -86,7 +86,7 @@ export default function SuperAdminDashboard() {
     { label: 'Messages',          icon: MessageSquare,  key: 'messages' },
     { label: 'Verification',      icon: CheckCircle,    key: 'verification' },
     { label: 'Submissions',       icon: FilePlus,       key: 'submissions' },
-    { label: 'Assign Users',      icon: UserPlus,       key: 'assign' },
+    { label: 'Assigned Users',      icon: UserPlus,       key: 'assigned' },
   ];
 
   return (
