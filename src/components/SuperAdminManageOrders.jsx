@@ -16,7 +16,8 @@ export default function SuperAdminManageOrders() {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.get("/manage-orders/orders/history");
+      // ← call the SuperAdmin-scoped history endpoint
+      const { data } = await api.get("/super-admin/orders/history");
       setOrders(data.orders);
     } catch (e) {
       console.error(e);
@@ -53,30 +54,64 @@ export default function SuperAdminManageOrders() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {["ID","Marketer","Device","Model","Qty","Amount","Date","Status","Actions"]
-                  .map(h => (
-                    <th
-                      key={h}
-                      className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                {[
+                  "Order ID",
+                  "Marketer",
+                  "Admin",
+                  "Device",
+                  "Model",
+                  "Qty",
+                  "Amount",
+                  "Date",
+                  "Status",
+                  "Actions"
+                ].map(header => (
+                  <th
+                    key={header}
+                    className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+                  >
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {orders.map(o => (
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2">{o.id}</td>
-                  <td className="px-4 py-2">{o.marketer_name}</td>
-                  <td className="px-4 py-2">{o.device_name}</td>
-                  <td className="px-4 py-2">{o.device_model}</td>
-                  <td className="px-4 py-2">{o.number_of_devices}</td>
-                  <td className="px-4 py-2">₦{o.sold_amount.toLocaleString()}</td>
+
+                  {/* Marketer */}
                   <td className="px-4 py-2">
-                    {new Date(o.sale_date).toLocaleString()}
+                    {o.marketerName}{" "}
+                    <span className="text-xs text-gray-500">
+                      ({o.marketerUniqueId})
+                    </span>
                   </td>
+
+                  {/* Admin */}
+                  <td className="px-4 py-2">
+                    {o.adminName}{" "}
+                    <span className="text-xs text-gray-500">
+                      ({o.adminUniqueId})
+                    </span>
+                  </td>
+
+                  {/* Device info */}
+                  <td className="px-4 py-2">{o.deviceName}</td>
+                 <td className="px-4 py-2">{o.deviceModel}</td>
+                  {/* Qty & Amount */}
+                  <td className="px-4 py-2">{o.qty ?? o.number_of_devices}</td>
+                   <td className="px-4 py-2">₦{o.soldAmount.toLocaleString()}</td>
+
+                  {/* Date */}
+                  <td className="px-4 py-2">
+{new Date(o.saleDate).toLocaleString()}
+ </td>
+
+                  {/* Status */}
                   <td className="px-4 py-2 capitalize">{o.status}</td>
+
+                  {/* Actions */}
                   <td className="px-4 py-2">
                     {o.status === "pending" && (
                       <button
@@ -86,7 +121,8 @@ export default function SuperAdminManageOrders() {
                           text-sm font-medium px-3 py-1 rounded
                           ${confirming[o.id]
                             ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                            : "bg-indigo-600 text-white hover:bg-indigo-700"}
+                            : "bg-indigo-600 text-white hover:bg-indigo-700"
+                          }
                         `}
                       >
                         {confirming[o.id] ? "Confirming…" : "Confirm"}

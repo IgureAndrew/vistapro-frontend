@@ -19,7 +19,6 @@ import {
 import SuperAdminOverview          from './SuperAdminOverview';
 import SuperAdminAccountSettings   from './SuperAdminAccountSettings';
 import SuperAdminStockPickups      from './SuperAdminStockPickups';
-import Product                     from './Product';
 import SuperAdminManageOrders      from './SuperAdminManageOrders';
 import SuperAdminWallet            from './SuperAdminWallet';
 import Messaging                   from './Messaging';
@@ -64,7 +63,6 @@ export default function SuperAdminDashboard() {
       case 'overview':         return <SuperAdminOverview />;
       case 'account-settings': return <SuperAdminAccountSettings />;
       case 'stock':            return <SuperAdminStockPickups />;
-      case 'product':          return <Product />;
       case 'manage-orders':    return <SuperAdminManageOrders />;
       case 'wallet':           return <SuperAdminWallet />;
       case 'messages':         return <Messaging />;
@@ -80,7 +78,6 @@ export default function SuperAdminDashboard() {
     { label: 'Overview',          icon: Home,           key: 'overview' },
     { label: 'Account Settings',  icon: User,           key: 'account-settings' },
     { label: 'Stock Pickups',     icon: Package,        key: 'stock' },
-    { label: 'Products',          icon: ShoppingCart,   key: 'product' },
     { label: 'Manage Orders',     icon: ClipboardList,  key: 'manage-orders' },
     { label: 'Wallet',            icon: () => <span className="text-xl">₦</span>, key: 'wallet' },
     { label: 'Messages',          icon: MessageSquare,  key: 'messages' },
