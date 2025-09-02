@@ -171,7 +171,8 @@
   
   /* Better text wrapping */
   .text-wrap-mobile {
-    @apply break-words overflow-wrap-anywhere;
+    @apply break-words;
+    word-wrap: anywhere;
   }
   
   /* Smooth transitions for better mobile experience */

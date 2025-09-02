@@ -21,6 +21,7 @@ import {
 import MasterAdminOverview from "./MasterAdminOverview";
 import AvatarDropdown from "./AvatarDropdown";
 import ProfileUpdate from "./ProfileUpdate";
+import { profileStorage } from "../utils/profileStorage";
 import UsersManagement from "./UsersManagement";
 import ProfitReport from "./ProfitReport";
 import MasterAdminWallet from "./MasterAdminWallet";
@@ -44,6 +45,7 @@ function MasterAdminDashboard() {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [isDarkMode, setIsDarkMode]     = useState(false);
   const [greeting, setGreeting]         = useState("Welcome");
+  const [avatarUrl, setAvatarUrl]       = useState(null);
 
   useEffect(() => {
     if (!user) navigate("/");
@@ -57,6 +59,30 @@ function MasterAdminDashboard() {
       setGreeting("Welcome");
       localStorage.setItem("hasVisitedDashboard", "true");
     }
+  }, []);
+
+  // Load avatar from profile storage
+  useEffect(() => {
+    const loadAvatar = () => {
+      try {
+        const profileData = profileStorage.loadProfileData();
+        if (profileData && (profileData.profile_image || profileData.profileImage || profileData.profileimage)) {
+          const imageName = profileData.profile_image || profileData.profileImage || profileData.profileimage;
+          const avatarUrl = `http://localhost:5005/uploads/${imageName}`;
+          setAvatarUrl(avatarUrl);
+        }
+      } catch (error) {
+        console.log('No avatar found in profile storage');
+      }
+    };
+
+    loadAvatar();
+
+    // Listen for window focus to refresh avatar
+    const handleFocus = () => loadAvatar();
+    window.addEventListener('focus', handleFocus);
+    
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const handleLogout = () => {
@@ -113,7 +139,19 @@ function MasterAdminDashboard() {
         <button onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
         </button>
-        <h2 className="font-bold">Vistapro</h2>
+        <div className="flex items-center gap-2">
+          {avatarUrl && (
+            <img
+              src={avatarUrl}
+              alt="Profile"
+              className="h-8 w-8 rounded-full object-cover border border-gray-200"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+          )}
+          <h2 className="font-bold">Vistapro</h2>
+        </div>
         <div className="flex items-center gap-4">
           <NotificationBell />
           <AvatarDropdown
@@ -164,9 +202,21 @@ function MasterAdminDashboard() {
           <header className={`hidden md:flex items-center justify-between h-16 px-6 border-b ${
             isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
           }`}>
-            <div>
-              <h2 className="font-bold text-xl">{greeting}, {user?.first_name}!</h2>
-              <p className="text-sm">Unique ID: {user?.unique_id}</p>
+            <div className="flex items-center gap-3">
+              {avatarUrl && (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="h-10 w-10 rounded-full object-cover border-2 border-gray-200"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              )}
+              <div>
+                <h2 className="font-bold text-xl">{greeting}, {user?.first_name}!</h2>
+                <p className="text-sm">Unique ID: {user?.unique_id}</p>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <NotificationBell />
