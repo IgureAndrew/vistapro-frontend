@@ -45,13 +45,25 @@ function MasterAdminDashboard() {
 
   const [activeModule, setActiveModule] = useState("overview");
   const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [isDarkMode, setIsDarkMode]     = useState(false);
+  const [isDarkMode, setIsDarkMode]     = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [greeting, setGreeting]         = useState("Welcome");
   const [avatarUrl, setAvatarUrl]       = useState(null);
 
   useEffect(() => {
     if (!user) navigate("/");
   }, [user, navigate]);
+
+  // Apply dark mode to document
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   useEffect(() => {
     const hasVisited = localStorage.getItem("hasVisitedDashboard");
@@ -99,7 +111,13 @@ function MasterAdminDashboard() {
     navigate("/");
   };
 
-  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => {
+      const newMode = !prev;
+      localStorage.setItem('darkMode', JSON.stringify(newMode));
+      return newMode;
+    });
+  };
 
   const renderModule = () => {
     switch (activeModule) {
@@ -137,13 +155,9 @@ function MasterAdminDashboard() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col ${
-      isDarkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
-    }`}>
+    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 text-gray-800 dark:text-white">
       {/* Mobile Top Navbar */}
-      <header className={`md:hidden h-16 flex items-center justify-between px-4 border-b ${
-        isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-      }`}>
+                    <header className="md:hidden h-16 flex items-center justify-between px-4 border-b bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
         <button onClick={() => setSidebarOpen(!sidebarOpen)}>
           {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
         </button>
@@ -193,10 +207,8 @@ function MasterAdminDashboard() {
 
       <div className="flex flex-1">
         {/* Sidebar */}
-        <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-64 border-r ${
-          isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-        }`}>
-          <div className="p-4 text-center font-bold text-lg border-b">
+        <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-64 border-r bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700`}>
+          <div className="p-4 text-center font-bold text-lg border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white">
             Vistapro
           </div>
           <nav className="p-3 overflow-auto">
@@ -226,9 +238,7 @@ function MasterAdminDashboard() {
         {/* Main Content */}
         <div className="flex-1 flex flex-col">
           {/* Desktop Top Bar */}
-          <header className={`hidden md:flex items-center justify-between h-16 px-6 border-b ${
-            isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-          }`}>
+                <header className="hidden md:flex items-center justify-between h-16 px-6 border-b bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               {avatarUrl ? (
                 <img
@@ -277,9 +287,7 @@ function MasterAdminDashboard() {
             </div>
           </header>
 
-          <main className={`${
-            isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
-          } flex-1`}>
+          <main className="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white flex-1">
             <div className="container mx-auto max-w-none md:max-w-7xl lg:max-w-[1440px] px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6">
               {renderModule()}
             </div>
@@ -292,14 +300,14 @@ function MasterAdminDashboard() {
 
 function SidebarItem({ label, Icon, moduleName, activeModule, setActiveModule, setSidebarOpen, isDarkMode }) {
   const isActive = activeModule === moduleName;
-  const base    = isDarkMode ? "text-white hover:bg-gray-700" : "text-black hover:bg-gray-50";
-  const active  = isDarkMode ? "bg-gray-700 text-white font-semibold" : "bg-blue-100 text-black font-semibold";
   return (
     <li>
       <button
         onClick={() => { setActiveModule(moduleName); setSidebarOpen(false); }}
         className={`w-full flex items-center gap-2 px-3 py-2 rounded transition-colors ${
-          isActive ? active : base
+          isActive 
+            ? "bg-blue-100 dark:bg-gray-700 text-black dark:text-white font-semibold" 
+            : "text-black dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
         }`}
       >
         {Icon && <Icon size={16}/>}
