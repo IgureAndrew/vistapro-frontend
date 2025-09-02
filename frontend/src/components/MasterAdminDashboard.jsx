@@ -65,14 +65,20 @@ function MasterAdminDashboard() {
   useEffect(() => {
     const loadAvatar = () => {
       try {
+        console.log('🔍 Loading avatar from profile storage...');
         const profileData = profileStorage.loadProfileData();
+        console.log('📊 Profile data:', profileData);
+        
         if (profileData && (profileData.profile_image || profileData.profileImage || profileData.profileimage)) {
           const imageName = profileData.profile_image || profileData.profileImage || profileData.profileimage;
           const avatarUrl = `http://localhost:5005/uploads/${imageName}`;
+          console.log('🖼️ Setting avatar URL:', avatarUrl);
           setAvatarUrl(avatarUrl);
+        } else {
+          console.log('❌ No avatar image found in profile data');
         }
       } catch (error) {
-        console.log('No avatar found in profile storage');
+        console.log('❌ Error loading avatar:', error);
       }
     };
 
@@ -140,15 +146,23 @@ function MasterAdminDashboard() {
           {sidebarOpen ? <X size={20}/> : <Menu size={20}/>}
         </button>
         <div className="flex items-center gap-2">
-          {avatarUrl && (
+          {avatarUrl ? (
             <img
               src={avatarUrl}
               alt="Profile"
               className="h-8 w-8 rounded-full object-cover border border-gray-200"
               onError={(e) => {
+                console.log('❌ Mobile avatar image failed to load:', avatarUrl);
                 e.target.style.display = 'none';
               }}
+              onLoad={() => {
+                console.log('✅ Mobile avatar image loaded successfully:', avatarUrl);
+              }}
             />
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-gray-200 border border-gray-200 flex items-center justify-center">
+              <span className="text-gray-500 text-xs">A</span>
+            </div>
           )}
           <h2 className="font-bold">Vistapro</h2>
         </div>
@@ -203,19 +217,28 @@ function MasterAdminDashboard() {
             isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
           }`}>
             <div className="flex items-center gap-3">
-              {avatarUrl && (
+              {avatarUrl ? (
                 <img
                   src={avatarUrl}
                   alt="Profile"
                   className="h-10 w-10 rounded-full object-cover border-2 border-gray-200"
                   onError={(e) => {
+                    console.log('❌ Avatar image failed to load:', avatarUrl);
                     e.target.style.display = 'none';
                   }}
+                  onLoad={() => {
+                    console.log('✅ Avatar image loaded successfully:', avatarUrl);
+                  }}
                 />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-gray-200 border-2 border-gray-200 flex items-center justify-center">
+                  <span className="text-gray-500 text-xs">No Avatar</span>
+                </div>
               )}
               <div>
                 <h2 className="font-bold text-xl">{greeting}, {user?.first_name}!</h2>
                 <p className="text-sm">Unique ID: {user?.unique_id}</p>
+                <p className="text-xs text-gray-400">Avatar URL: {avatarUrl || 'None'}</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
