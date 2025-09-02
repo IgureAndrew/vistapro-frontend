@@ -183,7 +183,7 @@ function MasterAdminDashboard() {
           <main className={`${
             isDarkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-800"
           } flex-1`}>
-            <div className="container mx-auto max-w-none md:max-w-7xl lg:max-w-[1440px] px-2 sm:px-6 lg:px-8 py-4">
+            <div className="container mx-auto max-w-none md:max-w-7xl lg:max-w-[1440px] px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6">
               {renderModule()}
             </div>
           </main>

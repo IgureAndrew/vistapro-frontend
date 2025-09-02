@@ -297,47 +297,49 @@ const ProfileUpdate = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Current Profile Display */}
       <Card>
-        <CardHeader>
-          <CardTitle>Your public account information</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="text-lg sm:text-xl">Your public account information</CardTitle>
+          <CardDescription className="text-sm sm:text-base">
             This information will be displayed publicly so be careful what you share.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-start space-x-4">
-            <div className="flex-shrink-0">
+        <CardContent className="pt-0">
+          <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="flex-shrink-0 mx-auto sm:mx-0">
               {avatarPreview ? (
                 <img
                   src={avatarPreview}
                   alt="Profile"
-                  className="h-16 w-16 rounded-full object-cover"
+                  className="h-20 w-20 sm:h-16 sm:w-16 rounded-full object-cover border-2 border-gray-200"
                 />
               ) : (
-                <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-500 text-sm">No Avatar</span>
+                <div className="h-20 w-20 sm:h-16 sm:w-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-300">
+                  <span className="text-gray-500 text-xs sm:text-sm">No Avatar</span>
                 </div>
               )}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className={`text-foreground text-sm sm:text-base break-all leading-snug`}>
-                Email: {currentProfile.email || "Not set"}
-              </p>
-              <p className={`text-foreground text-sm sm:text-base truncate`}>
-                Phone: {currentProfile.phone || "Not set"}
-              </p>
-              <p className={`text-foreground text-sm sm:text-base truncate`}>
-                Gender: {currentProfile.gender || "Not set"}
-              </p>
-              <p className={`text-muted-foreground text-xs sm:text-sm mt-1`}>
-                If a new password is provided, it will replace your current one.
-              </p>
-              {/* Storage Status Indicator */}
-              <div className="flex items-center mt-2 space-x-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-xs text-green-600">Data saved locally</span>
+            <div className="min-w-0 flex-1 w-full sm:w-auto">
+              <div className="space-y-2">
+                <p className="text-foreground text-sm sm:text-base break-words leading-relaxed">
+                  <span className="font-medium">Email:</span> {currentProfile.email || "Not set"}
+                </p>
+                <p className="text-foreground text-sm sm:text-base break-words">
+                  <span className="font-medium">Phone:</span> {currentProfile.phone || "Not set"}
+                </p>
+                <p className="text-foreground text-sm sm:text-base break-words">
+                  <span className="font-medium">Gender:</span> {currentProfile.gender || "Not set"}
+                </p>
+                <p className="text-muted-foreground text-xs sm:text-sm mt-3 leading-relaxed">
+                  If a new password is provided, it will replace your current one.
+                </p>
+                {/* Storage Status Indicator */}
+                <div className="flex items-center mt-3 space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-xs text-green-600 font-medium">Data saved locally</span>
+                </div>
               </div>
             </div>
           </div>
@@ -346,14 +348,14 @@ const ProfileUpdate = () => {
 
       {/* Profile Update Form */}
       <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Update your personal info</CardDescription>
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="text-lg sm:text-xl">Profile</CardTitle>
+          <CardDescription className="text-sm sm:text-base">Update your personal info</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleProfileUpdate} className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
+        <CardContent className="pt-0">
+          <form onSubmit={handleProfileUpdate} className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2">
+              <div className="space-y-2">
                 <label htmlFor="email" className="block text-sm font-medium text-foreground">
                   Email
                 </label>
@@ -363,11 +365,11 @@ const ProfileUpdate = () => {
                   name="email"
                   value={profileData.email}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  placeholder="Email"
+                  className="block w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+                  placeholder="Enter your email"
                 />
               </div>
-              <div>
+              <div className="space-y-2">
                 <label htmlFor="phone" className="block text-sm font-medium text-foreground">
                   Phone
                 </label>
@@ -377,28 +379,31 @@ const ProfileUpdate = () => {
                   name="phone"
                   value={profileData.phone}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  placeholder="Phone"
+                  className="block w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+                  placeholder="Enter your phone number"
                 />
               </div>
             </div>
             
-            <div>
+            <div className="space-y-2">
               <label htmlFor="gender" className="block text-sm font-medium text-foreground">
                 Gender
               </label>
-              <input
-                type="text"
+              <select
                 id="gender"
                 name="gender"
                 value={profileData.gender}
                 onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                placeholder="Gender"
-              />
+                className="block w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm ring-offset-background focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
-            <div>
+            <div className="space-y-2">
               <label htmlFor="newPassword" className="block text-sm font-medium text-foreground">
                 New Password
               </label>
@@ -408,31 +413,39 @@ const ProfileUpdate = () => {
                 name="newPassword"
                 value={profileData.newPassword}
                 onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                placeholder="New Password"
+                className="block w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+                placeholder="Enter new password (optional)"
               />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to keep current password
+              </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-foreground">Avatar</label>
-              <div className="mt-1 flex items-center space-x-4">
-                {avatarPreview ? (
-                  <img
-                    src={avatarPreview}
-                    alt="Profile"
-                    className="h-16 w-16 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-gray-500 text-sm">No Avatar</span>
-                  </div>
-                )}
-                <div>
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-foreground">Profile Picture</label>
+              <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                <div className="flex-shrink-0">
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Profile"
+                      className="h-20 w-20 sm:h-16 sm:w-16 rounded-full object-cover border-2 border-gray-200"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 sm:h-16 sm:w-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-300">
+                      <span className="text-gray-500 text-xs sm:text-sm">No Avatar</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 w-full sm:w-auto">
                   <label
                     htmlFor="profileImage"
-                    className="cursor-pointer text-sm font-medium text-primary hover:text-primary/80"
+                    className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
                   >
-                    Change
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Choose Photo
                   </label>
                   <input
                     type="file"
@@ -442,20 +455,35 @@ const ProfileUpdate = () => {
                     onChange={handleFileChange}
                     className="hidden"
                   />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    JPG, PNG or GIF. Max size 5MB.
+                  </p>
                 </div>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Click to upload a custom avatar.
-              </p>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4">
               <button
                 type="submit"
                 disabled={isLoading}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isLoading ? "Saving..." : "Save Changes"}
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Changes
+                  </>
+                )}
               </button>
             </div>
           </form>

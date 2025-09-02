@@ -128,3 +128,54 @@
     border-color: hsl(var(--border));
   }
 }
+
+/* Mobile-specific enhancements */
+@layer components {
+  /* Touch-friendly interactive elements */
+  @media (max-width: 768px) {
+    .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Better spacing for mobile forms */
+    .mobile-form-spacing {
+      @apply space-y-4;
+    }
+    
+    /* Improved button sizing for mobile */
+    .mobile-button {
+      @apply py-3 px-6 text-base;
+    }
+    
+    /* Better input field sizing */
+    .mobile-input {
+      @apply py-3 px-4 text-base;
+    }
+    
+    /* Card padding adjustments */
+    .mobile-card {
+      @apply p-4;
+    }
+    
+    /* Avatar sizing for mobile */
+    .mobile-avatar {
+      @apply h-20 w-20;
+    }
+  }
+  
+  /* Improved focus states for mobile */
+  .focus-mobile {
+    @apply focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:outline-none;
+  }
+  
+  /* Better text wrapping */
+  .text-wrap-mobile {
+    @apply break-words overflow-wrap-anywhere;
+  }
+  
+  /* Smooth transitions for better mobile experience */
+  .mobile-transition {
+    @apply transition-all duration-200 ease-in-out;
+  }
+}
