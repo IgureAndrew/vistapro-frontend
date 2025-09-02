@@ -1,23 +1,46 @@
 # Dependencies
 node_modules/
 */node_modules/
-
-# Environment files
-.env
-.env.local
-.env.production
-.env.development
-
-# Logs
-logs
-*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
@@ -53,9 +76,6 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
-.env.test
-
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -65,7 +85,6 @@ jspm_packages/
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/
@@ -79,36 +98,36 @@ public
 tmp/
 temp/
 
-# Editor directories and files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Build outputs
-build/
-dist/
-out/
-
-# Uploads and user content
-uploads/
-*/uploads/
-
 # Database files
-*.sqlite
 *.db
+*.sqlite
+*.sqlite3
 
-# SSL certificates
-*.pem
-*.key
-*.crt
+# Upload directories (keep structure but ignore files)
+uploads/*
+!uploads/.gitkeep
+
+# Backup directories (keep structure but ignore old backups)
+backup-*/
+dashboard-backup-*/
+
+# Test files
+test-results/
+playwright-report/
+test-results.xml
+
+# Local development files
+*.local
+local-*
+
+# Docker
+.dockerignore
+
+# Vercel
+.vercel
+
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
