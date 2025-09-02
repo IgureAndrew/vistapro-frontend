@@ -1,5 +1,5 @@
 // src/components/NotificationBell.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import api from "../api";
 import { io } from 'socket.io-client';
@@ -8,6 +8,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount,  setUnreadCount]    = useState(0);
   const [open,         setOpen]           = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     // 1) Fetch initial list + count
@@ -47,6 +48,20 @@ export default function NotificationBell() {
     };
   }, []);
 
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // mark a single notification as read
   const markRead = (id) => {
     api.patch(`/notifications/${id}/read`)
@@ -60,39 +75,79 @@ export default function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative p-2"
+        className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
       >
         <Bell size={20}/>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1 min-w-[18px] h-[18px] flex items-center justify-center">
             {unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded">
-          <h4 className="px-4 py-2 border-b font-semibold">Notifications</h4>
-          <ul className="max-h-60 overflow-y-auto">
-            {notifications.map(n => (
-              <li
-                key={n.id}
-                className={`px-4 py-2 cursor-pointer ${n.is_read ? 'text-gray-500' : 'font-semibold'}`}
-                onClick={() => !n.is_read && markRead(n.id)}
-              >
-                <div>{n.message}</div>
-                <small className="text-xs text-gray-400">
-                  {new Date(n.created_at).toLocaleString()}
-                </small>
-              </li>
-            ))}
-            {notifications.length === 0 && (
-              <li className="p-4 text-gray-500">No notifications</li>
+        <div className="absolute right-0 mt-2 w-96 bg-white shadow-xl rounded-lg border border-gray-200 z-50">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-gray-800">Notifications</h4>
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {notifications.length > 0 ? (
+              <ul className="divide-y divide-gray-100">
+                {notifications.map(n => (
+                  <li
+                    key={n.id}
+                    className={`px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${
+                      n.is_read ? 'bg-white' : 'bg-blue-50 border-l-4 border-l-blue-500'
+                    }`}
+                    onClick={() => !n.is_read && markRead(n.id)}
+                  >
+                    <div className={`${n.is_read ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
+                      {n.message}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <small className="text-xs text-gray-500">
+                        {new Date(n.created_at).toLocaleString()}
+                      </small>
+                      {!n.is_read && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="p-8 text-center">
+                <div className="text-gray-400 mb-2">
+                  <Bell size={32} className="mx-auto" />
+                </div>
+                <p className="text-gray-500 text-sm">No notifications yet</p>
+                <p className="text-gray-400 text-xs mt-1">You're all caught up!</p>
+              </div>
             )}
-          </ul>
+          </div>
+          {notifications.length > 0 && (
+            <div className="px-4 py-2 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              <button 
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                onClick={() => {
+                  // Mark all as read functionality could be added here
+                  setOpen(false);
+                }}
+              >
+                Mark all as read
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

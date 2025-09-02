@@ -16,6 +16,8 @@ import {
   Menu,
   X,
   MessageSquare,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 import MasterAdminOverview from "./MasterAdminOverview";
@@ -167,6 +169,17 @@ function MasterAdminDashboard() {
           <h2 className="font-bold">Vistapro</h2>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={toggleDarkMode}
+            className={`p-2 rounded-lg transition-colors ${
+              isDarkMode 
+                ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
           <NotificationBell />
           <AvatarDropdown
             user={user}
@@ -242,6 +255,17 @@ function MasterAdminDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <button
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-lg transition-colors ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
               <NotificationBell />
               <AvatarDropdown
                 user={user}

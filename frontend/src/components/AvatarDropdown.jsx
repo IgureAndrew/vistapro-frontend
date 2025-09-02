@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Moon, Sun } from "lucide-react";
 
 function AvatarDropdown({ user, handleLogout, toggleDarkMode, isDarkMode, setActiveModule }) {
   const [open, setOpen] = useState(false);
@@ -38,13 +39,14 @@ function AvatarDropdown({ user, handleLogout, toggleDarkMode, isDarkMode, setAct
               Profile
             </li>
             <li
-              className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+              className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
               onClick={() => {
                 toggleDarkMode();
                 setOpen(false);
               }}
             >
-              Toggle Dark Mode
+              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
             </li>
             <li
               className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
