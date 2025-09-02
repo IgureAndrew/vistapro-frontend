@@ -114,6 +114,7 @@ export default function UsersManagement() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState(null);
   const [deleteType, setDeleteType] = useState('soft'); // 'soft' or 'permanent'
+  const [showDeletedUsers, setShowDeletedUsers] = useState(false);
   const [confirmLockOpen, setConfirmLockOpen] = useState(false);
   const [lockUserId, setLockUserId] = useState(null);
   const [lockAction, setLockAction] = useState("lock"); // "lock" | "unlock"
@@ -171,7 +172,7 @@ export default function UsersManagement() {
       fetchUsersClient();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [advancedUsersUI, serverFilters.page, serverFilters.limit, serverFilters.role, serverFilters.status, serverFilters.location, serverFilters.sort, serverFilters.order]);
+  }, [advancedUsersUI, serverFilters.page, serverFilters.limit, serverFilters.role, serverFilters.status, serverFilters.location, serverFilters.sort, serverFilters.order, showDeletedUsers]);
 
   async function fetchUsersClient() {
     try {
@@ -199,6 +200,12 @@ export default function UsersManagement() {
       params.set('limit', String(limit || 20));
       if (sort) params.set('sort', sort);
       if (order) params.set('order', order);
+      
+      // Include deleted users if toggle is on
+      if (showDeletedUsers) {
+        params.set('includeDeleted', 'true');
+      }
+      
       const url = `${baseUrl}?${params.toString()}`;
       const res = await fetch(url, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
       const data = await res.json();
@@ -383,7 +390,9 @@ export default function UsersManagement() {
     });
     
     if (res.ok) {
-      showSuccess("User restored successfully");
+      const data = await res.json();
+      console.log('Restore response:', data);
+      showSuccess(data.message || "User restored successfully");
       (advancedUsersUI ? fetchUsersServer : fetchUsersClient)();
     } else {
       const data = await res.json().catch(()=>({}));
@@ -448,7 +457,19 @@ export default function UsersManagement() {
                 <CardTitle className="text-foreground">Users</CardTitle>
                 <CardDescription className="text-muted-foreground">Manage users with filters, sorting and pagination</CardDescription>
               </div>
-              <button onClick={openAddUserModal} className="btn-primary h-10 sm:h-11 px-3 sm:px-4 shrink-0">Add User</button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowDeletedUsers(!showDeletedUsers)}
+                  className={`h-10 sm:h-11 px-3 sm:px-4 shrink-0 text-sm ${
+                    showDeletedUsers 
+                      ? 'bg-orange-100 text-orange-800 border border-orange-200' 
+                      : 'btn-soft'
+                  }`}
+                >
+                  {showDeletedUsers ? 'Hide Deleted' : 'Show Deleted'}
+                </button>
+                <button onClick={openAddUserModal} className="btn-primary h-10 sm:h-11 px-3 sm:px-4 shrink-0">Add User</button>
+              </div>
             </CardHeader>
             <CardContent className="px-0 md:px-4">
             {/* Mobile list view */}
@@ -468,17 +489,28 @@ export default function UsersManagement() {
                       <div className="flex flex-wrap items-center gap-2 mb-3">
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">{u.role}</span>
                         {u.location && <span className="text-xs bg-muted px-2 py-1 rounded">{u.location}</span>}
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{u.locked ? 'Locked' : 'Active'}</span>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          u.deleted ? 'bg-gray-100 text-gray-800' : 
+                          u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {u.deleted ? 'Deleted' : u.locked ? 'Locked' : 'Active'}
+                        </span>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2">
-                        <button onClick={()=>openEditUserModal(u)} className="btn-soft h-10 text-xs font-medium">Edit</button>
-                        {u.locked ? (
-                          <button onClick={()=>openLockConfirm(u.id, "unlock")} className="btn-soft h-10 text-xs font-medium">Unlock</button>
+                        {u.deleted ? (
+                          <button onClick={()=>handleRestoreUser(u.id)} className="btn-soft h-10 text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200">Restore</button>
                         ) : (
-                          <button onClick={()=>openLockConfirm(u.id, "lock")} className="btn-soft h-10 text-xs font-medium">Lock</button>
+                          <>
+                            <button onClick={()=>openEditUserModal(u)} className="btn-soft h-10 text-xs font-medium">Edit</button>
+                            {u.locked ? (
+                              <button onClick={()=>openLockConfirm(u.id, "unlock")} className="btn-soft h-10 text-xs font-medium">Unlock</button>
+                            ) : (
+                              <button onClick={()=>openLockConfirm(u.id, "lock")} className="btn-soft h-10 text-xs font-medium">Lock</button>
+                            )}
+                            <button onClick={()=>openDeleteConfirm(u.id)} className="btn-soft h-10 text-xs font-medium">Delete</button>
+                          </>
                         )}
-                        <button onClick={()=>openDeleteConfirm(u.id)} className="btn-soft h-10 text-xs font-medium">Delete</button>
                       </div>
                     </div>
                   </div>
@@ -521,19 +553,28 @@ export default function UsersManagement() {
                       </td>
                       <td className="px-3 md:px-4 py-4 text-sm text-muted-foreground">{u.location || '-'}</td>
                       <td className="px-3 md:px-4 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                          {u.locked ? 'Locked' : 'Active'}
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          u.deleted ? 'bg-gray-100 text-gray-800' : 
+                          u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {u.deleted ? 'Deleted' : u.locked ? 'Locked' : 'Active'}
                         </span>
                       </td>
                       <td className="px-3 md:px-4 py-4">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openEditUserModal(u)} className="btn-soft text-xs px-2 py-1 h-8">Edit</button>
-                          {u.locked ? (
-                            <button onClick={() => openLockConfirm(u.id, "unlock")} className="btn-soft text-xs px-2 py-1 h-8">Unlock</button>
+                          {u.deleted ? (
+                            <button onClick={() => handleRestoreUser(u.id)} className="btn-soft text-xs px-2 py-1 h-8 bg-green-100 text-green-800 hover:bg-green-200">Restore</button>
                           ) : (
-                            <button onClick={() => openLockConfirm(u.id, "lock")} className="btn-soft text-xs px-2 py-1 h-8">Lock</button>
+                            <>
+                              <button onClick={() => openEditUserModal(u)} className="btn-soft text-xs px-2 py-1 h-8">Edit</button>
+                              {u.locked ? (
+                                <button onClick={() => openLockConfirm(u.id, "unlock")} className="btn-soft text-xs px-2 py-1 h-8">Unlock</button>
+                              ) : (
+                                <button onClick={() => openLockConfirm(u.id, "lock")} className="btn-soft text-xs px-2 py-1 h-8">Lock</button>
+                              )}
+                              <button onClick={() => openDeleteConfirm(u.id)} className="btn-soft text-xs px-2 py-1 h-8">Delete</button>
+                            </>
                           )}
-                          <button onClick={() => openDeleteConfirm(u.id)} className="btn-soft text-xs px-2 py-1 h-8">Delete</button>
                         </div>
                       </td>
                     </tr>
