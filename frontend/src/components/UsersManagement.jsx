@@ -27,63 +27,72 @@ function FiltersPanel({ serverFilters, setServerFilters, baseUrl, NIGERIAN_STATE
           <CardDescription className="text-muted-foreground">Refine users</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="space-y-3">
+            {/* Search bar - full width on mobile */}
             <input
               type="text"
               placeholder="Search by name, email, ID or role"
               value={serverFilters.q}
               onChange={e => set({ q: e.target.value })}
-              className="input-soft h-11 flex-1 min-w-[220px] md:min-w-[280px] lg:min-w-[320px]"
+              className="input-soft h-11 w-full"
             />
-            <select value={serverFilters.role} onChange={e => set({ role: e.target.value })} className="select-soft h-11 w-40">
-              <option value="">All Roles</option>
-              <option value="SuperAdmin">Super Admin</option>
-              <option value="Admin">Admin</option>
-              <option value="Marketer">Marketer</option>
-              <option value="Dealer">Dealer</option>
-            </select>
-            <select value={serverFilters.status} onChange={e => set({ status: e.target.value })} className="select-soft h-11 w-36">
-              <option value="">Any Status</option>
-              <option value="active">Active</option>
-              <option value="locked">Locked</option>
-            </select>
-            <select value={serverFilters.location} onChange={e => set({ location: e.target.value })} className="select-soft h-11 w-44">
-              <option value="">All Locations</option>
-              {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={serverFilters.sort} onChange={e => set({ sort: e.target.value })} className="select-soft h-11 w-32">
-              <option value="id">ID</option>
-              <option value="first_name">First Name</option>
-              <option value="last_name">Last Name</option>
-              <option value="email">Email</option>
-              <option value="role">Role</option>
-              <option value="location">Location</option>
-              <option value="created_at">Created</option>
-            </select>
-            <select value={serverFilters.order} onChange={e => set({ order: e.target.value })} className="select-soft h-11 w-24">
-              <option value="desc">Desc</option>
-              <option value="asc">Asc</option>
-            </select>
-            <button
-              onClick={() => {
-                const params = new URLSearchParams({ ...serverFilters, format: 'csv' });
-                window.open(`${baseUrl}?${params.toString()}`, '_blank');
-              }}
-              className="btn-soft h-11"
-            >
-              Export CSV
-            </button>
-            <button
-              onClick={() =>
-                setServerFilters({
-                  q: "", role: "", status: "", location: "",
-                  sort: "id", order: "desc", page: 1, limit: serverFilters.limit || 20
-                })
-              }
-              className="btn-soft h-11"
-            >
-              Reset
-            </button>
+            
+            {/* Filter controls - responsive grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
+              <select value={serverFilters.role} onChange={e => set({ role: e.target.value })} className="select-soft h-11 w-full">
+                <option value="">All Roles</option>
+                <option value="SuperAdmin">Super Admin</option>
+                <option value="Admin">Admin</option>
+                <option value="Marketer">Marketer</option>
+                <option value="Dealer">Dealer</option>
+              </select>
+              <select value={serverFilters.status} onChange={e => set({ status: e.target.value })} className="select-soft h-11 w-full">
+                <option value="">Any Status</option>
+                <option value="active">Active</option>
+                <option value="locked">Locked</option>
+              </select>
+              <select value={serverFilters.location} onChange={e => set({ location: e.target.value })} className="select-soft h-11 w-full">
+                <option value="">All Locations</option>
+                {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select value={serverFilters.sort} onChange={e => set({ sort: e.target.value })} className="select-soft h-11 w-full">
+                <option value="id">ID</option>
+                <option value="first_name">First Name</option>
+                <option value="last_name">Last Name</option>
+                <option value="email">Email</option>
+                <option value="role">Role</option>
+                <option value="location">Location</option>
+                <option value="created_at">Created</option>
+              </select>
+              <select value={serverFilters.order} onChange={e => set({ order: e.target.value })} className="select-soft h-11 w-full">
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams({ ...serverFilters, format: 'csv' });
+                  window.open(`${baseUrl}?${params.toString()}`, '_blank');
+                }}
+                className="btn-soft h-11 px-4 text-sm"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={() =>
+                  setServerFilters({
+                    q: "", role: "", status: "", location: "",
+                    sort: "id", order: "desc", page: 1, limit: serverFilters.limit || 10
+                  })
+                }
+                className="btn-soft h-11 px-4 text-sm"
+              >
+                Reset Filters
+              </button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -97,7 +106,7 @@ export default function UsersManagement() {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const usersPerPage = 20;
+  const usersPerPage = 10;
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
@@ -145,9 +154,9 @@ export default function UsersManagement() {
     sort: "id",
     order: "desc",
     page: 1,
-    limit: 20,
+    limit: 10,
   });
-  const [serverPagination, setServerPagination] = useState({ total: 0, page: 1, pages: 1, limit: 20 });
+  const [serverPagination, setServerPagination] = useState({ total: 0, page: 1, pages: 1, limit: 10 });
   // sheet state removed (no longer used)
 
   // Use the configured API base instead of hardcoding production URL
@@ -406,39 +415,43 @@ export default function UsersManagement() {
             </CardHeader>
             <CardContent className="px-0 md:px-4">
             {/* Mobile list view */}
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden space-y-3 px-2">
               {users.length>0 ? users.map(u => (
-                <div key={u.id} className="bg-card rounded-xl p-4 shadow-sm">
+                <div key={u.id} className="bg-card rounded-xl p-4 shadow-sm border border-border">
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center shrink-0">
                       <UserIcon className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="font-semibold text-base truncate">{u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}</div>
-                        <span className="text-xs text-muted-foreground">#{u.id}</span>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">#{u.id}</span>
                       </div>
-                      <div className="text-sm text-muted-foreground break-all">{u.email}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-xs bg-muted px-2 py-0.5 rounded">{u.role}</span>
-                        {u.location && <span className="text-xs bg-muted px-2 py-0.5 rounded">{u.location}</span>}
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{u.locked ? 'Locked' : 'Active'}</span>
+                      <div className="text-sm text-muted-foreground break-all mb-2">{u.email}</div>
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">{u.role}</span>
+                        {u.location && <span className="text-xs bg-muted px-2 py-1 rounded">{u.location}</span>}
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{u.locked ? 'Locked' : 'Active'}</span>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <button onClick={()=>openEditUserModal(u)} className="btn-soft h-10">Edit</button>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button onClick={()=>openEditUserModal(u)} className="btn-soft h-10 text-xs font-medium">Edit</button>
                         {u.locked ? (
-                          <button onClick={()=>openLockConfirm(u.id, "unlock")} className="btn-soft h-10">Unlock</button>
+                          <button onClick={()=>openLockConfirm(u.id, "unlock")} className="btn-soft h-10 text-xs font-medium">Unlock</button>
                         ) : (
-                          <button onClick={()=>openLockConfirm(u.id, "lock")} className="btn-soft h-10">Lock</button>
+                          <button onClick={()=>openLockConfirm(u.id, "lock")} className="btn-soft h-10 text-xs font-medium">Lock</button>
                         )}
-                        <button onClick={()=>openDeleteConfirm(u.id)} className="btn-soft h-10">Delete</button>
+                        <button onClick={()=>openDeleteConfirm(u.id)} className="btn-soft h-10 text-xs font-medium">Delete</button>
                       </div>
                     </div>
                   </div>
                 </div>
               )) : (
-                <div className="text-center text-muted-foreground py-6">No users found.</div>
+                <div className="text-center text-muted-foreground py-8">
+                  <UserIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                  <p className="text-lg font-medium">No users found</p>
+                  <p className="text-sm">Try adjusting your search or filters</p>
+                </div>
               )}
             </div>
             {/* Desktop/tablet table */}
@@ -447,53 +460,83 @@ export default function UsersManagement() {
                 <thead className="bg-muted">
                   <tr>
                     {['ID','Name','Role','Location','Status','Actions'].map(h=> (
-                      <th key={h} className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase">{h}</th>
+                      <th key={h} className="px-3 md:px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {users.length>0 ? users.map(u => (
-                    <tr key={u.id} className="hover:bg-muted">
-                      <td className="px-4 py-4 text-sm font-medium">{u.id}</td>
-                      <td className="px-4 py-4">
+                    <tr key={u.id} className="hover:bg-muted/50 transition-colors">
+                      <td className="px-3 md:px-4 py-4 text-sm font-medium text-muted-foreground">#{u.id}</td>
+                      <td className="px-3 md:px-4 py-4">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center mr-3">
-                            <UserIcon className="w-6 h-6 text-muted-foreground" />
+                          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center mr-3 shrink-0">
+                            <UserIcon className="w-5 h-5 text-muted-foreground" />
                           </div>
-                          <div>
-                            <div className="font-bold">{u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}</div>
-                            <div className="text-sm text-muted-foreground break-all">{u.email}</div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm truncate">{u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}</div>
+                            <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-sm">{u.role}</td>
-                      <td className="px-4 py-4 text-sm">{u.location}</td>
-                      <td className="px-4 py-4"><span className={`px-2 py-0.5 rounded text-xs font-bold ${u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{u.locked ? 'Locked' : 'Active'}</span></td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <button onClick={() => openEditUserModal(u)} className="btn-soft text-xs px-2 py-1">Edit</button>
+                      <td className="px-3 md:px-4 py-4">
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">{u.role}</span>
+                      </td>
+                      <td className="px-3 md:px-4 py-4 text-sm text-muted-foreground">{u.location || '-'}</td>
+                      <td className="px-3 md:px-4 py-4">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${u.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                          {u.locked ? 'Locked' : 'Active'}
+                        </span>
+                      </td>
+                      <td className="px-3 md:px-4 py-4">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEditUserModal(u)} className="btn-soft text-xs px-2 py-1 h-8">Edit</button>
                           {u.locked ? (
-                            <button onClick={() => openLockConfirm(u.id, "unlock")} className="btn-soft text-xs px-2 py-1">Unlock</button>
+                            <button onClick={() => openLockConfirm(u.id, "unlock")} className="btn-soft text-xs px-2 py-1 h-8">Unlock</button>
                           ) : (
-                            <button onClick={() => openLockConfirm(u.id, "lock")} className="btn-soft text-xs px-2 py-1">Lock</button>
+                            <button onClick={() => openLockConfirm(u.id, "lock")} className="btn-soft text-xs px-2 py-1 h-8">Lock</button>
                           )}
-                          <button onClick={() => openDeleteConfirm(u.id)} className="btn-soft text-xs px-2 py-1">Delete</button>
+                          <button onClick={() => openDeleteConfirm(u.id)} className="btn-soft text-xs px-2 py-1 h-8">Delete</button>
                         </div>
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={6} className="px-4 py-4 text-center text-muted-foreground">No users found.</td></tr>
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                        <UserIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                        <p className="text-lg font-medium">No users found</p>
+                        <p className="text-sm">Try adjusting your search or filters</p>
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
-              <div className="text-sm text-muted-foreground">Total: {serverPagination.total} • Page {serverPagination.page} of {serverPagination.pages}</div>
-              <div className="flex items-center gap-2">
-                <button disabled={serverFilters.page<=1} onClick={()=>setServerFilters(s=>({...s, page: Math.max(1, s.page-1)}))} className="btn-soft">Prev</button>
-                <button disabled={serverFilters.page>=serverPagination.pages} onClick={()=>setServerFilters(s=>({...s, page: Math.min(serverPagination.pages, s.page+1)}))} className="btn-soft">Next</button>
-                <select value={serverFilters.limit} onChange={e=>setServerFilters(s=>({...s, limit: parseInt(e.target.value,10)||20, page:1}))} className="select-soft">
-                  {[10,20,50,100].map(n=> <option key={n} value={n}>{n}/page</option>)}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6 px-2 md:px-0">
+              <div className="text-sm text-muted-foreground text-center sm:text-left">
+                <span className="font-medium">{serverPagination.total}</span> total users • Page <span className="font-medium">{serverPagination.page}</span> of <span className="font-medium">{serverPagination.pages}</span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <button 
+                  disabled={serverFilters.page<=1} 
+                  onClick={()=>setServerFilters(s=>({...s, page: Math.max(1, s.page-1)}))} 
+                  className="btn-soft h-9 px-3 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button 
+                  disabled={serverFilters.page>=serverPagination.pages} 
+                  onClick={()=>setServerFilters(s=>({...s, page: Math.min(serverPagination.pages, s.page+1)}))} 
+                  className="btn-soft h-9 px-3 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+                <select 
+                  value={serverFilters.limit} 
+                  onChange={e=>setServerFilters(s=>({...s, limit: parseInt(e.target.value,10)||10, page:1}))} 
+                  className="select-soft h-9 text-sm"
+                >
+                  {[10,20,50,100].map(n=> <option key={n} value={n}>{n} per page</option>)}
                 </select>
               </div>
             </div>
