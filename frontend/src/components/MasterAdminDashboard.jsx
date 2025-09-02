@@ -21,7 +21,7 @@ import {
 import MasterAdminOverview from "./MasterAdminOverview";
 import AvatarDropdown from "./AvatarDropdown";
 import ProfileUpdate from "./ProfileUpdate";
-import { profileStorage } from "../utils/profileStorage";
+import profileStorage from "../utils/profileStorage";
 import UsersManagement from "./UsersManagement";
 import ProfitReport from "./ProfitReport";
 import MasterAdminWallet from "./MasterAdminWallet";
