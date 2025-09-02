@@ -113,6 +113,7 @@ export default function UsersManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState(null);
+  const [deleteType, setDeleteType] = useState('soft'); // 'soft' or 'permanent'
   const [confirmLockOpen, setConfirmLockOpen] = useState(false);
   const [lockUserId, setLockUserId] = useState(null);
   const [lockAction, setLockAction] = useState("lock"); // "lock" | "unlock"
@@ -350,26 +351,62 @@ export default function UsersManagement() {
     }
   }
 
-   async function handleDeleteUser(id) {
-    const res = await fetch(`${baseUrl}/${id}`, {
+   async function handleDeleteUser(id, isPermanent = false) {
+    const url = isPermanent ? `${baseUrl}/${id}?permanent=true` : `${baseUrl}/${id}`;
+    
+    const res = await fetch(url, {
       method: "DELETE",
       headers: {
         "Content-Type":"application/json",
         Authorization:`Bearer ${token}`
       }
     });
+    
     if (res.ok) {
-      showSuccess("Deleted");
+      const data = await res.json();
+      const deleteType = data.deleteType || (isPermanent ? 'permanent' : 'soft');
+      showSuccess(`User ${deleteType} deleted successfully`);
       (advancedUsersUI ? fetchUsersServer : fetchUsersClient)();
     } else {
       const data = await res.json().catch(()=>({}));
-      showError(data.message || "Failed to delete");
+      showError(data.message || "Failed to delete user");
     }
   }
 
-  function openDeleteConfirm(id){ setDeleteUserId(id); setConfirmDeleteOpen(true); }
-  function closeDeleteConfirm(){ setConfirmDeleteOpen(false); setDeleteUserId(null); }
-  async function confirmDelete(){ if(deleteUserId){ await handleDeleteUser(deleteUserId); } closeDeleteConfirm(); }
+  async function handleRestoreUser(id) {
+    const res = await fetch(`${baseUrl}/${id}/restore`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${token}`
+      }
+    });
+    
+    if (res.ok) {
+      showSuccess("User restored successfully");
+      (advancedUsersUI ? fetchUsersServer : fetchUsersClient)();
+    } else {
+      const data = await res.json().catch(()=>({}));
+      showError(data.message || "Failed to restore user");
+    }
+  }
+
+  function openDeleteConfirm(id){ 
+    setDeleteUserId(id); 
+    setDeleteType('soft'); // Default to soft delete
+    setConfirmDeleteOpen(true); 
+  }
+  function closeDeleteConfirm(){ 
+    setConfirmDeleteOpen(false); 
+    setDeleteUserId(null); 
+    setDeleteType('soft');
+  }
+  async function confirmDelete(){ 
+    if(deleteUserId){ 
+      await handleDeleteUser(deleteUserId, deleteType === 'permanent'); 
+    } 
+    closeDeleteConfirm(); 
+  }
   function openLockConfirm(id, action){ setLockUserId(id); setLockAction(action); setConfirmLockOpen(true); }
   function closeLockConfirm(){ setConfirmLockOpen(false); setLockUserId(null); }
   async function confirmLock(){ if(lockUserId){ await patchUserLock(lockUserId, lockAction === "lock"); } closeLockConfirm(); }
@@ -1027,12 +1064,63 @@ export default function UsersManagement() {
       {confirmDeleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={closeDeleteConfirm} aria-hidden="true" />
-          <div role="dialog" aria-modal="true" className="relative w-full max-w-[420px] bg-background rounded-xl shadow-xl border border-border p-6">
-            <h3 className="text-lg font-semibold mb-2">Are you absolutely sure?</h3>
-            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone. This will permanently remove the user.</p>
+          <div role="dialog" aria-modal="true" className="relative w-full max-w-[480px] bg-background rounded-xl shadow-xl border border-border p-6">
+            <h3 className="text-lg font-semibold mb-2">Delete User</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Choose how you want to delete this user:
+            </p>
+            
+            {/* Delete Type Selection */}
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer" 
+                   onClick={() => setDeleteType('soft')}>
+                <input 
+                  type="radio" 
+                  name="deleteType" 
+                  value="soft" 
+                  checked={deleteType === 'soft'}
+                  onChange={() => setDeleteType('soft')}
+                  className="text-[#f59e0b]"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm">Soft Delete (Recommended)</div>
+                  <div className="text-xs text-muted-foreground">
+                    User will be hidden but can be restored later. Related data is preserved.
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer" 
+                   onClick={() => setDeleteType('permanent')}>
+                <input 
+                  type="radio" 
+                  name="deleteType" 
+                  value="permanent" 
+                  checked={deleteType === 'permanent'}
+                  onChange={() => setDeleteType('permanent')}
+                  className="text-red-500"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm text-red-600">Permanent Delete</div>
+                  <div className="text-xs text-muted-foreground">
+                    User and all related data will be permanently removed. This cannot be undone.
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             <div className="flex justify-end gap-3">
               <button onClick={closeDeleteConfirm} className="btn-soft px-4 py-2">Cancel</button>
-              <button onClick={confirmDelete} className="px-4 py-2 rounded font-medium bg-[#f59e0b] text-black hover:bg-[#f59e0b]/90">Delete</button>
+              <button 
+                onClick={confirmDelete} 
+                className={`px-4 py-2 rounded font-medium ${
+                  deleteType === 'permanent' 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'bg-[#f59e0b] text-black hover:bg-[#f59e0b]/90'
+                }`}
+              >
+                {deleteType === 'permanent' ? 'Permanently Delete' : 'Soft Delete'}
+              </button>
             </div>
           </div>
         </div>

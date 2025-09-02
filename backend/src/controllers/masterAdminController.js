@@ -381,32 +381,152 @@ const updateUser = async (req, res, next) => {
 };
 
 /**
- * deleteUser - Deletes a user specified by :id.
+ * deleteUser - Deletes a user specified by :id with support for both soft and hard delete.
+ * Query parameter 'permanent=true' will perform hard delete, otherwise soft delete is used.
  */
 const deleteUser = async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id, 10);
-    const { rowCount, rows } = await pool.query(
-      `DELETE FROM users WHERE id = $1 RETURNING *`,
-      [userId]
-    );
-    if (rowCount === 0) {
-      return res.status(404).json({ message: 'User not found' });
+    const isPermanent = req.query.permanent === 'true';
+    const currentUserId = req.user.id;
+
+    // Validate user ID
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
     }
 
+    // Check if user exists and is not already deleted
+    const userCheck = await pool.query(
+      `SELECT * FROM users WHERE id = $1 AND deleted = FALSE`,
+      [userId]
+    );
+
+    if (userCheck.rowCount === 0) {
+      return res.status(404).json({ message: 'User not found or already deleted' });
+    }
+
+    const userToDelete = userCheck.rows[0];
+
+    // Prevent self-deletion
+    if (userId === currentUserId) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
+    // Prevent deletion of MasterAdmin accounts
+    if (userToDelete.role === 'MasterAdmin') {
+      return res.status(403).json({ message: 'MasterAdmin accounts cannot be deleted' });
+    }
+
+    let result;
+    let deleteType;
+
+    if (isPermanent) {
+      // Hard delete with cascade
+      try {
+        const deleteResult = await pool.query(
+          `DELETE FROM users WHERE id = $1 RETURNING *`,
+          [userId]
+        );
+
+        if (deleteResult.rowCount === 0) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+
+        result = deleteResult.rows[0];
+        deleteType = 'permanent';
+      } catch (deleteError) {
+        // If hard delete fails due to foreign key constraints, fall back to soft delete
+        console.warn('Hard delete failed, falling back to soft delete:', deleteError.message);
+        
+        const softDeleteResult = await pool.query(
+          `UPDATE users SET deleted = TRUE, deleted_at = NOW(), deleted_by = $1 WHERE id = $2 RETURNING *`,
+          [currentUserId, userId]
+        );
+
+        result = softDeleteResult.rows[0];
+        deleteType = 'soft (fallback)';
+      }
+    } else {
+      // Soft delete
+      const softDeleteResult = await pool.query(
+        `UPDATE users SET deleted = TRUE, deleted_at = NOW(), deleted_by = $1 WHERE id = $2 RETURNING *`,
+        [currentUserId, userId]
+      );
+
+      result = softDeleteResult.rows[0];
+      deleteType = 'soft';
+    }
+
+    // Log the activity
     await logActivity(
-      req.user.id,
+      currentUserId,
       `${req.user.first_name} ${req.user.last_name}`,
-      'Delete User',
+      `Delete User (${deleteType})`,
       'User',
-      rows[0].unique_id
+      result.unique_id
     );
 
     return res.json({
-      message: 'User deleted successfully',
-      user: rows[0]
+      message: `User ${deleteType} deleted successfully`,
+      user: result,
+      deleteType: deleteType
     });
+
   } catch (error) {
+    console.error('Delete user error:', error);
+    next(error);
+  }
+};
+
+/**
+ * restoreUser - Restores a soft-deleted user specified by :id.
+ */
+const restoreUser = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const currentUserId = req.user.id;
+
+    // Validate user ID
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    // Check if user exists and is soft-deleted
+    const userCheck = await pool.query(
+      `SELECT * FROM users WHERE id = $1 AND deleted = TRUE`,
+      [userId]
+    );
+
+    if (userCheck.rowCount === 0) {
+      return res.status(404).json({ message: 'User not found or not deleted' });
+    }
+
+    const userToRestore = userCheck.rows[0];
+
+    // Restore the user
+    const restoreResult = await pool.query(
+      `UPDATE users SET deleted = FALSE, deleted_at = NULL, deleted_by = NULL WHERE id = $1 RETURNING *`,
+      [userId]
+    );
+
+    const restoredUser = restoreResult.rows[0];
+
+    // Log the activity
+    await logActivity(
+      currentUserId,
+      `${req.user.first_name} ${req.user.last_name}`,
+      'Restore User',
+      'User',
+      restoredUser.unique_id
+    );
+
+    return res.json({
+      message: 'User restored successfully',
+      user: restoredUser
+    });
+
+  } catch (error) {
+    console.error('Restore user error:', error);
     next(error);
   }
 };
@@ -484,13 +604,27 @@ const unlockUser = async (req, res, next) => {
  */
 const getUsers = async (req, res, next) => {
   try {
-    const { role } = req.query;
+    const { role, includeDeleted } = req.query;
     let query = 'SELECT * FROM users';
     const values = [];
+    const conditions = [];
+
+    // Always exclude soft-deleted users unless explicitly requested
+    if (includeDeleted !== 'true') {
+      conditions.push('deleted = FALSE');
+    }
+
     if (role) {
-      query += ' WHERE role = $1';
+      conditions.push('role = $1');
       values.push(role);
     }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC';
+
     const { rows } = await pool.query(query, values);
     return res.status(200).json({ users: rows });
   } catch (error) {
@@ -1005,6 +1139,7 @@ module.exports = {
   addUser,
   updateUser,
   deleteUser,
+  restoreUser,
   lockUser,
   unlockUser,
   getUsers,

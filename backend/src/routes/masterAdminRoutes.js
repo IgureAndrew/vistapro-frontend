@@ -17,6 +17,7 @@ const {
   addUser,
   updateUser,
   deleteUser,
+  restoreUser,
   lockUser,
   unlockUser,
   getUsers,
@@ -90,9 +91,10 @@ router.get(   '/users',         verifyToken, verifyRole(['MasterAdmin']), getUse
 router.post(  '/users',         verifyToken, verifyRole(['MasterAdmin']), uploadPDF.single('registrationCertificate'), addUser);
 router.get(   '/users/summary', verifyToken, verifyRole(['MasterAdmin']), getUserSummary);
 
-// Use the numeric `:id` path parameter for update/delete
+// Use the numeric `:id` path parameter for update/delete/restore
 router.put(   '/users/:id',     verifyToken, verifyRole(['MasterAdmin']), updateUser);
 router.delete('/users/:id',     verifyToken, verifyRole(['MasterAdmin']), deleteUser);
+router.patch( '/users/:id/restore', verifyToken, verifyRole(['MasterAdmin']), restoreUser);
 
 // Lock / Unlock by numeric ID
 router.patch('/users/:id/lock',   verifyToken, verifyRole(['MasterAdmin']), lockUser);
