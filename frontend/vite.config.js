@@ -14,6 +14,6 @@ export default defineConfig({
     },
   },
                 define: {
-                'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:5005')
+                'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:5007')
               }
 })

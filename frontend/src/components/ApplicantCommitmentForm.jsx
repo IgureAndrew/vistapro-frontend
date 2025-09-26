@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import FormStepper from "./FormStepper";
+import AlertDialog from "@/components/ui/alert-dialog";
+import { validateCommitmentForm } from '../utils/formValidation';
 
 const promiseQuestions = [
   {
@@ -68,6 +70,9 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
     )
   );
   const [signatureFile, setSignatureFile] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -79,8 +84,26 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!signatureFile) {
-      return alert("Direct Sales Rep signature file is required.");
+    
+    // Prevent double submission
+    if (loading) return;
+    
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setLoading(true);
+    setShowConfirmDialog(false);
+    
+    // Use comprehensive validation
+    const { errors: validationErrors, isValid } = validateCommitmentForm(formData, signatureFile);
+    
+    // If there are validation errors, show them and stop submission
+    if (!isValid) {
+      setErrors(validationErrors);
+      setLoading(false);
+      return;
     }
 
     const payload = new FormData();
@@ -94,15 +117,18 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
         { headers: { "Content-Type": "multipart/form-data" } }
       );
       if (postRes.status !== 201) {
-        return alert(postRes.data.message || "Submission failed.");
+        setLoading(false);
+        setErrors({ general: postRes.data.message || "Submission failed." });
+        return;
       }
 
-      // Flip the success flag
-      await api.patch("/verification/commitment-success");
+      // Success - form submitted successfully
+      setErrors({});
 
-      alert(postRes.data.message || "Commitment form submitted successfully.");
+      // Scroll to top for better UX
+      window.scrollTo({ top: 0, behavior: 'smooth' });
 
-      // If backend says “under review”:
+      // If backend says "under review":
       if (postRes.data.message.toLowerCase().includes("under review")) {
         navigate("/submission-under-review");
       }
@@ -118,48 +144,117 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
       );
       setSignatureFile(null);
     } catch (err) {
-      console.error(err);
-      alert("Error submitting commitment form.");
+      console.error('❌ Commitment form submission error:', err);
+      
+      let errorMessage = "Error submitting commitment form. Please try again.";
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.field) {
+        errorMessage = `${err.response.data.field}: ${err.response.data.message}`;
+      } else if (err.response?.status === 500) {
+        errorMessage = "Server error occurred. Please try again or contact support if the problem persists.";
+      } else if (err.response?.status === 400) {
+        errorMessage = "Please check your form data and try again.";
+      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
+      setErrors({ general: errorMessage });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-2xl w-full mx-auto p-4 md:p-6 bg-white rounded shadow">
-      <FormStepper currentStep={3} />
+    <div className="w-full">
+      {/* Mobile Header */}
+      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-6">
+        <h2 className="text-xl font-bold mb-2">Commitment Form</h2>
+        <p className="text-purple-100 text-sm">Step 3 of 3 - Terms & Commitments</p>
+      </div>
 
-      <h2 className="text-2xl font-bold mb-2">Commitment Handbook</h2>
-      <p className="text-sm text-gray-600 mb-4">
-        The following are considered prohibited actions which are not allowed in
-        the sales units.
-      </p>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {promiseQuestions.map(({ name, label }) => (
-          <div key={name} className="space-y-2">
-            <label className="block font-semibold">{label}</label>
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
+      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* General Error Display */}
+        {errors.general && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <div className="text-red-600 text-sm font-medium">
+                {errors.general}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Important Notice */}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center mr-3 mt-0.5">
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-red-800 mb-1">Important Notice</h3>
+              <p className="text-xs text-red-700">
+                The following are considered prohibited actions which are not allowed in the sales units. 
+                Please read each statement carefully and provide your commitment.
+              </p>
+            </div>
+          </div>
+        </div>
+        {/* Commitment Questions Section */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">1</span>
+            Commitment Statements
+          </h3>
+          
+          <div className="space-y-6">
+            {promiseQuestions.map(({ name, label }, index) => (
+              <div key={name} className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-start mb-4">
+                  <span className="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">
+                    {index + 1}
+                  </span>
+                  <p className="text-sm font-medium text-gray-800 leading-relaxed">{label}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
               {["yes", "no"].map((val) => (
-                <label key={val} className="flex items-center">
+                    <label key={val} className="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                   <input
                     type="radio"
                     name={name}
                     value={val}
                     onChange={handleChange}
                     required
-                    className="mr-2"
+                        className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
                   />
+                      <span className="ml-3 text-sm font-medium text-gray-700">
                   {val.charAt(0).toUpperCase() + val.slice(1)}
+                      </span>
                 </label>
               ))}
             </div>
           </div>
         ))}
+          </div>
+        </div>
 
-        {/* Direct Sales Rep Name & Date Signed */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="block font-semibold">
-              Name of Direct Sales Rep:
+        {/* Signature Section */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">2</span>
+            Digital Signature
+          </h3>
+          
+          <div className="space-y-4">
+            {/* Name and Date - Side by side on larger screens */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Name of Direct Sales Rep *
             </label>
             <input
               type="text"
@@ -167,49 +262,100 @@ const ApplicantCommitmentForm = ({ onSuccess }) => {
               value={formData.direct_sales_rep_name}
               onChange={handleChange}
               required
-              className="w-full border rounded px-3 py-2"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter your full name"
             />
           </div>
-          <div className="space-y-2">
-            <label className="block font-semibold">Date Signed:</label>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date Signed *
+                </label>
             <input
               type="date"
               name="date_signed"
               value={formData.date_signed}
               onChange={handleChange}
               required
-              className="w-full border rounded px-3 py-2"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             />
           </div>
         </div>
 
         {/* Signature Upload */}
-        <div className="space-y-2">
-          <label className="block font-semibold">
-            Direct Sales Rep Signature:
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Digital Signature *
           </label>
+              <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
           <input
             type="file"
             accept="image/*"
             onChange={handleFileChange}
             required
-            className="block"
-          />
+                  className="hidden"
+                  id="commitment-signature-upload"
+                />
+                <label htmlFor="commitment-signature-upload" className="cursor-pointer">
+                  <div className="text-gray-600">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="mt-2 text-sm">Click to upload digital signature</p>
+                    <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
           {signatureFile && (
-            <p className="mt-1 text-green-600 text-xs">
-              Selected: {signatureFile.name}
+                      <p className="mt-2 text-green-600 text-sm font-medium">
+                        ✓ Selected: {signatureFile.name}
             </p>
           )}
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Submit */}
-        <div className="flex justify-end">
+        {/* Error Display */}
+        {errors.general && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <div className="text-red-600 text-sm font-medium">
+                {errors.general}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <div className="bg-white p-6 rounded-lg shadow-sm">
           <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded"
+            type="button"
+            onClick={() => setShowConfirmDialog(true)}
+            disabled={loading}
+            className="w-full text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            style={{ backgroundColor: '#f59e0b' }}
           >
-            Submit Commitment Form
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Submitting...
+              </div>
+            ) : (
+              'Submit Commitment Form'
+            )}
           </button>
+          
+          <AlertDialog
+            open={showConfirmDialog}
+            type="warning"
+            title="Confirm Submission"
+            message="Are you sure you want to submit the Commitment Form? This action cannot be undone."
+            confirmText="Submit Form"
+            cancelText="Cancel"
+            onConfirm={handleConfirmSubmit}
+            onCancel={() => setShowConfirmDialog(false)}
+            variant="default"
+          />
         </div>
       </form>
     </div>

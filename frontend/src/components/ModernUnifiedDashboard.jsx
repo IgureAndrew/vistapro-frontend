@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
+import { useTheme } from "next-themes";
 import {
   Home,
   User,
@@ -36,7 +37,8 @@ import {
   MoreHorizontal,
   Clock,
   BarChart2,
-  Box
+  Box,
+  Shield
 } from "lucide-react";
 
 // Import existing components to preserve functionality
@@ -48,16 +50,31 @@ import MasterAdminWallet from "./MasterAdminWallet";
 import SuperAdminWallet from "./SuperAdminWallet";
 import AdminWallet from "./AdminWallet";
 import Performance from "./Performance";
+import TargetManagement from "./TargetManagement";
+import UserAssignmentManagement from "./UserAssignmentManagement";
 import StockUpdate from "./StockUpdate";
 import Verification from "./Verification";
-import AssignUsers from "./AssignUsers";
+import SuperAdminAssignedUsers from "./SuperAdminAssignedUsers";
 import Product from "./Product";
 import ManageOrders from "./ManageOrders";
 import SuperAdminManageOrders from "./SuperAdminManageOrders";
 import Messaging from "./Messaging";
-import Submissions from "./Submissions";
 import NotificationBell from "./NotificationBell";
 import VerificationMarketer from "./VerificationMarketer";
+import Submissions from "./Submissions";
+import AdminSubmissionsNew from "./AdminSubmissionsNew";
+import SuperAdminSubmissionsNew from "./SuperAdminSubmissionsNew";
+import MasterAdminSubmissions from "./MasterAdminSubmissions";
+import MasterAdminStockPickups from "./MasterAdminStockPickups";
+import MasterAdminBlockedAccounts from "./MasterAdminBlockedAccounts";
+import MarketerAssignment from "./MarketerAssignment";
+
+// Import overview components
+import MasterAdminOverview from "./MasterAdminOverview";
+import SuperAdminOverview from "./SuperAdminOverview";
+import AdminOverview from "./AdminOverview";
+import DealerOverview from "./DealerOverview";
+import MarketerOverview from "./MarketerOverview";
 import MarketerStockPickup from "./MarketerStockPickup";
 import AdminStockPickups from "./AdminStockPickups";
 import SuperAdminStockPickups from "./SuperAdminStockPickups";
@@ -74,14 +91,48 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const ModernUnifiedDashboard = ({ userRole }) => {
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeModule, setActiveModule] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState("All Time");
   
+  // Derived state for dark mode
+  const isDarkMode = theme === 'dark';
+  
+  // Debug theme state
+  console.log('🌙 Theme state:', { theme, isDarkMode, documentClass: document.documentElement.className });
+  
   // Get user data from localStorage
   const [user, setUser] = useState(null);
+  
+  // Initialize theme on mount
+  useEffect(() => {
+    // Set default theme if none is set
+    if (!theme) {
+      console.log('🌙 Initializing theme to light');
+      setTheme('light');
+    } else {
+      console.log('🌙 Current theme:', theme);
+    }
+  }, [theme, setTheme]);
+  
+  // Force dark class on document when theme changes
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      console.log('🌙 Applied dark class to document');
+    } else {
+      document.documentElement.classList.remove('dark');
+      console.log('🌙 Removed dark class from document');
+    }
+  }, [theme]);
+  
+  // Force light class on mount
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    console.log('🌙 Force applied light class on mount');
+  }, []);
   
   // Stats state for real data
   const [stats, setStats] = useState({
@@ -449,13 +500,17 @@ const ModernUnifiedDashboard = ({ userRole }) => {
         { key: "profit", label: "Profit Report", icon: TrendingUp, component: ProfitReport },
         { key: "wallet", label: "Wallet", icon: WalletIcon, component: MasterAdminWallet },
         { key: "performance", label: "Performance", icon: BarChart3, component: Performance },
+        { key: "target-management", label: "Target Management", icon: Target, component: TargetManagement },
+        { key: "user-assignments", label: "User Assignments", icon: UsersIcon, component: UserAssignmentManagement },
         { key: "stock", label: "Stock Update", icon: Package, component: StockUpdate },
         { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
-        { key: "assign", label: "Assign Users", icon: UsersIcon, component: AssignUsers },
+          { key: "submissions", label: "Submissions", icon: FileText, component: MasterAdminSubmissions },
+          { key: "stock-pickups", label: "Stock Pickups", icon: Package, component: MasterAdminStockPickups },
+          { key: "blocked-accounts", label: "Blocked Accounts", icon: Shield, component: MasterAdminBlockedAccounts },
+        { key: "marketer-assignment", label: "Marketer Assignment", icon: UserPlus, component: MarketerAssignment },
         { key: "product", label: "Products", icon: Package, component: Product },
         { key: "manage-orders", label: "Manage Orders", icon: ShoppingCart, component: ManageOrders },
         { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
-        { key: "submissions", label: "Submissions", icon: ClipboardList, component: Submissions }
       ],
       getMetrics: () => [
         { 
@@ -526,8 +581,8 @@ const ModernUnifiedDashboard = ({ userRole }) => {
         { key: "wallet", label: "Wallet", icon: WalletIcon, component: SuperAdminWallet },
         { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
         { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
-        { key: "submissions", label: "Submissions", icon: FileText, component: Submissions },
-        { key: "assigned", label: "Assigned Users", icon: UserPlus, component: AssignUsers }
+        { key: "submissions", label: "Submissions", icon: FileText, component: SuperAdminSubmissionsNew },
+        { key: "assigned", label: "Assigned Users", icon: UserPlus, component: SuperAdminAssignedUsers }
       ],
       getMetrics: () => [
         { 
@@ -571,9 +626,9 @@ const ModernUnifiedDashboard = ({ userRole }) => {
         { key: "profile", label: "Profile", icon: User, component: ProfileUpdate },
         { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: ManageOrders },
         { key: "stock", label: "Stock Pickups", icon: Package, component: AdminStockPickups },
-        { key: "marketers", label: "Assigned Marketers", icon: UsersIcon, component: AssignUsers },
+        { key: "marketers", label: "Assigned Marketers", icon: UsersIcon, component: UserAssignmentManagement },
+        { key: "submissions", label: "Submissions", icon: FileText, component: AdminSubmissionsNew },
         { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
-        { key: "submissions", label: "Submissions", icon: FileText, component: Submissions },
         { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
         { key: "wallet", label: "Wallet", icon: WalletIcon, component: AdminWallet }
       ],
@@ -713,14 +768,18 @@ const ModernUnifiedDashboard = ({ userRole }) => {
     navigate("/");
   };
 
-  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+  const toggleDarkMode = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    console.log('🌙 Theme toggle:', { currentTheme: theme, newTheme });
+    setTheme(newTheme);
+  };
 
   const renderModule = () => {
     const module = config.modules.find(m => m.key === activeModule);
     if (!module) return null;
 
     const Component = module.component;
-    return <Component isDarkMode={isDarkMode} />;
+    return <Component isDarkMode={isDarkMode} onNavigate={setActiveModule} />;
   };
 
   // Quick actions (role-specific)
@@ -729,9 +788,9 @@ const ModernUnifiedDashboard = ({ userRole }) => {
       case "masteradmin":
         return [
           { icon: <UsersIcon className="h-5 w-5" />, label: "Add User", color: "blue", action: () => setActiveModule("users") },
-          { icon: <Package className="h-5 w-5" />, label: "New Order", color: "green", action: () => setActiveModule("manage-orders") },
-          { icon: <BarChart3 className="h-5 w-5" />, label: "Analytics", color: "purple", action: () => setActiveModule("performance") },
-          { icon: <Settings className="h-5 w-5" />, label: "Settings", color: "gray", action: () => setActiveModule("profile") }
+          { icon: <Package className="h-5 w-5" />, label: "Stock Pickups", color: "green", action: () => setActiveModule("stock-pickups") },
+          { icon: <Shield className="h-5 w-5" />, label: "Blocked Accounts", color: "red", action: () => setActiveModule("blocked-accounts") },
+          { icon: <BarChart3 className="h-5 w-5" />, label: "Analytics", color: "purple", action: () => setActiveModule("performance") }
         ];
       case "superadmin":
         return [
@@ -754,10 +813,10 @@ const ModernUnifiedDashboard = ({ userRole }) => {
         ];
       case "marketer":
         return [
-          { icon: <CheckCircle className="h-5 w-5" />, label: "Verification", color: "blue", action: () => setActiveModule("verification") },
-          { icon: <Package className="h-5 w-5" />, label: "Stock Pickup", color: "green", action: () => setActiveModule("stock-pickup") },
-          { icon: <ShoppingCart className="h-5 w-5" />, label: "Order", color: "purple", action: () => setActiveModule("order") },
-          { icon: <Settings className="h-5 w-5" />, label: "Settings", color: "gray", action: () => setActiveModule("account-settings") }
+          { icon: <ShoppingCart className="h-5 w-5" />, label: "New Order", color: "blue", action: () => setActiveModule("order") },
+          { icon: <CheckCircle className="h-5 w-5" />, label: "Verification Status", color: "green", action: () => setActiveModule("verification") },
+          { icon: <WalletIcon className="h-5 w-5" />, label: "Check Wallet", color: "purple", action: () => setActiveModule("wallet") },
+          { icon: <Package className="h-5 w-5" />, label: "Stock Pickup", color: "orange", action: () => setActiveModule("stock-pickup") }
         ];
       default:
         return [
@@ -823,12 +882,12 @@ const ModernUnifiedDashboard = ({ userRole }) => {
   };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'dark' : ''} bg-background text-foreground`}>
+    <div className={`min-h-screen bg-background text-foreground ${isDarkMode ? 'dark' : ''}`}>
       {isLoading ? (
         <div className="flex justify-center items-center h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-lg text-gray-600 dark:text-gray-300">Loading dashboard...</p>
+            <p className="text-lg text-muted-foreground">Loading dashboard...</p>
           </div>
         </div>
       ) : (
@@ -880,7 +939,7 @@ const ModernUnifiedDashboard = ({ userRole }) => {
 
           <div className="flex w-full">
             {/* Sidebar */}
-            <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r transform transition-all duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0 bg-card border-border`}>
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r transform transition-all duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0 bg-card border-border flex flex-col`}>
               <div className={`flex items-center justify-between p-6 border-b transition-colors duration-200 border-border`}>
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-10 w-10">
@@ -895,6 +954,9 @@ const ModernUnifiedDashboard = ({ userRole }) => {
                     </p>
                     <p className={`text-xs transition-colors duration-200 text-muted-foreground`}>
                       {user?.role || 'User'}
+                    </p>
+                    <p className={`text-xs transition-colors duration-200 text-muted-foreground`}>
+                      ID: {user?.unique_id || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -933,7 +995,7 @@ const ModernUnifiedDashboard = ({ userRole }) => {
               </nav>
 
               {/* Logout Button */}
-              <div className={`absolute bottom-0 left-0 right-0 p-4 border-t transition-colors duration-200 border-border`}>
+              <div className={`mt-auto p-4 border-t transition-colors duration-200 border-border`}>
                 <Button
                   variant="ghost"
                   className={`w-full justify-start space-x-3 transition-colors duration-200 text-destructive hover:text-destructive hover:bg-destructive/10`}
@@ -964,243 +1026,41 @@ const ModernUnifiedDashboard = ({ userRole }) => {
               {/* Content Area */}
               <div className="px-6 py-4 lg:py-6 w-full flex flex-col flex-1">
                 {activeModule === "overview" ? (
-                  // Overview Content
-                  <div className="w-full space-y-6 flex-1" key="overview-content">
-                    {/* Welcome Header */}
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 w-full">
-                      <div className="space-y-1">
-                        <h1 className={`text-2xl sm:text-3xl font-bold transition-colors duration-200 text-foreground`}>
-                          Welcome back, {user?.first_name || 'User'}!
-                        </h1>
-                        <p className={`transition-colors duration-200 text-muted-foreground`}>
-                          Here's what's happening with your {userRole} account today.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                        <Button variant="outline" size="sm" className="space-x-2 whitespace-nowrap px-2">
-                          <Download className="h-4 w-4" />
-                          <span className="hidden sm:inline">Export Report</span>
-                        </Button>
-                        <Button size="sm" className="space-x-2 whitespace-nowrap px-2">
-                          <Plus className="h-4 w-4" />
-                          <span className="hidden sm:inline">Quick Action</span>
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-4 w-full">
-                      {(() => {
-                        // Safety check - ensure stats are loaded
-                        if (!stats || Object.keys(stats).length === 0) {
-                          console.log("Stats not ready yet, showing loading state");
-                          return (
-                            <div className="col-span-4 text-center py-8">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                              <p className="text-gray-500">Loading dashboard data...</p>
-                            </div>
-                          );
-                        }
-                        
-                        const metrics = config.getMetrics();
-                        console.log("Generated metrics:", metrics);
-                        console.log("Current stats:", stats);
-                        
-                        return metrics.map((metric, index) => {
-                          const Icon = metric.icon;
-                          const isPositive = metric.trend === "up";
-                          
-                          console.log(`Metric ${index}:`, metric);
-                          
-                          return (
-                            <Card key={index} className={`border border-border shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 w-full bg-card`}>
-                              <CardContent className="p-6">
-                                <div className="flex items-start justify-between mb-4">
-                                  <div className={`p-3 rounded-xl ${getMetricColor(metric.color)}`}>
-                                    {typeof Icon === 'function' ? <Icon /> : <Icon className="h-6 w-6" />}
-                                  </div>
-                                  <Badge 
-                                    variant="secondary" 
-                                    className={`${
-                                      isPositive 
-                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' 
-                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                    } rounded-full px-2 py-1 text-xs font-medium`}
-                                  >
-                                    {isPositive ? '+' : ''}{metric.change}
-                                  </Badge>
-                                </div>
-                                <div className="space-y-1">
-                                  <p className={`text-3xl font-bold transition-colors duration-200 whitespace-nowrap overflow-hidden text-ellipsis text-foreground`}>
-                                    {metric.value}
-                                  </p>
-                                  <p className={`text-sm font-medium transition-colors duration-200 text-muted-foreground`}>
-                                    {metric.label}
-                                  </p>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        });
-                      })()}
-                    </div>
-
-                    {/* Main Content Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 w-full">
-                      {/* Recent Activity */}
-                      <div className="xl:col-span-8">
-                        <Card className={`border border-border shadow-lg w-full transition-colors duration-200 bg-card`}>
-                          <CardHeader className="pb-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                              <div className="flex items-center space-x-2">
-                                <ClipboardList className={`h-5 w-5 transition-colors duration-200 text-muted-foreground`} />
-                                <CardTitle className={`text-lg font-bold transition-colors duration-200 text-foreground`}>Recent Activity</CardTitle>
-                              </div>
-                              <div className="flex items-center flex-wrap gap-2">
-                                <select 
-                                  className={`text-xs sm:text-sm border rounded-md px-2 py-1 transition-colors duration-200 bg-background border-border text-foreground`}
-                                  value={dateFilter}
-                                  onChange={(e) => setDateFilter(e.target.value)}
-                                >
-                                  <option>All Time</option>
-                                  <option>Last 7 Days</option>
-                                  <option>Last 30 Days</option>
-                                </select>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="px-2"
-                                  onClick={() => setActiveModule('wallet')}
-                                >
-                                  Go to Approvals
-                                </Button>
-                                <Button size="sm" className="px-2" onClick={() => {
-                                  try {
-                                    const url = new URL(`${import.meta.env.VITE_API_URL}/api/master-admin/recent-activity`);
-                                    url.searchParams.set('limit', '200');
-                                    url.searchParams.set('format', 'csv');
-                                    const a = document.createElement('a');
-                                    a.href = url.toString();
-                                    a.download = 'recent_activity.csv';
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                  } catch (e) {
-                                    console.error('Failed to download report', e);
-                                  }
-                                }}>Download Report</Button>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              {recentActivity.length > 0 ? (
-                                recentActivity.map((activity) => (
-                                  <div key={activity.id} className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 rounded-lg transition-all duration-200 hover:bg-muted`}> 
-                                    <div className={`p-2 rounded-lg shrink-0 ${getActivityBgColor(activity.entity_type, activity.status)}`}>
-                                      {getActivityIcon(activity.entity_type)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className={`text-sm font-medium transition-colors duration-200 text-foreground break-words`}> 
-                                        <span className="truncate inline-block max-w-[60vw] sm:max-w-none align-middle">{activity.action} • {activity.entity_type} {activity.entity_id || ''}</span>
-                                      </p>
-                                      <p className={`text-xs transition-colors duration-200 text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis`}> 
-                                        by {activity.actor_name || 'Unknown User'} • {formatActivityDate(activity.timestamp)}
-                                      </p>
-                                    </div>
-                                    <Badge 
-                                      variant="secondary" 
-                                      className={`${
-                                        activity.status === "success" ? "bg-green-100 text-green-700" :
-                                        activity.status === "pending" ? "bg-yellow-100 text-yellow-700" :
-                                        "bg-blue-100 text-blue-700"
-                                      } inline-flex shrink-0`}
-                                    >
-                                      {activity.status}
-                                    </Badge>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-center py-8">
-                                  <p className={`text-muted-foreground transition-colors duration-200`}>
-                                    No recent activity found
-                                  </p>
-                                </div>
-                              )}
-                              {/* Pagination Controls */}
-                              <div className="flex items-center justify-between pt-2">
-                                <p className={`text-xs text-muted-foreground`}>
-                                  Showing {recentActivity.length} of {activityTotal || '...'}
-                                  {activityTotal > 0 && (
-                                    <span> • Page {activityPage + 1} of {Math.ceil((activityTotal || 0) / activityLimit)}</span>
-                                  )}
-                                </p>
-                                <div className="space-x-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={activityPage === 0}
-                                    onClick={() => setActivityPage(p => Math.max(0, p - 1))}
-                                  >
-                                    Prev
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={!activityTotal || (activityPage + 1) * activityLimit >= activityTotal}
-                                    onClick={() => setActivityPage(p => p + 1)}
-                                  >
-                                    Next
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-
-                      {/* Quick Actions */}
-                      <div className="xl:col-span-4">
-                        <Card className={`border border-border shadow-lg w-full transition-colors duration-200 bg-card`}>
-                          <CardHeader className="pb-4">
-                            <div className="flex items-center space-x-2">
-                              <Target className={`h-5 w-5 transition-colors duration-200 text-muted-foreground`} />
-                              <CardTitle className={`text-lg font-bold transition-colors duration-200 text-foreground`}>Quick Actions</CardTitle>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="grid grid-cols-2 gap-2">
-                              {quickActions.map((action, index) => (
-                                <Button
-                                  key={index}
-                                  variant="outline"
-                                  className="h-20 flex-col space-y-2 hover:shadow-md transition-all"
-                                  onClick={action.action}
-                                >
-                                  <div className={`p-2 rounded-lg bg-${action.color}-50 text-${action.color}-600`}>
-                                    {action.icon}
-                                  </div>
-                                  <span className="text-xs font-medium">{action.label}</span>
-                                </Button>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </div>
-
-                  </div>
+                  // Role-specific Overview Components
+                  (() => {
+                    switch (userRole) {
+                      case 'masteradmin':
+                        return <MasterAdminOverview onNavigate={setActiveModule} isDarkMode={isDarkMode} />;
+                      case 'superadmin':
+                        return <SuperAdminOverview onNavigate={setActiveModule} isDarkMode={isDarkMode} />;
+                      case 'admin':
+                        return <AdminOverview onNavigate={setActiveModule} isDarkMode={isDarkMode} />;
+                      case 'dealer':
+                        return <DealerOverview onNavigate={setActiveModule} isDarkMode={isDarkMode} />;
+                      case 'marketer':
+                        return <MarketerOverview onNavigate={setActiveModule} isDarkMode={isDarkMode} />;
+                      default:
+                        return <div className="text-center py-8">Unknown role: {userRole}</div>;
+                    }
+                  })()
                 ) : (
                   // Other Module Content
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h1 className={`text-3xl font-bold transition-colors duration-200 text-foreground`}>
-                          {config.modules.find(m => m.key === activeModule)?.label}
-                        </h1>
-                        <p className={`transition-colors duration-200 mt-2 text-muted-foreground`}>
-                          Manage your {activeModule} settings and configurations.
-                        </p>
+                        {activeModule !== 'performance' && activeModule !== 'user-assignments' && activeModule !== 'wallet' && (
+                          <h1 className={`text-3xl font-bold transition-colors duration-200 text-foreground`}>
+                            {config.modules.find(m => m.key === activeModule)?.label}
+                          </h1>
+                        )}
+                        {activeModule !== 'performance' && activeModule !== 'user-assignments' && activeModule !== 'submissions' && activeModule !== 'wallet' && (
+                          <p className={`transition-colors duration-200 mt-2 text-muted-foreground`}>
+                            {activeModule === 'account-settings' 
+                              ? `Manage your ${userRole} profile and preferences`
+                              : `Manage your ${activeModule} settings and configurations.`
+                            }
+                          </p>
+                        )}
                       </div>
                     </div>
                     

@@ -18,6 +18,8 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import walletApi from '../api/walletApi'
+import targetApi from '../api/targetApi'
+import { performanceApiService } from '../api/performanceApi'
 
 export default function Performance() {
   const [loading, setLoading] = useState(true)
@@ -30,10 +32,11 @@ export default function Performance() {
   
   // Summary metrics
   const [summaryMetrics, setSummaryMetrics] = useState({
-    totalUsers: 0,
-    totalRevenue: 0,
-    totalSales: 0,
-    activeUsers: 0
+    totalMarketers: 0,
+    totalAdmins: 0,
+    totalSuperAdmins: 0,
+    totalOrders: 0,
+    totalSales: 0
   })
 
   // Load performance data
@@ -42,98 +45,35 @@ export default function Performance() {
     setError(null)
     
     try {
-      // Fetch data for all user roles using the existing separate endpoints
-      const [marketersRes, adminsRes, superadminsRes] = await Promise.all([
-        walletApi.get('/master-admin/marketers'),
-        walletApi.get('/master-admin/admins'),
-        walletApi.get('/master-admin/superadmins')
-      ])
-
-      const marketers = marketersRes.data.wallets || []
-      const admins = adminsRes.data.wallets || []
-      const superadmins = superadminsRes.data.wallets || []
+      // Fetch performance data using the new unified API
+      const performanceRes = await performanceApiService.getPerformanceOverview()
+      const performanceData = performanceRes.data.data
+      
+      const marketers = performanceData.marketers || []
+      const admins = performanceData.admins || []
+      const superadmins = performanceData.superAdmins || []
+      const summary = performanceData.summary || {}
       
       // Debug: Log what we're getting from the API
-      console.log('Marketers data:', marketers)
-      console.log('Admins data:', admins)
-      console.log('SuperAdmins data:', superadmins)
+      console.log('Performance data:', performanceData)
 
-      // Calculate performance metrics for marketers
-      const marketersPerf = marketers.map(marketer => {
-        const totalBalance = Number(marketer.total_balance || 0)
-        const availableBalance = Number(marketer.available_balance || 0)
-        const withheldBalance = Number(marketer.withheld_balance || 0)
-        const pendingCashout = Number(marketer.pending_cashout || 0)
-        
-        // Calculate performance score based on balance and activity
-        const performanceScore = Math.min(100, Math.round(
-          (availableBalance / Math.max(totalBalance, 1)) * 100
-        ))
-        
-        return {
-          ...marketer,
-          performanceScore,
-          totalBalance,
-          availableBalance,
-          withheldBalance,
-          pendingCashout,
-          efficiency: availableBalance > 0 ? 'High' : 'Low',
-          status: availableBalance > 10000 ? 'Active' : 'Inactive'
-        }
-      }).sort((a, b) => b.performanceScore - a.performanceScore)
+      // Set performance data - new system provides calculated performance
+      setMarketersPerformance(marketers)
+      setAdminsPerformance(admins)
+      setSuperadminsPerformance(superadmins)
 
-      // Calculate performance metrics for admins
-      const adminsPerf = admins.map(admin => {
-        const totalBalance = Number(admin.total_balance || 0)
-        const performanceScore = Math.min(100, Math.round(
-          (totalBalance / 100000) * 100
-        ))
-        
-        return {
-          ...admin,
-          performanceScore,
-          totalBalance,
-          efficiency: totalBalance > 50000 ? 'High' : 'Medium',
-          status: totalBalance > 10000 ? 'Active' : 'Inactive'
-        }
-      }).sort((a, b) => b.performanceScore - a.performanceScore)
-
-      // Calculate performance metrics for superadmins
-      const superadminsPerf = superadmins.map(superadmin => {
-        const totalBalance = Number(superadmin.total_balance || 0)
-        const performanceScore = Math.min(100, Math.round(
-          (totalBalance / 200000) * 100
-        ))
-        
-        return {
-          ...superadmin,
-          performanceScore,
-          totalBalance,
-          efficiency: totalBalance > 100000 ? 'High' : 'Medium',
-          status: totalBalance > 50000 ? 'Active' : 'Inactive'
-        }
-      }).sort((a, b) => b.performanceScore - a.performanceScore)
-
-      setMarketersPerformance(marketersPerf)
-      setAdminsPerformance(adminsPerf)
-      setSuperadminsPerformance(superadminsPerf)
-
-      // Calculate summary metrics
-      const totalUsers = marketers.length + admins.length + superadmins.length
-      const totalRevenue = marketers.reduce((sum, m) => sum + Number(m.total_balance || 0), 0) +
-                          admins.reduce((sum, a) => sum + Number(a.total_balance || 0), 0) +
-                          superadmins.reduce((sum, s) => sum + Number(s.total_balance || 0), 0)
-      
+      // Set summary metrics from new performance data
       setSummaryMetrics({
-        totalUsers,
-        totalRevenue,
-        totalSales: marketers.length,
-        activeUsers: marketers.filter(m => Number(m.total_balance || 0) > 10000).length
+        totalMarketers: summary.totalMarketers || 0,
+        totalAdmins: summary.totalAdmins || 0,
+        totalSuperAdmins: summary.totalSuperAdmins || 0,
+        totalOrders: summary.totalOrders || 0,
+        totalSales: summary.totalSales || 0
       })
 
     } catch (err) {
       console.error('Failed to load performance data:', err)
-      setError('Failed to fetch performance overview')
+      setError('Unable to load performance data. Please check your connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -164,7 +104,8 @@ export default function Performance() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-lg font-medium text-muted-foreground">Loading performance overview...</p>
+          <p className="text-lg font-medium text-muted-foreground">Loading performance data...</p>
+          <p className="text-sm text-muted-foreground mt-2">Please wait while we fetch the latest metrics</p>
         </div>
       </div>
     )
@@ -175,10 +116,11 @@ export default function Performance() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center text-red-600">
           <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">{error}</p>
+          <p className="text-lg font-medium">Unable to load performance data</p>
+          <p className="text-sm text-muted-foreground mt-2">There was an issue fetching the performance metrics. Please try again.</p>
           <Button onClick={loadPerformanceData} className="mt-4">
             <RefreshCw className="w-4 h-4 mr-2" />
-            Retry
+            Try Again
           </Button>
         </div>
       </div>
@@ -189,10 +131,10 @@ export default function Performance() {
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
       
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">Performance Overview</h1>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-foreground">Performance</h1>
         <p className="text-muted-foreground">Monitor and analyze performance metrics across all user roles</p>
-      </div>
+        </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -200,65 +142,99 @@ export default function Performance() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-blue-900 text-lg">
               <Users className="w-5 h-5" />
-              Total Users
+              Total Marketers
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-900">{summaryMetrics.totalUsers}</p>
-            <p className="text-sm text-blue-700 mt-1">Across all roles</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-green-900 text-lg">
-              <DollarSign className="w-5 h-5" />
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-green-900">₦{summaryMetrics.totalRevenue.toLocaleString()}</p>
-            <p className="text-sm text-green-700 mt-1">Combined balance</p>
+            <p className="text-3xl font-bold text-blue-900">{summaryMetrics.totalMarketers}</p>
+            <p className="text-sm text-blue-700 mt-1">Registered marketers</p>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-purple-900 text-lg">
-              <ShoppingCart className="w-5 h-5" />
-              Active Marketers
+              <Shield className="w-5 h-5" />
+              Total Admins
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-purple-900">{summaryMetrics.activeUsers}</p>
-            <p className="text-sm text-purple-700 mt-1">High performing</p>
+            <p className="text-3xl font-bold text-purple-900">{summaryMetrics.totalAdmins}</p>
+            <p className="text-sm text-purple-700 mt-1">Active admins</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-orange-900 text-lg">
-              <TrendingUp className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-yellow-900 text-lg">
+              <Crown className="w-5 h-5" />
+              Total SuperAdmins
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-yellow-900">{summaryMetrics.totalSuperAdmins}</p>
+            <p className="text-sm text-yellow-700 mt-1">Active superadmins</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-green-900 text-lg">
+              <span className="text-xl font-bold">₦</span>
               Total Sales
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-orange-900">{summaryMetrics.totalSales}</p>
-            <p className="text-sm text-orange-700 mt-1">Marketers count</p>
+            <p className="text-2xl font-bold text-green-900 break-all">₦{summaryMetrics.totalSales.toLocaleString()}</p>
+            <p className="text-sm text-green-700 mt-1">All time sales</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Additional Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-orange-900 text-lg">
+              <ShoppingCart className="w-5 h-5" />
+              Total Orders
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-orange-900">{summaryMetrics.totalOrders}</p>
+            <p className="text-sm text-orange-700 mt-1">All orders processed</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-indigo-900 text-lg">
+              <Activity className="w-5 h-5" />
+              System Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-indigo-900">
+              {summaryMetrics.totalMarketers + summaryMetrics.totalAdmins + summaryMetrics.totalSuperAdmins}
+            </p>
+            <p className="text-sm text-indigo-700 mt-1">Total active users</p>
+          </CardContent>
+        </Card>
+          </div>
 
       {/* Performance Tabs */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold">Role Performance Analysis</h3>
+            <div>
+              <h3 className="text-lg font-semibold">Role Performance Analysis</h3>
+              <p className="text-sm text-muted-foreground">Detailed performance metrics for each user role</p>
+          </div>
           </div>
           <Button variant="outline" size="sm" onClick={loadPerformanceData}>
             <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            Refresh Data
           </Button>
         </div>
 
@@ -286,53 +262,61 @@ export default function Performance() {
                   <Card key={marketer.user_unique_id} className="hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-semibold text-blue-700">
                               {marketer.name?.charAt(0)?.toUpperCase() || 'M'}
                             </span>
                           </div>
-                          <div>
-                            <CardTitle className="text-base">{marketer.name}</CardTitle>
-                            <p className="text-xs text-muted-foreground">{marketer.user_unique_id}</p>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base truncate">{marketer.name}</CardTitle>
+                            <p className="text-xs text-muted-foreground truncate">{marketer.user_unique_id}</p>
                           </div>
                         </div>
                         {index < 3 && (
-                          <Badge className="bg-yellow-100 text-yellow-800">
-                            #{index + 1} Top Performer
+                          <Badge className="bg-yellow-500 text-white text-xs px-2 py-1 flex-shrink-0">
+                            #{index + 1} Top
                           </Badge>
                         )}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Performance Score</span>
-                        <Badge className={getPerformanceColor(marketer.performanceScore)}>
-                          {marketer.performanceScore}%
+                        <span className="text-sm text-muted-foreground">Overall Performance</span>
+                        <Badge className={getPerformanceColor(marketer.performance?.overall?.performance || 0)}>
+                          {marketer.performance?.overall?.performance || 0}%
                         </Badge>
                       </div>
                       
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span>Total Balance:</span>
-                          <span className="font-medium">₦{marketer.totalBalance.toLocaleString()}</span>
+                          <span>Weekly Orders:</span>
+                          <span className="font-medium">
+                            {marketer.performance?.weekly?.orders || 0}/{marketer.performance?.weekly?.target || 0}
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>Available:</span>
-                          <span className="font-medium text-green-600">₦{marketer.availableBalance.toLocaleString()}</span>
+                          <span>Monthly Orders:</span>
+                          <span className="font-medium">
+                            {marketer.performance?.monthly?.orders || 0}/{marketer.performance?.monthly?.target || 0}
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>Withheld:</span>
-                          <span className="font-medium text-orange-600">₦{marketer.withheldBalance.toLocaleString()}</span>
+                          <span>Total Sales:</span>
+                          <span className="font-medium text-green-600">₦{marketer.performance?.overall?.totalSales?.toLocaleString() || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Success Rate:</span>
+                          <span className="font-medium text-blue-600">{marketer.performance?.overall?.successRate || 0}%</span>
                         </div>
                       </div>
 
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <Badge className={getEfficiencyColor(marketer.efficiency)}>
-                          {marketer.efficiency} Efficiency
+                        <Badge className={getPerformanceColor(marketer.performance?.weekly?.performance || 0)}>
+                          Weekly: {marketer.performance?.weekly?.performance || 0}%
                         </Badge>
-                        <Badge variant={marketer.status === 'Active' ? 'default' : 'secondary'}>
-                          {marketer.status}
+                        <Badge className={getPerformanceColor(marketer.performance?.monthly?.performance || 0)}>
+                          Monthly: {marketer.performance?.monthly?.performance || 0}%
                         </Badge>
                       </div>
                     </CardContent>
@@ -342,8 +326,8 @@ export default function Performance() {
             ) : (
               <div className="text-center py-12">
                 <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Marketer Users Found</h3>
-                <p className="text-gray-500">There are currently no marketer users in the system.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Marketers Available</h3>
+                <p className="text-gray-500">No marketer performance data is currently available. Check back later or contact support if this persists.</p>
               </div>
             )}
           </TabsContent>
@@ -353,52 +337,56 @@ export default function Performance() {
             {adminsPerformance.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {adminsPerformance.map((admin, index) => (
-                  <Card key={admin.user_unique_id} className="hover:shadow-lg transition-shadow">
+                  <Card key={admin.unique_id} className="hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-semibold text-purple-700">
                               {admin.name?.charAt(0)?.toUpperCase() || 'A'}
                             </span>
                           </div>
-                          <div>
-                            <CardTitle className="text-base">{admin.name}</CardTitle>
-                            <p className="text-xs text-muted-foreground">{admin.user_unique_id}</p>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base truncate">{admin.name}</CardTitle>
+                            <p className="text-xs text-muted-foreground truncate">{admin.unique_id}</p>
                           </div>
                         </div>
                         {index < 3 && (
-                          <Badge className="bg-purple-100 text-purple-800">
-                            #{index + 1} Top Admin
+                          <Badge className="bg-purple-500 text-white text-xs px-2 py-1 flex-shrink-0">
+                            #{index + 1} Top
                           </Badge>
                         )}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Performance Score</span>
-                        <Badge className={getPerformanceColor(admin.performanceScore)}>
-                          {admin.performanceScore}%
+                        <span className="text-sm text-muted-foreground">Team Performance</span>
+                        <Badge className={getPerformanceColor(admin.performance?.averagePerformance || 0)}>
+                          {admin.performance?.averagePerformance || 0}%
                         </Badge>
                       </div>
                       
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span>Total Balance:</span>
-                          <span className="font-medium">₦{admin.totalBalance.toLocaleString()}</span>
+                          <span>Team Size:</span>
+                          <span className="font-medium">{admin.performance?.teamSize || 0}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>Role:</span>
-                          <span className="font-medium capitalize">{admin.role}</span>
+                          <span>Total Orders:</span>
+                          <span className="font-medium">{admin.performance?.totalOrders || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Total Sales:</span>
+                          <span className="font-medium text-green-600">₦{admin.performance?.totalSales?.toLocaleString() || 0}</span>
                         </div>
                       </div>
 
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <Badge className={getEfficiencyColor(admin.efficiency)}>
-                          {admin.efficiency} Efficiency
+                        <Badge className="bg-blue-100 text-blue-800">
+                          {admin.performance?.successRate || 0}% Success
                         </Badge>
-                        <Badge variant={admin.status === 'Active' ? 'default' : 'secondary'}>
-                          {admin.status}
+                        <Badge variant="default">
+                          {admin.performance?.teamSize > 0 ? 'Active' : 'No Team'}
                         </Badge>
                       </div>
                     </CardContent>
@@ -408,8 +396,8 @@ export default function Performance() {
             ) : (
               <div className="text-center py-12">
                 <Shield className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Admin Users Found</h3>
-                <p className="text-gray-500">There are currently no admin users in the system.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Admins Available</h3>
+                <p className="text-gray-500">No admin performance data is currently available. Check back later or contact support if this persists.</p>
               </div>
             )}
           </TabsContent>
@@ -419,63 +407,67 @@ export default function Performance() {
             {superadminsPerformance.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {superadminsPerformance.map((superadmin, index) => (
-                  <Card key={superadmin.user_unique_id} className="hover:shadow-lg transition-shadow">
+                  <Card key={superadmin.unique_id} className="hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                            <span className="text-sm font-semibold text-red-700">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-semibold text-yellow-700">
                               {superadmin.name?.charAt(0)?.toUpperCase() || 'S'}
                             </span>
                           </div>
-                          <div>
-                            <CardTitle className="text-base">{superadmin.name}</CardTitle>
-                            <p className="text-xs text-muted-foreground">{superadmin.user_unique_id}</p>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base truncate">{superadmin.name}</CardTitle>
+                            <p className="text-xs text-muted-foreground truncate">{superadmin.unique_id}</p>
                           </div>
                         </div>
                         {index < 3 && (
-                          <Badge className="bg-red-100 text-red-800">
-                            #{index + 1} Top SuperAdmin
+                          <Badge className="bg-yellow-500 text-white text-xs px-2 py-1 flex-shrink-0">
+                            #{index + 1} Top
                           </Badge>
                         )}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Performance Score</span>
-                        <Badge className={getPerformanceColor(superadmin.performanceScore)}>
-                          {superadmin.performanceScore}%
+                        <span className="text-sm text-muted-foreground">Team Performance</span>
+                        <Badge className={getPerformanceColor(superadmin.performance?.averagePerformance || 0)}>
+                          {superadmin.performance?.averagePerformance || 0}%
                         </Badge>
                       </div>
                       
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span>Total Balance:</span>
-                          <span className="font-medium">₦{superadmin.totalBalance.toLocaleString()}</span>
+                          <span>Team Size:</span>
+                          <span className="font-medium">{superadmin.performance?.teamSize || 0}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>Role:</span>
-                          <span className="font-medium capitalize">{superadmin.role}</span>
+                          <span>Total Orders:</span>
+                          <span className="font-medium">{superadmin.performance?.totalOrders || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Total Sales:</span>
+                          <span className="font-medium text-green-600">₦{superadmin.performance?.totalSales?.toLocaleString() || 0}</span>
                         </div>
                       </div>
 
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <Badge className={getEfficiencyColor(superadmin.efficiency)}>
-                          {superadmin.efficiency} Efficiency
+                        <Badge className="bg-yellow-100 text-yellow-800">
+                          {superadmin.performance?.successRate || 0}% Success
                         </Badge>
-                        <Badge variant={superadmin.status === 'Active' ? 'default' : 'secondary'}>
-                          {superadmin.status}
+                        <Badge variant="default">
+                          {superadmin.performance?.teamSize > 0 ? 'Active' : 'No Team'}
                         </Badge>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
-              </div>
-            ) : (
+        </div>
+      ) : (
               <div className="text-center py-12">
                 <Crown className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No SuperAdmin Users Found</h3>
-                <p className="text-gray-500">There are currently no superadmin users in the system.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No SuperAdmins Available</h3>
+                <p className="text-gray-500">No superadmin performance data is currently available. Check back later or contact support if this persists.</p>
               </div>
             )}
           </TabsContent>
@@ -486,7 +478,7 @@ export default function Performance() {
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <Target className="w-5 h-5 text-green-600" />
-          <h3 className="text-lg font-semibold">Performance Insights</h3>
+          <h3 className="text-lg font-semibold">Performance Analytics</h3>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -496,18 +488,18 @@ export default function Performance() {
                 <Zap className="w-5 h-5 text-yellow-600" />
                 Top Performers
               </CardTitle>
-              <CardDescription>Users with highest performance scores</CardDescription>
+              <CardDescription>Users with the highest performance scores and achievements</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {marketersPerformance.slice(0, 5).map((marketer, index) => (
                   <div key={marketer.user_unique_id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <Badge className="bg-yellow-100 text-yellow-800">#{index + 1}</Badge>
-                      <span className="font-medium">{marketer.name}</span>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Badge className="bg-yellow-500 text-white text-xs px-2 py-1 flex-shrink-0">#{index + 1}</Badge>
+                      <span className="font-medium truncate">{marketer.name}</span>
                     </div>
-                    <Badge className={getPerformanceColor(marketer.performanceScore)}>
-                      {marketer.performanceScore}%
+                    <Badge className={`${getPerformanceColor(marketer.performance?.overall?.performance || 0)} flex-shrink-0`}>
+                      {marketer.performance?.overall?.performance || 0}%
                     </Badge>
                   </div>
                 ))}
@@ -521,7 +513,7 @@ export default function Performance() {
                 <TrendingUp className="w-5 h-5 text-green-600" />
                 Efficiency Analysis
               </CardTitle>
-              <CardDescription>Performance distribution by efficiency level</CardDescription>
+              <CardDescription>Performance distribution across different efficiency levels</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">

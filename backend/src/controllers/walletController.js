@@ -10,9 +10,17 @@ const walletService = require('../services/walletService')
 async function getMyWallet(req, res, next) {
   try {
     const userId = req.user.unique_id
-    const { wallet, transactions, withdrawals } =
-      await walletService.getMyWallet(userId)
-    res.json({ wallet, transactions, withdrawals })
+    const userRole = req.user.role
+    
+    // Use detailed wallet for SuperAdmin/Admin, regular wallet for others
+    if (['SuperAdmin', 'Admin'].includes(userRole)) {
+      const walletData = await walletService.getDetailedWallet(userId)
+      res.json(walletData)
+    } else {
+      const { wallet, transactions, withdrawals } =
+        await walletService.getMyWallet(userId)
+      res.json({ wallet, transactions, withdrawals })
+    }
   } catch (err) {
     next(err)
   }
@@ -41,6 +49,40 @@ async function getMyWithdrawals(req, res, next) {
   try {
     const userId = req.user.unique_id
     const requests = await walletService.getMyWithdrawals(userId)
+    res.json({ requests })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * GET /api/wallets/user/:uniqueId/summary
+ * Get comprehensive user summary for popover display (Master Admin only)
+ */
+async function getUserSummary(req, res, next) {
+  try {
+    const { uniqueId } = req.params
+    const summary = await walletService.getUserSummary(uniqueId)
+    res.json(summary)
+  } catch (err) {
+    next(err)
+  }
+}
+
+async function getUserWithheldReleases(req, res, next) {
+  try {
+    const { uniqueId } = req.params
+    const releases = await walletService.getUserWithheldReleases(uniqueId)
+    res.json({ releases })
+  } catch (err) {
+    next(err)
+  }
+}
+
+async function getUserWithdrawalRequests(req, res, next) {
+  try {
+    const { uniqueId } = req.params
+    const requests = await walletService.getUserWithdrawalRequests(uniqueId)
     res.json({ requests })
   } catch (err) {
     next(err)
@@ -412,6 +454,9 @@ module.exports = {
   getMyWallet,
   getWalletStats,
   getMyWithdrawals,
+  getUserSummary,
+  getUserWithheldReleases,
+  getUserWithdrawalRequests,
   requestWithdrawal,
   getWithdrawalFeeStats,
   listPendingRequests,

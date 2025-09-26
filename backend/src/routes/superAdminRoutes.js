@@ -1,77 +1,67 @@
-// src/routes/superAdminRoutes.js
 const express = require('express');
-const router  = express.Router();
-const multer  = require('multer');
-const path    = require('path');
-const fs      = require('fs');
-const { verifyToken }    = require('../middlewares/authMiddleware');
-const { verifyRole }     = require('../middlewares/roleMiddleware');
-const {
-  getAccountSettings,
-  updateAccountSettings,
-   listHierarchy,
-   getOrderHistoryForSuperAdmin,
-  registerAdmin
-} = require('../controllers/superAdminController');
+const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const superAdminController = require('../controllers/superAdminController');
+const { verifyToken, verifyRole } = require('../middlewares/authMiddleware');
 
-// ensure uploads directory exists
+// Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer setup for accountImage
+// Configure Multer for file uploads
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename:    (_req, file, cb) => {
-    const safeName = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
-    cb(null, safeName);
+  destination: (req, file, cb) => {
+    console.log('📁 Multer destination:', uploadDir);
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const filename = Date.now() + '-' + file.originalname;
+    console.log('📁 Multer filename:', filename);
+    cb(null, filename);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'profile_image') {
+      if (file.mimetype.startsWith('image/')) {
+        return cb(null, true);
+      }
+      return cb(new Error('Only image files allowed for profile image'), false);
+    }
+    cb(null, true);
+  }
+});
 
-// ─── SuperAdmin Account Endpoints ─────────────────────────────────
+// All routes require authentication and SuperAdmin role
+router.use(verifyToken);
+router.use(verifyRole(['SuperAdmin']));
 
-// GET /api/super-admin/account
-router.get(
-  '/account',
-  verifyToken,
-  verifyRole(['SuperAdmin']),
-  getAccountSettings
-);
+// SuperAdmin team management routes
+router.get('/team/hierarchy', superAdminController.getSuperAdminTeamHierarchy);
+router.get('/team/stats', superAdminController.getSuperAdminTeamStats);
+router.get('/team/performance', superAdminController.getSuperAdminPerformanceMetrics);
+router.get('/team/locations', superAdminController.getSuperAdminLocationBreakdown);
+router.get('/account', superAdminController.getAccount);
+router.patch('/account', upload.single('profile_image'), superAdminController.updateAccount);
 
-// PUT /api/super-admin/account
-// (optionally accepts a file under field name 'profileImage')
-router.put(
-  '/account',
-  verifyToken,
-  verifyRole(['SuperAdmin']),
-  upload.single('profileImage'),
-  updateAccountSettings
-);
+// SuperAdmin orders management
+router.get('/orders/history', superAdminController.getSuperAdminOrders);
 
-// ─── Register a new Admin ──────────────────────────────────────
+// SuperAdmin dashboard routes
+router.get('/stats', superAdminController.getStats);
+router.get('/wallet-summary', superAdminController.getWalletSummary);
+router.get('/commission-transactions', superAdminController.getCommissionTransactions);
+router.get('/recent-activities', superAdminController.getRecentActivities);
 
-// POST /api/super-admin/register-admin
-router.post(
-  '/register-admin',
-  verifyToken,
-  verifyRole(['SuperAdmin']),
-  registerAdmin
-);
+// SuperAdmin verification submissions routes
+router.get('/verification-submissions', superAdminController.getVerificationSubmissions);
+router.post('/verification-submissions/:submissionId/approve', superAdminController.approveVerificationSubmission);
+router.post('/verification-submissions/:submissionId/reject', superAdminController.rejectVerificationSubmission);
 
-// **New hierarchy route**:
-router.get(
-  '/hierarchy',
-  verifyToken,
-  verifyRole(['SuperAdmin']),
-  listHierarchy
-);
-
-router.get(
-  '/orders/history',
-  verifyToken,
-  verifyRole(['SuperAdmin']),
-  getOrderHistoryForSuperAdmin
-);
 module.exports = router;

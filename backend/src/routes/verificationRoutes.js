@@ -18,6 +18,7 @@ const {
   submitGuarantor,
   submitCommitment,
   allowRefillForm,
+  getFormStatus,
   adminReview,
   superadminVerify,
   masterApprove,
@@ -25,14 +26,18 @@ const {
   deleteGuarantorSubmission,
   deleteCommitmentSubmission,
   getAllSubmissionsForMasterAdmin,
+  getApprovedSubmissionsForMasterAdmin,
+  getVerificationWorkflowLogs,
   getSubmissionsForAdmin,
   getSubmissionsForSuperAdmin,
-  biodataSuccess,
-  guarantorSuccess,
-  commitmentSuccess,
   getVerifiedMarketersMaster,
   getVerifiedMarketersSuperadmin,
   getVerifiedMarketersAdmin,
+  uploadAdminVerification,
+  verifyAndSendToSuperAdmin,
+  resetSubmissionStatus,
+  getVerificationStatus,
+  sendToSuperAdmin,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -84,6 +89,14 @@ router.post(
   verifyRole(["Marketer"]),
   upload.single("signature"),
   submitCommitment
+);
+
+// Get form submission status for marketer
+router.get(
+  "/form-status",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  getFormStatus
 );
 
 /** *********************** Admin / Master Admin Endpoints *************************/
@@ -153,6 +166,22 @@ router.get(
   getAllSubmissionsForMasterAdmin
 );
 
+// MasterAdmin sees approved/rejected submissions history
+router.get(
+  "/submissions/master/approved",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  getApprovedSubmissionsForMasterAdmin
+);
+
+// MasterAdmin sees verification workflow logs
+router.get(
+  "/workflow-logs",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  getVerificationWorkflowLogs
+);
+
 // Admin sees submissions for _their_ marketers
 router.get(
   "/submissions/admin",
@@ -192,24 +221,69 @@ router.get(
   getVerifiedMarketersAdmin
 );
 
-/** *********************** “Success” Endpoints *************************/
-
-router.patch(
-  "/biodata-success",
+// Admin verification upload
+router.post(
+  "/admin/upload-verification/:submissionId",
   verifyToken,
-  biodataSuccess
+  verifyRole(["Admin"]),
+  upload.fields([
+    { name: 'locationPhotos', maxCount: 10 },
+    { name: 'adminMarketerPhotos', maxCount: 10 },
+    { name: 'landmarkPhotos', maxCount: 10 }
+  ]),
+  uploadAdminVerification
 );
 
-router.patch(
-  "/guarantor-success",
+// Admin verify and send to SuperAdmin
+router.post(
+  "/admin/verify-and-send/:submissionId",
   verifyToken,
-  guarantorSuccess
+  verifyRole(["Admin"]),
+  verifyAndSendToSuperAdmin
 );
 
-router.patch(
-  "/commitment-success",
+// Admin reset submission status for testing
+router.post(
+  "/admin/reset-status/:submissionId",
   verifyToken,
-  commitmentSuccess
+  verifyRole(["Admin"]),
+  resetSubmissionStatus
 );
+
+// Admin send to SuperAdmin
+router.post(
+  "/admin/send-to-superadmin/:submissionId",
+  verifyToken,
+  verifyRole(["Admin"]),
+  sendToSuperAdmin
+);
+
+// SuperAdmin validate
+router.post(
+  "/superadmin/validate/:submissionId",
+  verifyToken,
+  verifyRole(["SuperAdmin"]),
+  (req, res) => {
+    res.json({ success: true, message: "Validation completed" });
+  }
+);
+
+// MasterAdmin approve
+router.post(
+  "/masteradmin/approve/:submissionId",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  masterApprove
+);
+
+// Get verification status and progress for a submission
+router.get(
+  "/status/:submissionId",
+  verifyToken,
+  verifyRole(["Admin", "SuperAdmin", "MasterAdmin"]),
+  getVerificationStatus
+);
+
+// Removed redundant success routes - main submission endpoints handle everything
 
 module.exports = router;

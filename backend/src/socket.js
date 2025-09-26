@@ -24,6 +24,21 @@ function initSocket(server) {
       console.log(`Socket ${socket.id} joined room ${uniqueId}`);
     });
 
+    // Real-time messaging events
+    socket.on('join_conversation', (data) => {
+      const { userId, contactId } = data;
+      const roomName = `conversation_${Math.min(userId, contactId)}_${Math.max(userId, contactId)}`;
+      socket.join(roomName);
+      console.log(`Socket ${socket.id} joined conversation room: ${roomName}`);
+    });
+
+    socket.on('leave_conversation', (data) => {
+      const { userId, contactId } = data;
+      const roomName = `conversation_${Math.min(userId, contactId)}_${Math.max(userId, contactId)}`;
+      socket.leave(roomName);
+      console.log(`Socket ${socket.id} left conversation room: ${roomName}`);
+    });
+
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`);
     });

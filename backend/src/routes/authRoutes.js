@@ -9,7 +9,8 @@ const {
   resendVerificationEmail,
   forgotPassword, 
   resetPassword, 
-  getCurrentUser 
+  getCurrentUser,
+  logoutUser
 } = require('../controllers/authController');
 const { verifyToken } = require("../middlewares/authMiddleware");
 
@@ -115,5 +116,8 @@ router.post(
 
 // GET /api/auth/me
 router.get('/me', verifyToken, getCurrentUser);
+
+// POST /api/auth/logout
+router.post('/logout', verifyToken, logoutUser);
 
 module.exports = router;

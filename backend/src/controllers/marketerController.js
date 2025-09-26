@@ -14,22 +14,185 @@ const COMMISSION_RATES = {
 };
 
 /**
- * getAccountSettings - Retrieves current marketer’s account info.
+ * getAccount - Retrieves current marketer's account info (standardized).
+ */
+async function getAccount(req, res, next) {
+  try {
+    const userId = req.user.id; // From JWT token
+    
+    // Get user account details
+    const userQuery = `
+      SELECT 
+        id, unique_id, email, phone, first_name, last_name, profile_image, gender,
+        role, location, created_at, updated_at
+      FROM users 
+      WHERE id = $1 AND role = 'Marketer'
+    `;
+    
+    const result = await pool.query(userQuery, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Marketer account not found' 
+      });
+    }
+    
+    const account = result.rows[0];
+    
+    res.json({ 
+      success: true, 
+      account: {
+        id: account.id,
+        unique_id: account.unique_id,
+        email: account.email,
+        phone: account.phone,
+        displayName: account.first_name || account.last_name ? `${account.first_name || ''} ${account.last_name || ''}`.trim() : '',
+        profile_image: account.profile_image,
+        gender: account.gender,
+        role: account.role,
+        location: account.location,
+        createdAt: account.created_at,
+        updatedAt: account.updated_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching Marketer account:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch account details',
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * updateAccount - Updates marketer's account info (standardized).
+ */
+async function updateAccount(req, res, next) {
+  try {
+    const userId = req.user.id; // From JWT token
+    const { email, phone, displayName } = req.body;
+    let profile_image = req.body.profile_image; // This might be a base64 string or URL
+    
+    // Handle file upload for profile image
+    if (req.file) {
+      profile_image = req.file.path; // Multer saves file and provides path
+    }
+    
+    // Get current user data first
+    const currentUserQuery = `
+      SELECT email, phone, first_name, last_name, profile_image
+      FROM users 
+      WHERE id = $1 AND role = 'Marketer'
+    `;
+    const currentUser = await pool.query(currentUserQuery, [userId]);
+    
+    if (currentUser.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Marketer account not found'
+      });
+    }
+    
+    const current = currentUser.rows[0];
+    
+    // Use provided values or keep current ones
+    const finalEmail = email || current.email;
+    const finalPhone = phone || current.phone;
+    const finalDisplayName = displayName || `${current.first_name || ''} ${current.last_name || ''}`.trim();
+    const finalProfileImage = profile_image || current.profile_image;
+    
+    // Check if email is already taken by another user (only if email is being changed)
+    if (email && email !== current.email) {
+      const emailCheckQuery = `
+        SELECT id FROM users 
+        WHERE email = $1 AND id != $2 AND role = 'Marketer'
+      `;
+      const emailCheck = await pool.query(emailCheckQuery, [finalEmail, userId]);
+      
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already taken by another Marketer'
+        });
+      }
+    }
+    
+    // Split displayName into first_name and last_name
+    const nameParts = finalDisplayName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
+    // Update user account
+    const updateQuery = `
+      UPDATE users 
+      SET 
+        email = $1,
+        phone = $2,
+        first_name = $3,
+        last_name = $4,
+        profile_image = $5,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6 AND role = 'Marketer'
+      RETURNING id, unique_id, email, phone, first_name, last_name, profile_image, role, location, updated_at
+    `;
+    
+    const result = await pool.query(updateQuery, [finalEmail, finalPhone, firstName, lastName, finalProfileImage, userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Marketer account not found'
+      });
+    }
+    
+    const updatedAccount = result.rows[0];
+    
+    res.json({
+      success: true,
+      message: 'Account updated successfully',
+      account: {
+        id: updatedAccount.id,
+        unique_id: updatedAccount.unique_id,
+        email: updatedAccount.email,
+        phone: updatedAccount.phone,
+        displayName: updatedAccount.first_name || updatedAccount.last_name ? `${updatedAccount.first_name || ''} ${updatedAccount.last_name || ''}`.trim() : '',
+        profile_image: updatedAccount.profile_image,
+        role: updatedAccount.role,
+        location: updatedAccount.location,
+        updatedAt: updatedAccount.updated_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating Marketer account:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update account',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * getAccountSettings - Retrieves current marketer's account info (legacy).
  */
 async function getAccountSettings(req, res, next) {
   try {
-    const marketerUniqueId = req.user.unique_id;
-    if (!marketerUniqueId) {
-      return res.status(400).json({ message: "Marketer unique ID not available." });
+    const userId = req.user.id; // Use user ID instead of unique_id
+    if (!userId) {
+      return res.status(400).json({ message: "User ID not available." });
     }
     const { rows } = await pool.query(
       `SELECT first_name AS displayName, email, phone, profile_image
          FROM users
-        WHERE unique_id = $1`,
-      [marketerUniqueId]
+        WHERE id = $1 AND role = 'Marketer'`,
+      [userId]
     );
     if (!rows.length) {
-      return res.status(404).json({ message: "User not found." });
+      return res.status(404).json({ message: "Marketer not found." });
     }
     res.json({ settings: rows[0] });
   } catch (err) {
@@ -42,9 +205,9 @@ async function getAccountSettings(req, res, next) {
  */
 async function updateAccountSettings(req, res, next) {
   try {
-    const marketerUniqueId = req.user.unique_id;
-    if (!marketerUniqueId) {
-      return res.status(400).json({ message: "Marketer unique ID not available." });
+    const userId = req.user.id; // Use user ID instead of unique_id
+    if (!userId) {
+      return res.status(400).json({ message: "User ID not available." });
     }
     const { displayName, email, phone, oldPassword, newPassword } = req.body;
     let clauses = [], values = [], idx = 1;
@@ -55,8 +218,8 @@ async function updateAccountSettings(req, res, next) {
         return res.status(400).json({ message: "Old password is required." });
       }
       const { rows: userRows } = await pool.query(
-        `SELECT password FROM users WHERE unique_id = $1`,
-        [marketerUniqueId]
+        `SELECT password FROM users WHERE id = $1 AND role = 'Marketer'`,
+        [userId]
       );
       if (!userRows.length) {
         return res.status(404).json({ message: "User not found." });
@@ -98,12 +261,12 @@ async function updateAccountSettings(req, res, next) {
     }
 
     clauses.push(`updated_at = NOW()`);
-    values.push(marketerUniqueId);
+    values.push(userId);
 
     const query = `
       UPDATE users
          SET ${clauses.join(', ')}
-       WHERE unique_id = $${idx}
+       WHERE id = $${idx} AND role = 'Marketer'
        RETURNING id, unique_id, first_name AS displayName, email, phone, profile_image, updated_at
     `;
     const { rows } = await pool.query(query, values);
@@ -239,16 +402,8 @@ async function createOrder(req, res, next) {
   try {
     await client.query("BEGIN");
 
-    // 2) Decrement pickup quantity
-    await client.query(`
-      UPDATE stock_updates
-         SET quantity = GREATEST(quantity - $1, 0),
-             status   = CASE 
-                          WHEN quantity - $1 <= 0 THEN 'sold'
-                          ELSE status
-                        END
-       WHERE id = $2
-    `, [number_of_devices, stock_update_id]);
+    // 2) DO NOT modify stock pickup status or quantity - leave it as 'pending' until MasterAdmin confirms
+    // The stock pickup should remain unchanged until the order is confirmed by MasterAdmin
 
     // 3) Fetch price & type
     const { rows: [p] } = await client.query(`
@@ -263,7 +418,7 @@ async function createOrder(req, res, next) {
     const sold_amount = unitPrice * number_of_devices;
     const unitProfit  = unitPrice - Number(p.cost_price);
 
-    // 4) Insert order
+    // 3) Insert order
     const { rows: [order] } = await client.query(`
       INSERT INTO orders (
         marketer_id,
@@ -293,7 +448,7 @@ async function createOrder(req, res, next) {
       unitProfit
     ]);
 
-    // 5) Upsert each IMEI into inventory_items → sold, and link via order_items
+    // 4) Upsert each IMEI into inventory_items → sold, and link via order_items
     for (let imei of imeis) {
       const { rows: [inv] } = await client.query(`
         INSERT INTO inventory_items (product_id, imei, status, created_at)
@@ -314,13 +469,13 @@ async function createOrder(req, res, next) {
       `, [order.id, inv.id]);
     }
 
-    // 6) NO COMMISSIONS HERE 🚫
+    // 5) NO COMMISSIONS HERE 🚫
     //    All commission payouts are now strictly handled in your
     //    "confirmOrder" endpoint when status → 'released_confirmed'
 
     await client.query("COMMIT");
     return res.status(201).json({
-      message: "Order placed successfully.",
+      message: "Order placed successfully. Stock pickup remains active until MasterAdmin confirms the order.",
       order: { id: order.id }
     });
   } catch (err) {
@@ -352,7 +507,8 @@ async function getOrderHistory(req, res, next) {
         o.number_of_devices,
         o.sold_amount,
         o.sale_date,
-        o.status
+        o.status,
+        o.bnpl_platform
       FROM orders o
       /* pull any IMEIs sold on this order */
       LEFT JOIN order_items oi
@@ -375,7 +531,8 @@ async function getOrderHistory(req, res, next) {
         o.number_of_devices,
         o.sold_amount,
         o.sale_date,
-        o.status
+        o.status,
+        o.bnpl_platform
       ORDER BY o.sale_date DESC
     `, [marketerId]);
 
@@ -650,6 +807,8 @@ async function getMarketerOrders(req, res, next) {
 }
 
 module.exports = {
+  getAccount,
+  updateAccount,
   getAccountSettings,
   updateAccountSettings,
   getPlaceOrderData,

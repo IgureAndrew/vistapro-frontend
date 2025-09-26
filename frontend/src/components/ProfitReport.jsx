@@ -71,13 +71,15 @@ export default function ProfitReport() {
   const [deviceType, setDeviceType]     = useState('')
   const [deviceName, setDeviceName]     = useState('')
   const [groupBy, setGroupBy]           = useState('daily') // kept for table CSV
-     const [loading, setLoading]           = useState(false)
-   const [aggregated, setAggregated]     = useState([])
-   const [filtersOpen, setFiltersOpen]   = useState(false)
-   
-   // Pagination state
-   const [currentPage, setCurrentPage]   = useState(1)
-   const [rowsPerPage]                   = useState(15)
+       const [loading, setLoading]           = useState(false)
+  const [aggregated, setAggregated]     = useState([])
+  const [locationBreakdown, setLocationBreakdown] = useState([])
+  const [locationAggregated, setLocationAggregated] = useState([])
+  const [filtersOpen, setFiltersOpen]   = useState(false)
+  
+  // Pagination state
+  const [currentPage, setCurrentPage]   = useState(1)
+  const [rowsPerPage]                   = useState(15)
 
   // Helper to format YYYY-MM-DD for API calls
   const fmt = d => d.toISOString().slice(0, 10)
@@ -120,12 +122,21 @@ export default function ProfitReport() {
         ...(deviceType && { deviceType }),
         ...(deviceName && { deviceName })
       }
-      const res = await profitReportApi.get('/aggregated', { params })
-      setAggregated(res.data)
+      
+      // Fetch all data in parallel
+      const [aggregatedRes, locationBreakdownRes, locationAggregatedRes] = await Promise.all([
+        profitReportApi.get('/aggregated', { params }),
+        profitReportApi.get('/location-breakdown', { params }),
+        profitReportApi.get('/location-aggregated', { params })
+      ])
+      
+      setAggregated(aggregatedRes.data)
+      setLocationBreakdown(locationBreakdownRes.data)
+      setLocationAggregated(locationAggregatedRes.data)
       
       // Debug: Log the first few records to see the actual data structure
-      if (res.data && res.data.length > 0) {
-        console.log('Sample sale_day data:', res.data.slice(0, 3).map(r => ({
+      if (aggregatedRes.data && aggregatedRes.data.length > 0) {
+        console.log('Sample sale_day data:', aggregatedRes.data.slice(0, 3).map(r => ({
           sale_day: r.sale_day,
           sale_day_type: typeof r.sale_day,
           sale_day_parsed: new Date(r.sale_day),
@@ -220,9 +231,20 @@ const grandTotals = useMemo(() => (
   }), { units: 0, revenue: 0, before: 0, expense: 0, after: 0 })
 ), [displayData])
 
-  // shadcn chart config and stacked dataset
+// Location-based totals
+const locationTotals = useMemo(() => (
+  locationBreakdown.reduce((tot, row) => ({
+    units:   tot.units   + Number(row.total_units_sold || 0),
+    revenue: tot.revenue + Number(row.total_revenue || 0),
+    before:  tot.before  + Number(row.total_initial_profit || 0),
+    expense: tot.expense + Number(row.total_commission_expense || 0),
+    after:   tot.after   + Number(row.total_final_profit || 0),
+  }), { units: 0, revenue: 0, before: 0, expense: 0, after: 0 })
+), [locationBreakdown])
+
+  // shadcn chart config and multiple dataset
   const chartConfig = {
-    grossProfit: { label: 'Gross Profit', color: '#92400e' },
+    grossProfit: { label: 'Gross Profit', color: '#f59e0b' },
     netProfit:  { label: 'Net Profit',  color: '#92400e' },
   }
 
@@ -327,7 +349,7 @@ const grandTotals = useMemo(() => (
       <div className="md:hidden sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm text-muted-foreground">Filters</div>
-          <Button className="h-10 px-3" variant="outline" onClick={() => setFiltersOpen(true)}>Open</Button>
+          <Button className="h-11 px-4" variant="outline" onClick={() => setFiltersOpen(true)}>Open</Button>
         </div>
       </div>
 
@@ -475,13 +497,87 @@ const grandTotals = useMemo(() => (
          </div>
        </div>
 
+      {/* Location Breakdown Section */}
+      {locationBreakdown.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <h2 className="text-lg font-semibold">Location-Based Performance</h2>
+          </div>
+          
+          {/* Location Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {locationBreakdown.map((location, index) => (
+              <div key={index} className="rounded-xl bg-card border shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-lg">{location.location}</h3>
+                  <div className="text-sm text-muted-foreground">
+                    {location.total_orders} orders
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Units Sold:</span>
+                    <span className="font-medium">{Number(location.total_units_sold || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Revenue:</span>
+                    <span className="font-medium">₦{Number(location.total_revenue || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Gross Profit:</span>
+                    <span className="font-medium">₦{Number(location.total_initial_profit || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Expenses:</span>
+                    <span className="font-medium">₦{Number(location.total_commission_expense || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm border-t pt-2">
+                    <span className="text-muted-foreground">Net Profit:</span>
+                    <span className="font-semibold text-green-600">₦{Number(location.total_final_profit || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Location Summary */}
+          <div className="rounded-xl bg-card border shadow-sm p-4">
+            <h3 className="font-semibold mb-3">Location Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{locationTotals.units.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Total Units</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">₦{locationTotals.revenue.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Total Revenue</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">₦{locationTotals.before.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Gross Profit</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">₦{locationTotals.expense.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Expenses</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">₦{locationTotals.after.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Net Profit</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chart + KPI grid (no cards) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                  {/* Left: Profit chart (further reduced width) */}
          <section className="lg:col-span-5">
            <h2 className="text-lg font-semibold mb-1">Profit Chart</h2>
            <p className="text-sm text-muted-foreground mb-3">Last 28 days</p>
-          <ChartContainer config={chartConfig} className="h-72 rounded-xl bg-card shadow p-2">
+          <ChartContainer config={chartConfig} className="h-64 sm:h-72 rounded-xl bg-card shadow p-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stackedDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -489,8 +585,8 @@ const grandTotals = useMemo(() => (
                 <YAxis tick={{ fontSize: 12 }} />
                 <ChartTooltip content={<ChartTooltipContent config={chartConfig} valueFormatter={(v)=>money(v)} />} />
                 <ChartLegend content={<ChartLegendContent config={chartConfig} />} />
-                <Bar dataKey="grossProfit" name="Gross Profit" stackId="a" fill="#92400e" radius={[4,4,0,0]} />
-                <Bar dataKey="netProfit"  name="Net Profit"  stackId="a" fill="#92400e"  radius={[4,4,0,0]} />
+                <Bar dataKey="grossProfit" name="Gross Profit" fill="#f59e0b" radius={[4,4,0,0]} />
+                <Bar dataKey="netProfit"  name="Net Profit"  fill="#92400e"  radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>
@@ -553,7 +649,7 @@ const grandTotals = useMemo(() => (
               <div className="text-xs text-muted-foreground">Analyze growth and changes in visitor patterns</div>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-4">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <StatusStat label="New Order"   count={statusSummary.new}       change={statusSummary.changes?.new}       barClass="bg-blue-500" />
             <StatusStat label="On Progress" count={statusSummary.progress}  change={statusSummary.changes?.progress}  barClass="bg-yellow-500" />
             <StatusStat label="Completed"   count={statusSummary.completed} change={statusSummary.changes?.completed} barClass="bg-green-600" />
@@ -653,7 +749,7 @@ const grandTotals = useMemo(() => (
                          key={pageNum}
                          variant={currentPage === pageNum ? "default" : "outline"}
                          size="sm"
-                         className="w-8 h-8 p-0"
+                         className="w-10 h-10 p-0"
                          onClick={() => setCurrentPage(pageNum)}
                        >
                          {pageNum}

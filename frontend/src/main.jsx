@@ -11,7 +11,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <ThemeProvider attribute="class">    {/* ← wrap here */}
+        <ThemeProvider>    {/* ← wrap here */}
           <ToastProvider>
             <App />
           </ToastProvider>

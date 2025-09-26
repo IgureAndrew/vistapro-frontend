@@ -4,7 +4,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "nodemon start-dev-enhanced.js",
+    "dev:legacy": "nodemon server.js",
+    "dev:old": "nodemon start-dev.js",
     "migrate": "node-pg-migrate up",
     "setup-local-db": "node scripts/setup-local-db.js"
   },
@@ -14,7 +16,7 @@
   "description": "",
   "dependencies": {
     "aws-sdk": "^2.1692.0",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cloudinary": "^1.41.3",
     "connect-redis": "^6.1.0",
     "cors": "^2.8.5",

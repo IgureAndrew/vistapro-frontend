@@ -8,10 +8,14 @@ const {
   confirmOrder,
   confirmOrderToDealer,
   getOrderHistory,
+  getUserOrderSummary,
+  getUserPendingOrders,
+  performBulkActions,
   updateOrder,
   deleteOrder,
   getConfirmedOrderDetail,
-  cancelOrder,                 // ← new import
+  cancelOrder,
+  getBnplAnalytics,
 } = require("../controllers/manageOrderController");
 
 // ──────────────────────────────────────────────────────────
@@ -59,6 +63,17 @@ router.get(
 );
 
 // ──────────────────────────────────────────────────────────
+// 2a) User Order Summary (for popover)
+//    GET /api/manage-orders/user-summary/:userId
+// ──────────────────────────────────────────────────────────
+router.get(
+  "/user-summary/:userId",
+  verifyToken,
+  verifyRole(["MasterAdmin","SuperAdmin","Admin"]),
+  getUserOrderSummary
+);
+
+// ──────────────────────────────────────────────────────────
 // 3) Confirm to dealer
 //    PATCH /api/manage-orders/orders/:orderId/confirm-to-dealer
 // ──────────────────────────────────────────────────────────
@@ -100,6 +115,39 @@ router.get(
   verifyToken,
   verifyRole(["MasterAdmin"]),
   getConfirmedOrderDetail
+);
+
+// ──────────────────────────────────────────────────────────
+// 7) User Pending Orders (for popover actions)
+//    GET /api/manage-orders/user-pending-orders/:userId
+// ──────────────────────────────────────────────────────────
+router.get(
+  "/user-pending-orders/:userId",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  getUserPendingOrders
+);
+
+// ──────────────────────────────────────────────────────────
+// 8) Bulk Actions on Orders
+//    POST /api/manage-orders/bulk-actions
+// ──────────────────────────────────────────────────────────
+router.post(
+  "/bulk-actions",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  performBulkActions
+);
+
+// ──────────────────────────────────────────────────────────
+// 9) BNPL Analytics
+//    GET /api/manage-orders/analytics/bnpl
+// ──────────────────────────────────────────────────────────
+router.get(
+  "/analytics/bnpl",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  getBnplAnalytics
 );
 
 module.exports = router;

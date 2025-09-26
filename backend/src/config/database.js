@@ -11,8 +11,14 @@ const useLocalDB = true;
 
 let connectionString;
 
-// Always use local database for now
-connectionString = 'postgresql://vistapro_user:vistapro_password@localhost:5433/vistapro_dev';
+// Use environment variables for database connection
+const dbUser = process.env.DB_USER || 'vistapro_user';
+const dbPassword = process.env.DB_PASSWORD || 'vistapro_password';
+const dbHost = process.env.DB_HOST || 'localhost';
+const dbPort = process.env.DB_PORT || '5433';
+const dbName = process.env.DB_NAME || 'vistapro_dev';
+
+connectionString = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 console.log('🔧 Using LOCAL database for development');
 
 // Create a new PostgreSQL pool using the connection string from the environment.

@@ -1,6 +1,150 @@
 // src/components/Submissions.jsx
 import React, { useState, useEffect } from "react";
 import ConfirmDialog from "./ui/confirm-dialog";
+import { ChevronDownIcon, EyeIcon, TrashIcon, ArrowPathIcon, CheckIcon } from "@heroicons/react/24/outline";
+
+// ActionDropdown Component: Dropdown menu for submission actions
+function ActionDropdown({ group, onViewDetails, onDelete, onReset, onApprove, user }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isOpen && !event.target.closest('.action-dropdown')) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const actions = [
+    {
+      id: 'view',
+      label: 'View Details',
+      icon: EyeIcon,
+      onClick: () => {
+        onViewDetails(group.details);
+        setIsOpen(false);
+      },
+      className: 'text-gray-700 hover:bg-gray-100'
+    }
+  ];
+
+  if (user && user.role === "MasterAdmin") {
+    actions.push(
+      {
+        id: 'delete',
+        label: 'Delete',
+        icon: TrashIcon,
+        onClick: () => {
+          onDelete(group);
+          setIsOpen(false);
+        },
+        className: 'text-red-700 hover:bg-red-50'
+      },
+      {
+        id: 'reset',
+        label: 'Reset Form',
+        icon: ArrowPathIcon,
+        onClick: () => {
+          onReset(group);
+          setIsOpen(false);
+        },
+        className: 'text-yellow-700 hover:bg-yellow-50'
+      },
+      {
+        id: 'approve',
+        label: 'Approve',
+        icon: CheckIcon,
+        onClick: () => {
+          onApprove(group);
+          setIsOpen(false);
+        },
+        className: 'text-green-700 hover:bg-green-50'
+      }
+    );
+  }
+
+  return (
+    <div className="relative action-dropdown">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+      >
+        Actions
+        <ChevronDownIcon className="ml-2 h-4 w-4" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute right-0 z-50 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+            <div className="py-1">
+              {actions.map((action) => (
+                <button
+                  key={action.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    action.onClick();
+                  }}
+                  className={`${action.className} group flex items-center px-4 py-2 text-sm w-full text-left hover:bg-gray-50`}
+                >
+                  <action.icon className="mr-3 h-4 w-4" />
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// StatusBadge Component: Shows submission status
+function StatusBadge({ group }) {
+  const getStatusInfo = () => {
+    // Check if all forms are submitted
+    const submittedCount = [group.bio_submitted, group.guarantor_submitted, group.commitment_submitted].filter(Boolean).length;
+    const totalCount = 3;
+    const allFormsSubmitted = submittedCount === totalCount;
+    
+    // Check overall verification status
+    const isApproved = group.overall_verification_status === 'approved' || group.overall_verification_status === 'complete';
+    
+    if (isApproved) {
+      return { text: 'Complete', className: 'bg-green-100 text-green-800' };
+    }
+    
+    if (submittedCount === 0) {
+      return { text: 'Not Started', className: 'bg-gray-100 text-gray-800' };
+    } else if (submittedCount < totalCount) {
+      return { text: `Incomplete (${submittedCount}/${totalCount})`, className: 'bg-yellow-100 text-yellow-800' };
+    } else if (allFormsSubmitted && !isApproved) {
+      return { text: 'Pending Review', className: 'bg-blue-100 text-blue-800' };
+    } else {
+      return { text: 'Incomplete', className: 'bg-red-100 text-red-800' };
+    }
+  };
+
+  const status = getStatusInfo();
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.className}`}>
+      {status.text}
+    </span>
+  );
+}
 
 // DeleteFormModal Component: Allows Master Admin to select a specific form submission to delete.
 function DeleteFormModal({ marketer, onClose, onDelete }) {
@@ -115,8 +259,10 @@ export default function Submissions() {
   const [submissions, setSubmissions] = useState([]);
   // State for grouped submissions by marketer_unique_id.
   const [groupedSubmissions, setGroupedSubmissions] = useState([]);
+  const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Modal state for detailed view.
   const [modalOpen, setModalOpen] = useState(false);
@@ -162,16 +308,45 @@ export default function Submissions() {
           location: submission.location || submission.marketer_location || "N/A",
           types: [submission.type],
           details: [submission],
+          // Add status and date information
+          bio_submitted: submission.bio_submitted || false,
+          guarantor_submitted: submission.guarantor_submitted || false,
+          commitment_submitted: submission.commitment_submitted || false,
+          overall_verification_status: submission.overall_verification_status || 'incomplete',
+          latest_submission_date: submission.created_at,
         };
       } else {
         if (!acc[key].types.includes(submission.type)) {
           acc[key].types.push(submission.type);
         }
         acc[key].details.push(submission);
+        // Update latest submission date if this submission is newer
+        if (new Date(submission.created_at) > new Date(acc[key].latest_submission_date)) {
+          acc[key].latest_submission_date = submission.created_at;
+        }
       }
       return acc;
     }, {});
     return Object.values(grouped);
+  };
+
+  // Filter submissions to show only incomplete or not approved
+  const filterIncompleteSubmissions = (groupedSubmissions) => {
+    return groupedSubmissions.filter(group => {
+      // Check if overall verification status is approved/complete
+      const isApproved = group.overall_verification_status === 'approved' || 
+                        group.overall_verification_status === 'complete';
+      
+      // Check if all required forms are submitted
+      const allFormsSubmitted = group.bio_submitted && 
+                               group.guarantor_submitted && 
+                               group.commitment_submitted;
+      
+      // Show submission if:
+      // 1. It's not approved/complete, OR
+      // 2. Not all forms are submitted
+      return !isApproved || !allFormsSubmitted;
+    });
   };
 
   // Fetch submissions from the backend on component mount.
@@ -192,14 +367,17 @@ export default function Submissions() {
         }
         const data = await res.json();
         // Expected structure: data.submissions contains keys: biodata, guarantor, commitment.
-        const { biodata = [], guarantor = [], commitment = [] } = data.submissions;
+        const { biodata = [], guarantor = [], commitment = [] } = data.submissions || {};
         // Tag each submission with its form type.
         const taggedBiodata = biodata.map((i) => ({ ...i, type: "Biodata" }));
         const taggedGuarantor = guarantor.map((i) => ({ ...i, type: "Guarantor" }));
         const taggedCommitment = commitment.map((i) => ({ ...i, type: "Commitment" }));
         const combined = [...taggedBiodata, ...taggedGuarantor, ...taggedCommitment];
         setSubmissions(combined);
-        setGroupedSubmissions(groupSubmissions(combined));
+        const grouped = groupSubmissions(combined);
+        const filtered = filterIncompleteSubmissions(grouped);
+        setGroupedSubmissions(filtered);
+        setFilteredSubmissions(filtered);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -208,6 +386,21 @@ export default function Submissions() {
     };
     fetchSubmissions();
   }, []);
+
+  // Filter submissions based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredSubmissions(groupedSubmissions);
+    } else {
+      const filtered = groupedSubmissions.filter(group => 
+        group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        group.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        group.marketer_unique_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        group.types.some(type => type.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+      setFilteredSubmissions(filtered);
+    }
+  }, [searchTerm, groupedSubmissions]);
 
   // Handlers for the details modal.
   const openModal = (details) => {
@@ -343,25 +536,49 @@ export default function Submissions() {
 
   if (loading) return <p>Loading submissions...</p>;
   if (error) return <p>Error: {error}</p>;
-  if (groupedSubmissions.length === 0) return <p>No submissions available.</p>;
+  if (filteredSubmissions.length === 0) {
+    if (searchTerm.trim()) {
+      return <p>No submissions found matching your search criteria.</p>;
+    }
+    return <p>No incomplete submissions found. All submissions are complete and approved.</p>;
+  }
 
   return (
     <div className="w-full px-4 py-6">
-      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search by name, location, ID, or form type..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 pl-10 pr-4 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden lg:block shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50 sticky top-0">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Marketer Name
+                Marketer Info
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Location
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Unique ID
+                Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Form Types
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Submission Date
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
@@ -369,54 +586,53 @@ export default function Submissions() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {groupedSubmissions.map((group) => (
-              <tr key={group.marketer_unique_id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            {filteredSubmissions.map((group) => (
+              <tr key={group.marketer_unique_id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium text-gray-900">
                   {group.name || "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    </div>
+                    <div className="text-sm text-gray-500">
                   {group.location || "N/A"}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {group.marketer_unique_id || "N/A"}
+                    </div>
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {group.marketer_unique_id || "N/A"}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <StatusBadge group={group} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <button
-                    className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800"
+                    className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
                     onClick={() => openModal(group.details)}
                   >
                     {group.types.join(", ")}
                   </button>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => openModal(group.details)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"
-                  >
-                    View Details
-                  </button>
-                  {user && user.role === "MasterAdmin" && (
-                    <>
-                      <button
-                        onClick={() => openDeleteModal(group)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => openResetModal(group)}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs"
-                      >
-                        Reset Form
-                      </button>
-                      <button
-                        onClick={() => confirm(() => handleApprove(group))}
-                        className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs"
-                      >
-                        Approve
-                      </button>
-                    </>
-                  )}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {group.latest_submission_date 
+                    ? new Date(group.latest_submission_date).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : "N/A"
+                  }
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <ActionDropdown
+                    group={group}
+                    onViewDetails={openModal}
+                    onDelete={openDeleteModal}
+                    onReset={openResetModal}
+                    onApprove={(group) => confirm(() => handleApprove(group))}
+                    user={user}
+                  />
                 </td>
               </tr>
             ))}
@@ -424,37 +640,105 @@ export default function Submissions() {
         </table>
       </div>
 
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-4">
+        {filteredSubmissions.map((group) => (
+          <div key={group.marketer_unique_id} className="bg-white shadow rounded-lg border border-gray-200 p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-medium text-gray-900 truncate">
+                  {group.name || "N/A"}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {group.location || "N/A"}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {group.marketer_unique_id || "N/A"}
+                </p>
+              </div>
+              <StatusBadge group={group} />
+            </div>
+            
+            <div className="flex items-center justify-between mb-3">
+              <button
+                className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
+                onClick={() => openModal(group.details)}
+              >
+                {group.types.join(", ")}
+              </button>
+              <span className="text-xs text-gray-500">
+                {group.latest_submission_date 
+                  ? new Date(group.latest_submission_date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : "N/A"
+                }
+              </span>
+            </div>
+            
+            <div className="flex justify-end">
+              <ActionDropdown
+                group={group}
+                onViewDetails={openModal}
+                onDelete={openDeleteModal}
+                onReset={openResetModal}
+                onApprove={(group) => confirm(() => handleApprove(group))}
+                user={user}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Responsive Modal for Detailed View */}
       {modalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-xl w-full p-6 relative">
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] relative flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-900">Submission Details</h3>
             <button
               onClick={closeModal}
-              className="absolute top-2 right-2 text-gray-600 hover:text-gray-800 text-2xl"
+                className="text-gray-400 hover:text-gray-600 text-2xl"
             >
               &times;
             </button>
-            <h3 className="text-xl font-bold mb-4">Submission Details</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
             {modalData ? (
-              <div className="text-sm text-gray-700 space-y-2 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="space-y-6">
                 {modalData.map((detail, idx) => (
-                  <div key={idx} className="border-b pb-2 mb-2">
-                    {Object.entries(detail).map(([key, value]) => (
-                      <div key={key}>
-                        <strong className="capitalize">{key}:</strong>{" "}
+                    <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3 capitalize">
+                        {detail.type || 'Submission'} Form
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {Object.entries(detail)
+                          .filter(([key]) => !['id', 'type', 'marketer_unique_id', 'created_at', 'updated_at'].includes(key))
+                          .map(([key, value]) => (
+                          <div key={key} className="flex flex-col">
+                            <span className="font-medium text-gray-700 capitalize">
+                              {key.replace(/_/g, ' ')}:
+                            </span>
+                            <span className="text-gray-900 mt-1">
                         {value
                           ? typeof value === "string"
                             ? value
                             : JSON.stringify(value, null, 2)
                           : "N/A"}
+                            </span>
                       </div>
                     ))}
+                      </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p>No details available.</p>
+                <p className="text-gray-500 text-center py-8">No details available.</p>
             )}
+            </div>
           </div>
         </div>
       )}

@@ -15,7 +15,7 @@ app.set('trust proxy', 1);
 // ——— Rate limiter
 app.use(rateLimit({
   windowMs: 15*60*1000,
-  max: 100,
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100,
   message: "Too many requests, please try again later."
 }));
 
@@ -32,13 +32,39 @@ const allowedOrigins = [
   "https://www.vistapro.ng",
   "https://vistapro.ng"
 ];
+
+// Handle preflight requests manually
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.status(200).end();
+  } else {
+    res.status(403).end();
+  }
+});
+
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) return cb(null, true);
+    console.log('CORS request from origin:', origin);
+    if (!origin) {
+      console.log('No origin header, allowing request');
+      return cb(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      console.log('Origin allowed:', origin);
+      return cb(null, true);
+    }
+    console.log('Origin blocked:', origin);
     cb(new Error("Not allowed by CORS"));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
 }));
 
 // ——— Security headers
@@ -68,6 +94,11 @@ require('./jobs/refreshSummary');
 // ——— Static file serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// ——— Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Backend is running' });
+});
+
 // ——— Disable client caching on all /api routes
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -90,11 +121,17 @@ app.use('/api/products',       require('./routes/productRoutes'));
 app.use('/api/manage-orders',  require('./routes/manageOrderRoutes'));
 app.use('/api/profit-report',  require('./routes/profitReportRoutes'));
 app.use('/api/performance',    require('./routes/performanceRoutes'));
+app.use('/api/assignments',    require('./routes/assignmentRoutes'));
+app.use('/api/target-management', require('./routes/targetManagementRoutes'));
 app.use('/api/stock',          require('./routes/stockupdateRoutes'));
 app.use('/api/verification',   require('./routes/verificationRoutes'));
+app.use('/api/enhanced-verification', require('./routes/enhancedVerificationRoutes'));
+// app.use('/api/verification-workflow', require('./routes/verificationWorkflowRoutes')); // DISABLED - conflicting with main verification system
 app.use('/api/notifications',  require('./routes/notificationRoutes'));
 app.use('/api/wallets',        require('./routes/walletRoutes'));
 app.use('/api/messages',       require('./routes/messageRoutes'));
+app.use('/api/targets',        require('./routes/targetRoutes'));
+app.use('/api/messaging',      require('./routes/messagingRoutes'));
 
 // ——— Error handler
 app.use(require('./middlewares/errorHandler'));

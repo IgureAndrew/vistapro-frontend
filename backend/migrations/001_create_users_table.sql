@@ -1,5 +1,5 @@
 -- 001_create_users_table.sql
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   unique_id VARCHAR(50) UNIQUE NOT NULL,
   first_name VARCHAR(100),

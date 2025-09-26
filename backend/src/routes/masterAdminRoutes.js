@@ -33,7 +33,12 @@ const {
   getTotalUsers,
   getStats,
   getRecentActivity,
-  getAllDealers
+  getAllDealers,
+  assignMarketerToAdmin,
+  getUnassignedMarketers,
+  getAssignmentStats,
+  getAllLocations,
+  getHierarchicalAssignments
 } = require('../controllers/masterAdminController');
 
 // Ensure uploads directory exists
@@ -83,13 +88,63 @@ router.get(
   '/profile',
   verifyToken,
   verifyRole(['MasterAdmin']),
-  (req, res) => res.status(200).json({ user: req.user })
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const query = `
+        SELECT id, unique_id, first_name, last_name, email, phone, gender, profile_image, role
+        FROM users
+        WHERE id = $1
+      `;
+      const { rows } = await pool.query(query, [userId]);
+      
+      if (rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      const user = rows[0];
+      res.status(200).json({ user });
+    } catch (error) {
+      console.error('Error fetching MasterAdmin profile:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
 );
 
 // --- User Management (MasterAdmin only) ---
 router.get(   '/users',         verifyToken, verifyRole(['MasterAdmin']), getUsers);
 router.post(  '/users',         verifyToken, verifyRole(['MasterAdmin']), uploadPDF.single('registrationCertificate'), addUser);
 router.get(   '/users/summary', verifyToken, verifyRole(['MasterAdmin']), getUserSummary);
+
+// --- Get users by location (for transfers) ---
+router.get('/users/location/:location', verifyToken, verifyRole(['Marketer', 'Admin', 'SuperAdmin', 'MasterAdmin']), async (req, res) => {
+  try {
+    const { location } = req.params;
+    const currentUserId = req.user.id;
+    
+    // Get users from the same location, excluding current user
+    const { rows } = await pool.query(`
+      SELECT 
+        id,
+        unique_id,
+        CONCAT(first_name, ' ', last_name) as name,
+        role,
+        location
+      FROM users 
+      WHERE location = $1 
+        AND id != $2
+        AND role IN ('Marketer', 'Admin', 'SuperAdmin')
+        AND (deleted IS NULL OR deleted = FALSE)
+        AND (locked IS NULL OR locked = FALSE)
+      ORDER BY role, first_name, last_name
+    `, [location, currentUserId]);
+    
+    res.json({ users: rows });
+  } catch (error) {
+    console.error('Error fetching users by location:', error);
+    res.status(500).json({ message: 'Failed to fetch users' });
+  }
+});
 
 // Use the numeric `:id` path parameter for update/delete/restore
 router.put(   '/users/:id',     verifyToken, verifyRole(['MasterAdmin']), updateUser);
@@ -135,7 +190,41 @@ router.get(
   getAllDealers
 );
 
+// --- Marketer Assignment Routes ---
+router.post(
+  '/assign-marketer',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  assignMarketerToAdmin
+);
 
+router.get(
+  '/unassigned-marketers',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  getUnassignedMarketers
+);
+
+router.get(
+  '/assignment-stats',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  getAssignmentStats
+);
+
+router.get(
+  '/locations',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  getAllLocations
+);
+
+router.get(
+  '/hierarchical-assignments',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  getHierarchicalAssignments
+);
 
 // --- Global error handler ---
 router.use((err, req, res, next) => {

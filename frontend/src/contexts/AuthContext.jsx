@@ -22,6 +22,10 @@ export const AuthProvider = ({ children }) => {
 
   // Function to log in a user (store token and user details)
   const login = (token, userData) => {
+    // Clear all localStorage data to prevent contamination
+    localStorage.clear();
+    
+    // Set new user data
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(userData));
     setToken(token);

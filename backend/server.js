@@ -41,7 +41,7 @@ io.on("connection", socket => {
   }
 });
 
-const PORT = process.env.PORT || 5005;
+const PORT = process.env.PORT || 5007;
 
 // Connect to the database and then start the HTTP server.
 connectDB()

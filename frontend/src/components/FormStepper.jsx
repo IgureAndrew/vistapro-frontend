@@ -9,32 +9,76 @@ export default function FormStepper({
   onStepClick = () => {}
 }) {
   return (
-    <nav className="flex space-x-4">
-      {steps.map((step, idx) => {
-        const isCompleted = Boolean(completed[idx]);
-        const isActive    = idx === activeIndex;
-        const isClickable = isCompleted || idx === activeIndex;
-        return (
-          <button
-            key={step.key}
-            onClick={() => isClickable && onStepClick(idx, step.key)}
-            disabled={!isClickable}
-            className={`
-              flex items-center space-x-2 px-3 py-1 rounded
-              ${isActive      ? "bg-blue-100 text-blue-800" : ""}
-              ${!isClickable  ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-            `}
-          >
-            {isCompleted
-              ? <Check size={16} />
-              : <span className={`w-5 h-5 flex items-center justify-center rounded-full border ${isActive ? "border-blue-600" : "border-gray-400"}`}>
-                  {idx + 1}
-                </span>
-            }
-            <span className="font-medium">{step.label}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      {/* Progress Bar */}
+      <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
+        <div 
+          className="bg-gradient-to-r from-amber-500 to-amber-600 h-2 rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${((activeIndex + 1) / steps.length) * 100}%` }}
+        ></div>
+      </div>
+      
+      {/* Progress Text */}
+      <div className="text-center mb-6">
+        <p className="text-sm text-gray-600">
+          Step {activeIndex + 1} of {steps.length} - {steps[activeIndex]?.label}
+        </p>
+      </div>
+      
+      <div className="flex items-center justify-between relative">
+        {steps.map((step, idx) => {
+          const isCompleted = Boolean(completed[idx]);
+          const isActive    = idx === activeIndex;
+          const isClickable = isCompleted || idx === activeIndex;
+          
+          return (
+            <div key={step.key} className="flex flex-col items-center flex-1">
+              {/* Step Circle */}
+              <button
+                onClick={() => isClickable && onStepClick(idx, step.key)}
+                disabled={!isClickable}
+                className={`
+                  w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold mb-2
+                  transition-all duration-300 transform hover:scale-110
+                  ${isCompleted 
+                    ? "bg-green-500 text-white shadow-lg animate-pulse" 
+                    : isActive 
+                      ? "text-white shadow-lg ring-4 ring-amber-200" 
+                      : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                  }
+                  ${!isClickable ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                `}
+                style={isActive && !isCompleted ? { backgroundColor: '#f59e0b' } : {}}
+              >
+                {isCompleted ? <Check size={20} /> : idx + 1}
+              </button>
+              
+              {/* Step Label */}
+              <span className={`
+                text-xs font-semibold text-center px-2
+                ${isActive ? "text-amber-600" : isCompleted ? "text-green-600" : "text-gray-500"}
+              `}>
+                {step.label}
+              </span>
+              
+              {/* Completion Status */}
+              {isCompleted && (
+                <div className="text-xs text-green-600 font-medium mt-1">
+                  ✓ Complete
+                </div>
+              )}
+              
+              {/* Connector Line */}
+              {idx < steps.length - 1 && (
+                <div className={`
+                  absolute top-5 left-1/2 w-full h-0.5 -z-10
+                  ${isCompleted ? "bg-green-500" : "bg-gray-200"}
+                `} style={{ width: `calc(100% / ${steps.length - 1})`, left: `${(idx + 0.5) * (100 / steps.length)}%` }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

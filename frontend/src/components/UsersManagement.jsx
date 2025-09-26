@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/
 // Removed sheet (unused after sidebar filters)
 import { UserIcon } from "@heroicons/react/24/outline";
 import { useToast } from "./ui/use-toast";
+import UserSummaryPopover from "./UserSummaryPopover";
 
 // List of Nigerian states for location selection.
 const NIGERIAN_STATES = [
@@ -17,7 +18,44 @@ const NIGERIAN_STATES = [
   "Taraba","Yobe","Zamfara","FCT"
 ];
 
-function FiltersPanel({ serverFilters, setServerFilters, baseUrl, NIGERIAN_STATES }) {
+// Date formatting helper function
+const formatUserDate = (dateString) => {
+  if (!dateString) return '-';
+  
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now - date);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Show relative time for recent dates
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+  if (diffDays < 365) return `${Math.ceil(diffDays / 30)} months ago`;
+  
+  // Show full date for older entries
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
+// Full date formatting for tooltips
+const formatFullDate = (dateString) => {
+  if (!dateString) return '-';
+  
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+function FiltersPanel({ serverFilters, setServerFilters, baseUrl, NIGERIAN_STATES, searchInput, setSearchInput }) {
   const set = (patch) => setServerFilters(s => ({ ...s, ...patch, page: 1 }));
   return (
     <div className="space-y-3">
@@ -32,8 +70,8 @@ function FiltersPanel({ serverFilters, setServerFilters, baseUrl, NIGERIAN_STATE
             <input
               type="text"
               placeholder="Search by name, email, ID or role"
-              value={serverFilters.q}
-              onChange={e => set({ q: e.target.value })}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
               className="input-soft h-11 w-full"
             />
             
@@ -82,12 +120,13 @@ function FiltersPanel({ serverFilters, setServerFilters, baseUrl, NIGERIAN_STATE
                 Export CSV
               </button>
               <button
-                onClick={() =>
+                onClick={() => {
+                  setSearchInput("");
                   setServerFilters({
                     q: "", role: "", status: "", location: "",
                     sort: "id", order: "desc", page: 1, limit: serverFilters.limit || 10
-                  })
-                }
+                  });
+                }}
                 className="btn-soft h-11 px-4 text-sm"
               >
                 Reset Filters
@@ -144,6 +183,7 @@ export default function UsersManagement() {
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const toggleShowPassword = () => setShowPassword(p => !p);
 
   // Force Advanced UI
@@ -159,11 +199,21 @@ export default function UsersManagement() {
     limit: 10,
   });
   const [serverPagination, setServerPagination] = useState({ total: 0, page: 1, pages: 1, limit: 10 });
+  const [searchInput, setSearchInput] = useState("");
   // sheet state removed (no longer used)
 
   // Use the configured API base instead of hardcoding production URL
   const baseUrl = `${import.meta.env.VITE_API_URL}/api/master-admin/users`;
   const token = localStorage.getItem("token");
+
+  // Debounce search input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setServerFilters(prev => ({ ...prev, q: searchInput, page: 1 }));
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchInput]);
 
   useEffect(() => {
     if (advancedUsersUI) {
@@ -172,7 +222,7 @@ export default function UsersManagement() {
       fetchUsersClient();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [advancedUsersUI, serverFilters.page, serverFilters.limit, serverFilters.role, serverFilters.status, serverFilters.location, serverFilters.sort, serverFilters.order, showDeletedUsers]);
+  }, [advancedUsersUI, serverFilters.page, serverFilters.limit, serverFilters.q, serverFilters.role, serverFilters.status, serverFilters.location, serverFilters.sort, serverFilters.order, showDeletedUsers]);
 
   async function fetchUsersClient() {
     try {
@@ -248,6 +298,8 @@ export default function UsersManagement() {
   async function handleAddUserSubmit(e) {
     e.preventDefault();
     if (!token) return showError("No token provided. Please log in again.");
+    
+    setIsSubmitting(true);
     try {
       let payload, headers = { Authorization: `Bearer ${token}` };
       if (addFormData.role === "Dealer" && addFormData.registrationCertificate) {
@@ -264,15 +316,63 @@ export default function UsersManagement() {
       });
       const data = await res.json();
       if (res.ok) {
-        showSuccess("User added!");
+        // Enhanced success message with user details
+        const user = data.user;
+        const userName = user.role === 'Dealer' ? 
+          (user.business_name || `${user.first_name} ${user.last_name}`) : 
+          `${user.first_name} ${user.last_name}`;
+        
+        const creationDate = new Date(user.created_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        showSuccess(
+          `✅ ${userName} (${user.role}) has been successfully created!\n\n` +
+          `📋 User ID: ${user.unique_id}\n` +
+          `📧 Email: ${user.email}\n` +
+          `📍 Location: ${user.location}\n` +
+          `📅 Created: ${creationDate}`,
+          "User Created Successfully"
+        );
+        
+        // Reset form
+        setAddFormData({
+          role: "", first_name: "", last_name: "", gender: "",
+          email: "", password: "",
+          bank_name: "", account_number: "", account_name: "",
+          location: "",
+          registered_business_name: "",
+          registered_business_address: "",
+          business_account_name: "",
+          business_account_number: "",
+          registrationCertificate: null,
+        });
+        
         (advancedUsersUI ? fetchUsersServer : fetchUsersClient)();
         closeAddUserModal();
       } else {
-        showError(data.message || "Failed to add user");
+        // Enhanced error handling
+        if (data.message) {
+          if (data.message.includes('Email already exists')) {
+            showError("This email address is already registered. Please use a different email.", "Email Already Exists");
+          } else if (data.message.includes('Account number')) {
+            showError("This account number is already in use. Please use a different account number.", "Account Number Taken");
+          } else {
+            showError(data.message, "Validation Error");
+          }
+        } else {
+          showError("Failed to create user. Please check your input and try again.", "Creation Failed");
+        }
       }
     } catch (err) {
       console.error(err);
-              showError("Error adding user");
+      showError("Network error occurred. Please check your connection and try again.", "Connection Error");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -300,6 +400,51 @@ export default function UsersManagement() {
   const closeEditUserModal = () => {
     setShowEditUserModal(false);
     setSelectedUser(null);
+  };
+
+  // ── handler for popover actions ──────────────────────────────────
+  const handlePopoverAction = (action, userData) => {
+    switch (action) {
+      case 'view_full':
+        // Navigate to user profile or open detailed modal
+        console.log('View full profile for:', userData);
+        alert(`Opening full profile for ${userData.name} (${userData.unique_id})`);
+        // TODO: Implement navigation to user profile page
+        break;
+      case 'send_message':
+        // Open messaging interface
+        console.log('Send message to:', userData);
+        // For now, show a simple alert with contact info
+        const contactInfo = userData.phone ? `Phone: ${userData.phone}` : 'No phone number available';
+        alert(`Send message to ${userData.name} (${userData.unique_id})\n${contactInfo}\n\nNote: Messaging functionality will be implemented in a future update.`);
+        break;
+      case 'withheld_releases':
+        // Open withheld releases modal
+        console.log('Manage withheld releases for:', userData);
+        alert(`Opening withheld releases management for ${userData.name} (${userData.unique_id})`);
+        // TODO: Implement withheld releases modal
+        break;
+      case 'withdrawal_requests':
+        // Open withdrawal requests modal
+        console.log('Manage withdrawal requests for:', userData);
+        alert(`Opening withdrawal requests management for ${userData.name} (${userData.unique_id})`);
+        // TODO: Implement withdrawal requests modal
+        break;
+      case 'approve_withdrawal':
+        // Quick approve withdrawal
+        console.log('Approve withdrawal for:', userData);
+        alert(`Approve withdrawal for ${userData.name} (${userData.unique_id})`);
+        // TODO: Implement withdrawal approval
+        break;
+      case 'reject_withdrawal':
+        // Quick reject withdrawal
+        console.log('Reject withdrawal for:', userData);
+        alert(`Reject withdrawal for ${userData.name} (${userData.unique_id})`);
+        // TODO: Implement withdrawal rejection
+        break;
+      default:
+        console.log('Unknown action:', action, userData);
+    }
   };
 
   function handleEditChange(e) {
@@ -450,6 +595,8 @@ export default function UsersManagement() {
             setServerFilters={setServerFilters}
             baseUrl={baseUrl}
             NIGERIAN_STATES={NIGERIAN_STATES}
+            searchInput={searchInput}
+            setSearchInput={setSearchInput}
           />
           <Card className="w-full bg-card shadow-lg border-0 ring-0 outline-none">
             <CardHeader className="pb-4 flex flex-row flex-wrap items-center justify-between gap-3">
@@ -458,7 +605,7 @@ export default function UsersManagement() {
                 <CardDescription className="text-muted-foreground">Manage users with filters, sorting and pagination</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <button 
+        <button
                   onClick={() => setShowDeletedUsers(!showDeletedUsers)}
                   className={`h-10 sm:h-11 px-3 sm:px-4 shrink-0 text-sm ${
                     showDeletedUsers 
@@ -467,7 +614,7 @@ export default function UsersManagement() {
                   }`}
                 >
                   {showDeletedUsers ? 'Hide Deleted' : 'Show Deleted'}
-                </button>
+        </button>
                 <button onClick={openAddUserModal} className="btn-primary h-10 sm:h-11 px-3 sm:px-4 shrink-0">Add User</button>
               </div>
             </CardHeader>
@@ -482,7 +629,16 @@ export default function UsersManagement() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="font-semibold text-base truncate">{u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}</div>
+                        <UserSummaryPopover
+                          userUniqueId={u.unique_id}
+                          userName={u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
+                          userRole={u.role}
+                          onAction={(action, data) => handlePopoverAction(action, data)}
+                        >
+                          <div className="font-semibold text-base truncate text-blue-600 hover:text-blue-800 cursor-pointer hover:underline">
+                            {u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
+                          </div>
+                        </UserSummaryPopover>
                         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">#{u.id}</span>
                       </div>
                       <div className="text-sm text-muted-foreground break-all mb-2">{u.email}</div>
@@ -495,7 +651,7 @@ export default function UsersManagement() {
                         }`}>
                           {u.deleted ? 'Deleted' : u.locked ? 'Locked' : 'Active'}
                         </span>
-                      </div>
+      </div>
 
                       <div className="grid grid-cols-3 gap-2">
                         {u.deleted ? (
@@ -528,8 +684,10 @@ export default function UsersManagement() {
               <table className="min-w-full divide-y divide-border">
                 <thead className="bg-muted">
                   <tr>
-                    {['ID','Name','Role','Location','Status','Actions'].map(h=> (
-                      <th key={h} className="px-3 md:px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide">{h}</th>
+                    {['ID','Name','Role','Location','Status','Created Date','Actions'].map(h=> (
+                      <th key={h} className={`px-3 md:px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide ${
+                        h === 'Created Date' ? 'hidden lg:table-cell' : ''
+                      }`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -543,7 +701,16 @@ export default function UsersManagement() {
                             <UserIcon className="w-5 h-5 text-muted-foreground" />
                           </div>
                           <div className="min-w-0">
-                            <div className="font-semibold text-sm truncate">{u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}</div>
+                            <UserSummaryPopover
+                              userUniqueId={u.unique_id}
+                              userName={u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
+                              userRole={u.role}
+                              onAction={(action, data) => handlePopoverAction(action, data)}
+                            >
+                              <div className="font-semibold text-sm truncate text-blue-600 hover:text-blue-800 cursor-pointer hover:underline">
+                                {u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
+                              </div>
+                            </UserSummaryPopover>
                             <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                           </div>
                         </div>
@@ -559,6 +726,9 @@ export default function UsersManagement() {
                         }`}>
                           {u.deleted ? 'Deleted' : u.locked ? 'Locked' : 'Active'}
                         </span>
+                      </td>
+                      <td className="px-3 md:px-4 py-4 text-sm text-muted-foreground hidden lg:table-cell" title={formatFullDate(u.created_at)}>
+                        {formatUserDate(u.created_at)}
                       </td>
                       <td className="px-3 md:px-4 py-4">
                         <div className="flex items-center gap-1">
@@ -623,19 +793,19 @@ export default function UsersManagement() {
         </div>
       ) : (
         <div>
-          <input
-            type="text"
-            placeholder="Search by name, email, ID or role"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+      <input
+        type="text"
+        placeholder="Search by name, email, ID or role"
+        value={searchTerm}
+        onChange={e => setSearchTerm(e.target.value)}
             className="input-soft w-full mb-3 font-bold"
-          />
-          {error && <p className="text-red-600">{error}</p>}
-          <div className="overflow-x-auto bg-white rounded shadow">
+      />
+      {error && <p className="text-red-600">{error}</p>}
+      <div className="overflow-x-auto bg-white rounded shadow">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {["ID","Name","Role","Location","Status","Actions"].map(h => (
+              {["ID","Name","Role","Location","Status","Created Date","Actions"].map(h => (
                 <th
                   key={h}
                   className="px-6 py-3 text-xs font-bold text-gray-500 uppercase"
@@ -672,6 +842,9 @@ export default function UsersManagement() {
                   }`}>
                     {u.locked ? "Locked" : "Active"}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-500" title={formatFullDate(u.created_at)}>
+                  {formatUserDate(u.created_at)}
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
                   <button
@@ -939,10 +1112,34 @@ export default function UsersManagement() {
               )}
 
             </form>
-            </div>
+          </div>
             <div className="sticky bottom-0 z-10 border-t bg-background px-6 py-3 flex justify-end gap-3">
-              <button type="button" onClick={closeAddUserModal} className="btn-soft">Cancel</button>
-              <button type="submit" form="addUserForm" className="btn-primary">Save</button>
+              <button 
+                type="button" 
+                onClick={closeAddUserModal} 
+                className="btn-soft"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                form="addUserForm" 
+                className="btn-primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating...
+                  </>
+                ) : (
+                  'Save'
+                )}
+              </button>
             </div>
           </SheetContent>
         </Sheet>
@@ -1152,7 +1349,7 @@ export default function UsersManagement() {
             
             <div className="flex justify-end gap-3">
               <button onClick={closeDeleteConfirm} className="btn-soft px-4 py-2">Cancel</button>
-              <button 
+                <button
                 onClick={confirmDelete} 
                 className={`px-4 py-2 rounded font-medium ${
                   deleteType === 'permanent' 
@@ -1161,8 +1358,8 @@ export default function UsersManagement() {
                 }`}
               >
                 {deleteType === 'permanent' ? 'Permanently Delete' : 'Soft Delete'}
-              </button>
-            </div>
+                </button>
+              </div>
           </div>
         </div>
       )}

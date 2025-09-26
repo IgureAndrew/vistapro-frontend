@@ -5,6 +5,211 @@ const uploadToCloudinary = require("../utils/uploadToCloudinary"); // Helper to 
 const sendSocketNotification = require("../utils/sendSocketNotification");
 
 /**
+ * Helper function to create or update verification submission
+ */
+const createOrUpdateVerificationSubmission = async (marketerId, adminId) => {
+  try {
+    // Validate admin assignment
+    if (!adminId) {
+      console.log(`⚠️ No admin assigned to marketer ${marketerId}. Verification submission cannot be created.`);
+      return null;
+    }
+
+    // Get the super_admin_id from the admin
+    const adminResult = await pool.query(
+      'SELECT super_admin_id FROM users WHERE id = $1 AND role = $2',
+      [adminId, 'Admin']
+    );
+    
+    if (adminResult.rows.length === 0) {
+      console.log(`⚠️ Admin ${adminId} not found or invalid role for marketer ${marketerId}`);
+      return null;
+    }
+    
+    const superAdminId = adminResult.rows[0].super_admin_id;
+    
+    // Check if submission already exists
+    const existingSubmission = await pool.query(
+      'SELECT id FROM verification_submissions WHERE marketer_id = $1',
+      [marketerId]
+    );
+
+    if (existingSubmission.rows.length > 0) {
+      // Update existing submission
+      await pool.query(
+        'UPDATE verification_submissions SET admin_id = $2, super_admin_id = $3, updated_at = NOW() WHERE marketer_id = $1',
+        [marketerId, adminId, superAdminId]
+      );
+      return existingSubmission.rows[0].id;
+    } else {
+      // Create new submission
+      const result = await pool.query(
+        `INSERT INTO verification_submissions (marketer_id, admin_id, super_admin_id, submission_status, created_at, updated_at)
+         VALUES ($1, $2, $3, 'pending_marketer_forms', NOW(), NOW())
+         RETURNING id`,
+        [marketerId, adminId, superAdminId]
+      );
+      return result.rows[0].id;
+    }
+  } catch (error) {
+    console.error('Error creating/updating verification submission:', error);
+    throw error;
+  }
+};
+
+/**
+ * Helper function to validate workflow status transitions
+ */
+const validateWorkflowStatusTransition = (currentStatus, newStatus) => {
+  const validTransitions = {
+    'pending_marketer_forms': ['pending_admin_review', 'cancelled'],
+    'pending_admin_review': ['pending_superadmin_review', 'rejected', 'cancelled'],
+    'pending_superadmin_review': ['pending_masteradmin_approval', 'rejected', 'cancelled'],
+    'pending_masteradmin_approval': ['approved', 'rejected', 'cancelled'],
+    'approved': ['cancelled'], // Can only be cancelled after approval
+    'rejected': ['pending_marketer_forms'], // Can restart the process
+    'cancelled': ['pending_marketer_forms'] // Can restart the process
+  };
+
+  return validTransitions[currentStatus]?.includes(newStatus) || false;
+};
+
+/**
+ * Helper function to notify admin about new verification submission
+ */
+const notifyAdminOfNewSubmission = async (marketerId) => {
+  try {
+    // Get verification submission details
+    const submissionResult = await pool.query(
+      `SELECT vs.id, vs.admin_id, u.first_name, u.last_name, u.email as marketer_email
+       FROM verification_submissions vs
+       JOIN users u ON vs.marketer_id = u.id
+       WHERE vs.marketer_id = $1`,
+      [marketerId]
+    );
+
+    if (submissionResult.rows.length === 0) return;
+
+    const submission = submissionResult.rows[0];
+    
+    if (!submission.admin_id) {
+      console.log(`⚠️ No admin assigned to marketer ${marketerId} for verification submission ${submission.id}`);
+      return;
+    }
+
+    // Get admin details
+    const adminResult = await pool.query(
+      'SELECT first_name, last_name, email FROM users WHERE id = $1',
+      [submission.admin_id]
+    );
+
+    if (adminResult.rows.length === 0) {
+      console.log(`⚠️ Admin ${submission.admin_id} not found for verification submission ${submission.id}`);
+      return;
+    }
+
+    const admin = adminResult.rows[0];
+
+    // Create notification record
+    await pool.query(
+      `INSERT INTO verification_notifications (user_id, type, data, created_at)
+       VALUES ($1, 'verification_assigned', $2, NOW())`,
+      [
+        submission.admin_id,
+        JSON.stringify({
+          title: 'New Verification Assignment',
+          message: `New verification submission from ${submission.first_name} ${submission.last_name}`,
+          submission_id: submission.id,
+          marketer_id: marketerId,
+          marketer_name: `${submission.first_name} ${submission.last_name}`,
+          marketer_email: submission.marketer_email,
+          action_required: 'admin_verification_visit'
+        })
+      ]
+    );
+
+    console.log(`✅ Admin ${admin.first_name} ${admin.last_name} (${admin.email}) notified about verification submission from ${submission.first_name} ${submission.last_name}`);
+
+    // TODO: Send email notification if email service is configured
+    // await sendEmailNotification(admin.email, 'New Verification Assignment', emailTemplate);
+
+  } catch (error) {
+    console.error('Error notifying admin of new submission:', error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+};
+
+/**
+ * Helper function to check if all forms are completed and update workflow status
+ */
+const checkAndUpdateWorkflowStatus = async (marketerId) => {
+  try {
+    // Get user's form completion status
+    const userResult = await pool.query(
+      'SELECT bio_submitted, guarantor_submitted, commitment_submitted FROM users WHERE id = $1',
+      [marketerId]
+    );
+
+    if (userResult.rows.length === 0) return;
+
+    const { bio_submitted, guarantor_submitted, commitment_submitted } = userResult.rows[0];
+
+    // Check if all forms are completed
+    if (bio_submitted && guarantor_submitted && commitment_submitted) {
+      // Get current status to validate transition
+      const currentStatusResult = await pool.query(
+        'SELECT submission_status FROM verification_submissions WHERE marketer_id = $1',
+        [marketerId]
+      );
+
+      if (currentStatusResult.rows.length === 0) {
+        console.log(`⚠️ No verification submission found for marketer ${marketerId}`);
+        return;
+      }
+
+      const currentStatus = currentStatusResult.rows[0].submission_status;
+      const newStatus = 'pending_admin_review';
+
+      // Validate status transition
+      if (!validateWorkflowStatusTransition(currentStatus, newStatus)) {
+        console.log(`⚠️ Invalid status transition from ${currentStatus} to ${newStatus} for marketer ${marketerId}`);
+        return;
+      }
+
+      // Update verification submission status
+      await pool.query(
+        `UPDATE verification_submissions 
+         SET submission_status = $2, updated_at = NOW()
+         WHERE marketer_id = $1`,
+        [marketerId, newStatus]
+      );
+
+      // Update user's overall verification status
+      await pool.query(
+        `UPDATE users 
+         SET overall_verification_status = 'awaiting_admin_review', updated_at = NOW()
+         WHERE id = $1`,
+        [marketerId]
+      );
+
+      // Log the status change
+      await pool.query(
+        `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes)
+         SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
+         FROM verification_submissions WHERE marketer_id = $1`,
+        [marketerId]
+      );
+
+      // Notify assigned admin about new verification submission
+      await notifyAdminOfNewSubmission(marketerId);
+    }
+  } catch (error) {
+    console.error('Error checking workflow status:', error);
+    throw error;
+  }
+};
+
+/**
  * submitBiodata
  * Inserts a new biodata record into the marketer_biodata table and updates the submission flag.
  * Expects text fields in req.body and two file uploads (as buffers) in req.files:
@@ -26,19 +231,48 @@ const submitBiodata = async (req, res, next) => {
 
     let passportPhotoUrl = null;
     let identificationFileUrl = null;
+    
+    // Check if Cloudinary is configured
+    const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
+                                   process.env.CLOUDINARY_API_KEY && 
+                                   process.env.CLOUDINARY_API_SECRET &&
+                                   process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloud_name';
+    
+    if (isCloudinaryConfigured) {
+      // Upload to Cloudinary if properly configured
     if (req.files?.passport_photo?.[0]?.buffer) {
+        try {
       const uploadResult = await uploadToCloudinary(
         req.files.passport_photo[0].buffer,
         { folder: "Vistaprouploads", allowed_formats: ["jpg", "jpeg", "png"] }
       );
       passportPhotoUrl = uploadResult.secure_url;
+        } catch (error) {
+          console.error('Cloudinary upload error for passport photo:', error);
+          // Continue without file upload
+        }
     }
     if (req.files?.id_document?.[0]?.buffer) {
+        try {
       const uploadResult = await uploadToCloudinary(
         req.files.id_document[0].buffer,
         { folder: "Vistaprouploads", allowed_formats: ["jpg", "jpeg", "png"] }
       );
       identificationFileUrl = uploadResult.secure_url;
+        } catch (error) {
+          console.error('Cloudinary upload error for ID document:', error);
+          // Continue without file upload
+        }
+      }
+    } else {
+      // Cloudinary not configured - use placeholder URLs
+      console.log('⚠️  Cloudinary not configured - using placeholder URLs for file uploads');
+      if (req.files?.passport_photo?.[0]?.buffer) {
+        passportPhotoUrl = 'https://via.placeholder.com/300x200?text=Passport+Photo+Uploaded';
+      }
+      if (req.files?.id_document?.[0]?.buffer) {
+        identificationFileUrl = 'https://via.placeholder.com/300x200?text=ID+Document+Uploaded';
+      }
     }
 
     const marketerUniqueId = req.user.unique_id;
@@ -46,13 +280,29 @@ const submitBiodata = async (req, res, next) => {
       return res.status(400).json({ field: null, message: "Marketer Unique ID is missing." });
     }
 
-    // Prevent duplicate submission
+    // Check if biodata form has already been submitted
     const checkResult = await pool.query(
-      "SELECT bio_submitted FROM users WHERE unique_id = $1",
+      "SELECT bio_submitted, guarantor_submitted, commitment_submitted FROM users WHERE unique_id = $1",
       [marketerUniqueId]
     );
+    
     if (checkResult.rows[0]?.bio_submitted) {
-      return res.status(400).json({ field: null, message: "Biodata form has already been submitted." });
+      const user = checkResult.rows[0];
+      let message = "Biodata form has already been submitted. ";
+      
+      if (!user.guarantor_submitted && !user.commitment_submitted) {
+        message += "Please proceed to fill the Guarantor Form.";
+      } else if (!user.commitment_submitted) {
+        message += "Please proceed to fill the Commitment Form.";
+      } else {
+        message += "All forms have been submitted and are under review.";
+      }
+      
+      return res.status(400).json({ 
+        field: null, 
+        message: message,
+        nextStep: user.guarantor_submitted ? (user.commitment_submitted ? 'completed' : 'commitment') : 'guarantor'
+      });
     }
 
     const dob = date_of_birth === "" ? null : date_of_birth;
@@ -116,6 +366,22 @@ const submitBiodata = async (req, res, next) => {
       [marketerUniqueId]
     );
 
+    // Get marketer's ID and admin_id for workflow
+    const marketerInfo = await pool.query(
+      'SELECT id, admin_id FROM users WHERE unique_id = $1',
+      [marketerUniqueId]
+    );
+
+    if (marketerInfo.rows.length > 0) {
+      const { id: marketerId, admin_id } = marketerInfo.rows[0];
+      
+      // Create or update verification submission
+      await createOrUpdateVerificationSubmission(marketerId, admin_id);
+      
+      // Check if all forms are completed and update workflow status
+      await checkAndUpdateWorkflowStatus(marketerId);
+    }
+
     res.status(201).json({
       message: "Biodata submitted successfully.",
       biodata: result.rows[0],
@@ -144,19 +410,48 @@ const submitGuarantor = async (req, res, next) => {
 
     let identificationFileUrl = null;
     let signatureUrl = null;
+    
+    // Check if Cloudinary is configured
+    const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
+                                   process.env.CLOUDINARY_API_KEY && 
+                                   process.env.CLOUDINARY_API_SECRET &&
+                                   process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloud_name';
+    
+    if (isCloudinaryConfigured) {
+      // Upload to Cloudinary if properly configured
     if (req.files?.identification_file?.[0]?.buffer) {
+        try {
       const uploadResult = await uploadToCloudinary(
         req.files.identification_file[0].buffer,
         { folder: "Vistaprouploads", allowed_formats: ["jpg", "jpeg", "png"] }
       );
       identificationFileUrl = uploadResult.secure_url;
+        } catch (error) {
+          console.error('Cloudinary upload error for identification file:', error);
+          // Continue without file upload
+        }
     }
     if (req.files?.signature?.[0]?.buffer) {
+        try {
       const uploadResult = await uploadToCloudinary(
         req.files.signature[0].buffer,
         { folder: "Vistaprouploads", allowed_formats: ["jpg", "jpeg", "png"] }
       );
       signatureUrl = uploadResult.secure_url;
+        } catch (error) {
+          console.error('Cloudinary upload error for signature:', error);
+          // Continue without file upload
+        }
+      }
+    } else {
+      // Cloudinary not configured - use placeholder URLs
+      console.log('⚠️  Cloudinary not configured - using placeholder URLs for file uploads');
+      if (req.files?.identification_file?.[0]?.buffer) {
+        identificationFileUrl = 'https://via.placeholder.com/300x200?text=Identification+Document+Uploaded';
+      }
+      if (req.files?.signature?.[0]?.buffer) {
+        signatureUrl = 'https://via.placeholder.com/300x200?text=Signature+Uploaded';
+      }
     }
 
     const marketerUniqueId = req.user.unique_id;
@@ -220,6 +515,22 @@ const submitGuarantor = async (req, res, next) => {
       [marketerUniqueId]
     );
 
+    // Get marketer's ID and admin_id for workflow
+    const marketerInfo = await pool.query(
+      'SELECT id, admin_id FROM users WHERE unique_id = $1',
+      [marketerUniqueId]
+    );
+
+    if (marketerInfo.rows.length > 0) {
+      const { id: marketerId, admin_id } = marketerInfo.rows[0];
+      
+      // Create or update verification submission
+      await createOrUpdateVerificationSubmission(marketerId, admin_id);
+      
+      // Check if all forms are completed and update workflow status
+      await checkAndUpdateWorkflowStatus(marketerId);
+    }
+
     res.status(201).json({
       message: "Guarantor form submitted successfully.",
       guarantor: result.rows[0],
@@ -239,6 +550,10 @@ const submitGuarantor = async (req, res, next) => {
  */
 const submitCommitment = async (req, res, next) => {
   try {
+    console.log('🔍 Commitment form submission started');
+    console.log('📋 Request body:', req.body);
+    console.log('📁 Request file:', req.file ? 'File present' : 'No file');
+    
     const {
       promise_accept_false_documents,
       promise_not_request_unrelated_info,
@@ -255,17 +570,62 @@ const submitCommitment = async (req, res, next) => {
       date_signed
     } = req.body;
 
+    console.log('📝 Form data parsed:', {
+      direct_sales_rep_name,
+      date_signed,
+      promise_count: Object.keys(req.body).filter(k => k.startsWith('promise_')).length
+    });
+
     if (!req.file?.buffer) {
+      console.log('❌ No signature file provided');
       return res.status(400).json({ field: "signature", message: "Signature image is required." });
     }
+    
+    let signatureUrl = null;
+    
+    // Check if Cloudinary is configured
+    const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
+                                   process.env.CLOUDINARY_API_KEY && 
+                                   process.env.CLOUDINARY_API_SECRET &&
+                                   process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloud_name';
+    
+    if (isCloudinaryConfigured) {
+      // Upload to Cloudinary if properly configured
+      try {
     const uploadResult = await uploadToCloudinary(req.file.buffer, {
       folder: "Vistaprouploads", allowed_formats: ["jpg", "jpeg", "png"]
     });
-    const signatureUrl = uploadResult.secure_url;
+        signatureUrl = uploadResult.secure_url;
+      } catch (error) {
+        console.error('Cloudinary upload error for signature:', error);
+        // Use placeholder URL as fallback
+        signatureUrl = 'https://via.placeholder.com/300x200?text=Signature+Uploaded';
+      }
+    } else {
+      // Cloudinary not configured - use placeholder URL
+      console.log('⚠️  Cloudinary not configured - using placeholder URL for signature upload');
+      signatureUrl = 'https://via.placeholder.com/300x200?text=Signature+Uploaded';
+    }
 
     const marketerUniqueId = req.user.unique_id;
     if (!marketerUniqueId) {
+      console.log('❌ Marketer Unique ID is missing');
       return res.status(400).json({ field: null, message: "Marketer Unique ID is missing." });
+    }
+
+    console.log('👤 Marketer Unique ID:', marketerUniqueId);
+
+    // Check if commitment form has already been submitted
+    const checkResult = await pool.query(
+      "SELECT commitment_submitted, bio_submitted, guarantor_submitted FROM users WHERE unique_id = $1",
+      [marketerUniqueId]
+    );
+    
+    if (checkResult.rows[0]?.commitment_submitted) {
+      return res.status(400).json({ 
+        field: null, 
+        message: "Commitment form has already been submitted. All forms are now under review." 
+      });
     }
 
     const parseBool = val => (val?.toLowerCase() === "yes");
@@ -310,10 +670,27 @@ const submitCommitment = async (req, res, next) => {
       date_signed
     ];
 
+    console.log('💾 Database values prepared:', {
+      marketerUniqueId,
+      direct_sales_rep_name,
+      date_signed,
+      signatureUrl: signatureUrl ? 'Present' : 'Missing',
+      values_count: values.length
+    });
+
     let result;
     try {
+      console.log('🔄 Executing database insert...');
       result = await pool.query(insertQuery, values);
+      console.log('✅ Database insert successful, rows affected:', result.rowCount);
     } catch (error) {
+      console.error('❌ Database insert error:', {
+        code: error.code,
+        constraint: error.constraint,
+        message: error.message,
+        detail: error.detail
+      });
+      
       if (error.code === "23505" && error.constraint === "direct_sales_commitment_form_direct_sales_rep_name_key") {
         return res.status(400).json({
           field: "direct_sales_rep_name",
@@ -323,18 +700,44 @@ const submitCommitment = async (req, res, next) => {
       return next(error);
     }
 
+    console.log('🔄 Updating user commitment_submitted flag...');
     await pool.query(
       "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1",
       [marketerUniqueId]
     );
+    console.log('✅ User commitment_submitted flag updated');
 
+    // Get marketer's ID and admin_id for workflow
+    console.log('🔍 Getting marketer info for workflow...');
+    const marketerInfo = await pool.query(
+      'SELECT id, admin_id FROM users WHERE unique_id = $1',
+      [marketerUniqueId]
+    );
+
+    if (marketerInfo.rows.length > 0) {
+      const { id: marketerId, admin_id } = marketerInfo.rows[0];
+      console.log('👤 Marketer info:', { marketerId, admin_id });
+      
+      // Create or update verification submission
+      console.log('🔄 Creating/updating verification submission...');
+      await createOrUpdateVerificationSubmission(marketerId, admin_id);
+      
+      // Check if all forms are completed and update workflow status
+      console.log('🔄 Checking workflow status...');
+      await checkAndUpdateWorkflowStatus(marketerId);
+    }
+
+    console.log('🔍 Getting final form status...');
     const { bio_submitted, guarantor_submitted, commitment_submitted } =
       (await pool.query(
         "SELECT bio_submitted, guarantor_submitted, commitment_submitted FROM users WHERE unique_id = $1",
         [marketerUniqueId]
       )).rows[0];
 
+    console.log('📊 Final form status:', { bio_submitted, guarantor_submitted, commitment_submitted });
+
     if (bio_submitted && guarantor_submitted && commitment_submitted) {
+      console.log('🎉 All forms completed, sending notification...');
       await sendSocketNotification(
         marketerUniqueId,
         "All your forms have been submitted successfully. Your submission is under review and your dashboard is unlocked.",
@@ -342,12 +745,18 @@ const submitCommitment = async (req, res, next) => {
       );
     }
 
+    console.log('✅ Commitment form submission completed successfully');
     res.status(201).json({
       message: "Commitment form submitted successfully.",
       commitment: result.rows[0],
       updatedUser: { bio_submitted, guarantor_submitted, commitment_submitted }
     });
   } catch (error) {
+    console.error('❌ Commitment form submission error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     next(error);
   }
 };
@@ -479,86 +888,296 @@ const superadminVerify = async (req, res, next) => {
     }
     
     const superadminId = req.user.id;
+    const superadminUniqueId = req.user.unique_id;
+    
+    // Get marketer and admin information
     const marketerResult = await pool.query(
-      "SELECT id, admin_id FROM users WHERE unique_id = $1",
+      "SELECT id, admin_id, first_name, last_name FROM users WHERE unique_id = $1",
       [marketerUniqueId]
     );
     if (marketerResult.rowCount === 0) {
       return res.status(404).json({ message: "Marketer not found." });
     }
     const marketer = marketerResult.rows[0];
+    
     if (!marketer.admin_id) {
       return res.status(400).json({ message: "Marketer is not assigned to any admin." });
     }
+    
+    // Get admin information
     const adminResult = await pool.query(
-      "SELECT super_admin_id FROM users WHERE id = $1",
+      "SELECT id, unique_id, first_name, last_name, super_admin_id FROM users WHERE id = $1",
       [marketer.admin_id]
     );
     if (adminResult.rowCount === 0) {
       return res.status(404).json({ message: "Admin not found." });
     }
     const admin = adminResult.rows[0];
+    
     if (admin.super_admin_id !== superadminId) {
       return res.status(403).json({ message: "You are not authorized to verify this marketer." });
     }
     
-    const overallStatus = (verified && verified.toLowerCase() === "yes") ? "superadmin verified" : "superadmin rejected";
+    // Determine the correct status
+    const isApproved = verified && verified.toLowerCase() === "yes";
+    const overallStatus = isApproved ? "awaiting_masteradmin_approval" : "superadmin_rejected";
+    
+    // Update user status
     const queryUpdate = `
       UPDATE users
       SET overall_verification_status = $1,
-          superadmin_review_report = $2,
           updated_at = NOW()
-      WHERE unique_id = $3
+      WHERE unique_id = $2
       RETURNING *
     `;
-    const valuesUpdate = [overallStatus, superadmin_review_report, marketerUniqueId];
+    const valuesUpdate = [overallStatus, marketerUniqueId];
     const resultUpdate = await pool.query(queryUpdate, valuesUpdate);
     
+    // CRITICAL FIX: Update verification_submissions table
+    const submissionStatus = isApproved ? "pending_masteradmin_approval" : "superadmin_rejected";
+    const submissionUpdate = `
+      UPDATE verification_submissions
+      SET submission_status = $1,
+          superadmin_reviewed_at = NOW(),
+          updated_at = NOW()
+      WHERE marketer_id = $2
+      RETURNING *
+    `;
+    const submissionResult = await pool.query(submissionUpdate, [submissionStatus, marketer.id]);
+    
+    if (submissionResult.rowCount === 0) {
+      console.warn(`⚠️ No verification submission found for marketer ${marketerUniqueId}`);
+    } else {
+      console.log(`✅ Updated verification submission ${submissionResult.rows[0].id} to status: ${submissionStatus}`);
+    }
+    
+    // Log the workflow action
+    await pool.query(
+      `INSERT INTO verification_workflow_logs (
+        verification_submission_id, action_by, action_by_role, action_type,
+        action_description, previous_status, new_status, notes, created_at
+      ) VALUES (
+        (SELECT id FROM verification_submissions WHERE marketer_id = $1),
+        $2, $3, $4, $5, $6, $7, $8, NOW()
+      )`,
+      [
+        marketer.id,
+        req.user.id, // action_by (user ID) - use the authenticated user's ID
+        'SuperAdmin', // action_by_role
+        'superadmin_verification', // action_type
+        'SuperAdmin completed verification review', // action_description
+        'awaiting_superadmin_validation', // previous_status
+        overallStatus, // new_status
+        superadmin_review_report || 'SuperAdmin verification completed' // notes
+      ]
+    );
+    
+    // Send notifications and WebSocket updates
+    if (isApproved) {
+      // Notify Marketer
+      await notifyMarketerOfStatusChange(
+        marketer.id, 
+        'awaiting_masteradmin_approval', 
+        'Great news! Your verification has been approved by SuperAdmin and is now awaiting MasterAdmin approval.'
+      );
+      
+      // Notify Admin
+      await notifyAdminOfStatusChange(
+        admin.unique_id,
+        `Your marketer ${marketer.first_name} ${marketer.last_name}'s verification has been approved by SuperAdmin and sent to MasterAdmin for final approval.`
+      );
+      
+      // Notify MasterAdmin
+      await notifyMasterAdminOfNewSubmission(
+        marketer.first_name,
+        marketer.last_name,
+        admin.first_name,
+        admin.last_name
+      );
+    } else {
+      // Notify Marketer of rejection
+      await notifyMarketerOfStatusChange(
+        marketer.id,
+        'superadmin_rejected',
+        'Your verification has been reviewed by SuperAdmin but requires additional information. Please contact your Admin for details.'
+      );
+      
+      // Notify Admin of rejection
+      await notifyAdminOfStatusChange(
+        admin.unique_id,
+        `Your marketer ${marketer.first_name} ${marketer.last_name}'s verification was reviewed by SuperAdmin but requires additional information.`
+      );
+    }
+    
     res.status(200).json({
-      message: "Marketer verified by SuperAdmin.",
+      success: true,
+      message: isApproved 
+        ? "Marketer verification approved and sent to MasterAdmin for final approval." 
+        : "Marketer verification rejected. All parties have been notified.",
       user: resultUpdate.rows[0],
+      status: overallStatus
     });
   } catch (error) {
+    console.error('SuperAdmin verification error:', error);
     next(error);
   }
 };
 
 /**
  * masterApprove
- * Allows the Master Admin to give final approval to a marketer.
- * Expects { marketerUniqueId } in req.body.
- * Updates overall_verification_status to "approved".
+ * Allows the Master Admin to give final approval or rejection to a marketer.
+ * Expects { action, reason } in req.body and submissionId in req.params.
+ * Updates both users and verification_submissions tables.
  */
 const masterApprove = async (req, res, next) => {
   try {
+    console.log('🔍 MasterAdmin approval request');
+    
     if (req.user.role !== "MasterAdmin") {
       return res.status(403).json({ message: "Only a Master Admin can approve submissions." });
     }
-    const { marketerUniqueId } = req.body;
-    if (!marketerUniqueId) {
-      return res.status(400).json({ message: "Marketer Unique ID is required." });
+    
+    const { submissionId } = req.params;
+    const { action, reason } = req.body;
+    
+    if (!submissionId) {
+      return res.status(400).json({ message: "Submission ID is required." });
     }
-    const query = `
+    
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ message: "Action must be 'approve' or 'reject'." });
+    }
+    
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ message: "Reason is required." });
+    }
+    
+    console.log(`📋 Processing ${action} for submission ${submissionId}`);
+    
+    // Get submission details
+    const submissionQuery = `
+      SELECT 
+        vs.id,
+        vs.marketer_id,
+        vs.submission_status,
+        u.unique_id as marketer_unique_id,
+        u.first_name,
+        u.last_name,
+        u.overall_verification_status
+      FROM verification_submissions vs
+      JOIN users u ON u.id = vs.marketer_id
+      WHERE vs.id = $1
+    `;
+    
+    const submissionResult = await pool.query(submissionQuery, [submissionId]);
+    
+    if (submissionResult.rowCount === 0) {
+      return res.status(404).json({ message: "Submission not found." });
+    }
+    
+    const submission = submissionResult.rows[0];
+    
+    // Check if submission is in correct status for approval
+    if (submission.submission_status !== 'pending_masteradmin_approval') {
+      return res.status(400).json({ 
+        message: `Submission is not in pending approval status. Current status: ${submission.submission_status}` 
+      });
+    }
+    
+    const isApproved = action === 'approve';
+    const newUserStatus = isApproved ? 'approved' : 'rejected';
+    const newSubmissionStatus = isApproved ? 'approved' : 'rejected';
+    
+    console.log(`🔄 Updating status to: ${newUserStatus} (user) / ${newSubmissionStatus} (submission)`);
+    
+    // Update users table
+    const userUpdateQuery = `
       UPDATE users
-      SET overall_verification_status = 'approved',
+      SET overall_verification_status = $1,
+          locked = $2,
           updated_at = NOW()
-      WHERE unique_id = $1
+      WHERE id = $3
       RETURNING *
     `;
-    const result = await pool.query(query, [marketerUniqueId]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Marketer not found." });
-    }
-    sendSocketNotification(
-      marketerUniqueId,
-      "Your account has been approved and your dashboard is now unlocked!",
-      req.app
+    
+    const userResult = await pool.query(userUpdateQuery, [
+      newUserStatus,
+      !isApproved, // Lock user if rejected, unlock if approved
+      submission.marketer_id
+    ]);
+    
+    // Update verification_submissions table
+    const submissionUpdateQuery = `
+      UPDATE verification_submissions
+      SET submission_status = $1,
+          masteradmin_approved_at = $2,
+          rejection_reason = $3,
+          rejected_by = $4,
+          rejected_at = $5,
+          updated_at = NOW()
+      WHERE id = $6
+      RETURNING *
+    `;
+    
+    const now = new Date();
+    const submissionResult2 = await pool.query(submissionUpdateQuery, [
+      newSubmissionStatus,
+      isApproved ? now : null,
+      isApproved ? null : reason,
+      isApproved ? null : 'MasterAdmin',
+      isApproved ? null : now,
+      submissionId
+    ]);
+    
+    // Log the workflow action
+    await pool.query(
+      `INSERT INTO verification_workflow_logs (
+        verification_submission_id, action_by, action_by_role, action_type, 
+        previous_status, new_status, notes, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, NOW()
+      )`,
+      [
+        submissionId,
+        req.user.id, // Use user ID, not unique_id
+        'MasterAdmin',
+        `masteradmin_${action}`,
+        'pending_masteradmin_approval',
+        newUserStatus,
+        reason
+      ]
     );
+    
+    // Send notifications
+    if (isApproved) {
+      // Notify marketer of approval
+      await notifyMarketerOfStatusChange(
+        submission.marketer_id,
+        'approved',
+        'Congratulations! Your verification has been approved by MasterAdmin. Your dashboard is now unlocked!'
+      );
+    } else {
+      // Notify marketer of rejection
+      await notifyMarketerOfStatusChange(
+        submission.marketer_id,
+        'rejected',
+        `Your verification has been reviewed by MasterAdmin but requires additional information. Reason: ${reason}`
+      );
+    }
+    
+    console.log(`✅ MasterAdmin ${action} completed successfully`);
+    
     res.status(200).json({
-      message: "Marketer final verification approved and dashboard unlocked.",
-      user: result.rows[0],
+      success: true,
+      message: `Verification ${action}d successfully.`,
+      action: action,
+      status: newUserStatus,
+      user: userResult.rows[0],
+      submission: submissionResult2.rows[0]
     });
+    
   } catch (error) {
+    console.error('MasterAdmin approval error:', error);
     next(error);
   }
 };
@@ -723,52 +1342,278 @@ const deleteCommitmentSubmission = async (req, res, next) => {
 
 /**
  * getAllSubmissionsForMasterAdmin
- * Retrieves all submissions (biodata, guarantor, and commitment) with marketer's name and location
- * included, by joining with the users table using the marketer's unique ID.
+ * Retrieves all verification submissions awaiting MasterAdmin approval
+ * Uses the new verification workflow system (verification_submissions table)
  */
 const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
   try {
-    const biodataQuery = `
+    console.log('🔍 MasterAdmin submissions request');
+    
+    // Get verification submissions awaiting MasterAdmin approval
+    const submissionsQuery = `
       SELECT
-        s.*,
-        (u.first_name || ' ' || u.last_name) AS marketer_name,
-        u.location AS marketer_location
-      FROM marketer_biodata s
-      JOIN users u ON s.marketer_unique_id = u.unique_id
-      ORDER BY s.created_at DESC
+        vs.id as submission_id,
+        vs.submission_status,
+        vs.super_admin_id,
+        vs.created_at as submission_created_at,
+        vs.updated_at as last_updated,
+        vs.admin_reviewed_at,
+        vs.superadmin_reviewed_at,
+        vs.masteradmin_approved_at,
+        vs.rejection_reason,
+        u.id as marketer_id,
+        u.unique_id as marketer_unique_id,
+        u.first_name as marketer_first_name,
+        u.last_name as marketer_last_name,
+        u.email as marketer_email,
+        u.location as marketer_location,
+        u.overall_verification_status,
+        admin.first_name as admin_first_name,
+        admin.last_name as admin_last_name,
+        admin.unique_id as admin_unique_id,
+        superadmin.first_name as superadmin_first_name,
+        superadmin.last_name as superadmin_last_name,
+        superadmin.unique_id as superadmin_unique_id
+      FROM verification_submissions vs
+      JOIN users u ON u.id = vs.marketer_id
+      LEFT JOIN users admin ON admin.id = vs.admin_id
+      LEFT JOIN users superadmin ON superadmin.id = vs.super_admin_id
+      WHERE vs.submission_status = 'pending_masteradmin_approval'
+      ORDER BY vs.updated_at DESC
     `;
-    const biodataResult = await pool.query(biodataQuery);
-
-    const guarantorQuery = `
-      SELECT
-        s.*,
-        (u.first_name || ' ' || u.last_name) AS marketer_name,
-        u.location AS marketer_location
-      FROM guarantor_employment_form s
-      JOIN users u ON s.marketer_unique_id = u.unique_id
-      ORDER BY s.created_at DESC
-    `;
-    const guarantorResult = await pool.query(guarantorQuery);
-
-    const commitmentQuery = `
-      SELECT
-        s.*,
-        (u.first_name || ' ' || u.last_name) AS marketer_name,
-        u.location AS marketer_location
-      FROM direct_sales_commitment_form s
-      JOIN users u ON s.marketer_unique_id = u.unique_id
-      ORDER BY s.created_at DESC
-    `;
-    const commitmentResult = await pool.query(commitmentQuery);
+    
+    const submissionsResult = await pool.query(submissionsQuery);
+    console.log(`✅ Found ${submissionsResult.rows.length} submissions awaiting MasterAdmin approval`);
+    
+    // For each submission, get the detailed form data
+    const submissionsWithDetails = await Promise.all(
+      submissionsResult.rows.map(async (submission) => {
+        try {
+          // Get biodata
+          const biodataResult = await pool.query(
+            "SELECT * FROM marketer_biodata WHERE marketer_unique_id = $1",
+            [submission.marketer_unique_id]
+          );
+          
+          // Get guarantor form
+          const guarantorResult = await pool.query(
+            "SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = $1",
+            [submission.marketer_unique_id]
+          );
+          
+          // Get commitment form
+          const commitmentResult = await pool.query(
+            "SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = $1",
+            [submission.marketer_unique_id]
+          );
+          
+          // Get admin verification details
+          const adminVerificationResult = await pool.query(
+            "SELECT * FROM admin_verification_details WHERE verification_submission_id = $1",
+            [submission.submission_id]
+          );
+          
+          return {
+            ...submission,
+            forms: {
+              biodata: biodataResult.rows[0] || null,
+              guarantor: guarantorResult.rows[0] || null,
+              commitment: commitmentResult.rows[0] || null,
+              admin_verification: adminVerificationResult.rows[0] || null
+            }
+          };
+        } catch (error) {
+          console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
+          return submission;
+        }
+      })
+    );
 
     res.status(200).json({
-      submissions: {
-        biodata: biodataResult.rows,
-        guarantor: guarantorResult.rows,
-        commitment: commitmentResult.rows,
-      },
+      success: true,
+      submissions: submissionsWithDetails,
+      count: submissionsWithDetails.length
     });
   } catch (error) {
+    console.error('MasterAdmin submissions error:', error);
+    next(error);
+  }
+};
+
+/**
+ * getApprovedSubmissionsForMasterAdmin
+ * Retrieves all approved/rejected verification submissions for MasterAdmin history view
+ */
+const getApprovedSubmissionsForMasterAdmin = async (req, res, next) => {
+  try {
+    console.log('🔍 MasterAdmin approved submissions history request');
+    
+    const { status = 'all' } = req.query; // 'approved', 'rejected', or 'all'
+    
+    let statusFilter = '';
+    if (status === 'approved') {
+      statusFilter = "WHERE vs.submission_status = 'approved'";
+    } else if (status === 'rejected') {
+      statusFilter = "WHERE vs.submission_status = 'rejected'";
+    } else {
+      statusFilter = "WHERE vs.submission_status IN ('approved', 'rejected')";
+    }
+    
+    const submissionsQuery = `
+      SELECT
+        vs.id as submission_id,
+        vs.submission_status,
+        vs.super_admin_id,
+        vs.created_at as submission_created_at,
+        vs.updated_at as last_updated,
+        vs.admin_reviewed_at,
+        vs.superadmin_reviewed_at,
+        vs.masteradmin_approved_at,
+        vs.rejection_reason,
+        vs.rejected_by,
+        vs.rejected_at,
+        u.id as marketer_id,
+        u.unique_id as marketer_unique_id,
+        u.first_name as marketer_first_name,
+        u.last_name as marketer_last_name,
+        u.email as marketer_email,
+        u.location as marketer_location,
+        u.overall_verification_status,
+        admin.first_name as admin_first_name,
+        admin.last_name as admin_last_name,
+        admin.unique_id as admin_unique_id,
+        superadmin.first_name as superadmin_first_name,
+        superadmin.last_name as superadmin_last_name,
+        superadmin.unique_id as superadmin_unique_id
+      FROM verification_submissions vs
+      JOIN users u ON u.id = vs.marketer_id
+      LEFT JOIN users admin ON admin.id = vs.admin_id
+      LEFT JOIN users superadmin ON superadmin.id = vs.super_admin_id
+      ${statusFilter}
+      ORDER BY vs.updated_at DESC
+    `;
+    
+    const submissionsResult = await pool.query(submissionsQuery);
+    console.log(`✅ Found ${submissionsResult.rows.length} ${status} submissions for MasterAdmin history`);
+    
+    // For each submission, get the detailed form data
+    const submissionsWithDetails = await Promise.all(
+      submissionsResult.rows.map(async (submission) => {
+        try {
+          // Get biodata
+          const biodataResult = await pool.query(
+            "SELECT * FROM marketer_biodata WHERE marketer_unique_id = $1",
+            [submission.marketer_unique_id]
+          );
+          
+          // Get guarantor form
+          const guarantorResult = await pool.query(
+            "SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = $1",
+            [submission.marketer_unique_id]
+          );
+          
+          // Get commitment form
+          const commitmentResult = await pool.query(
+            "SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = $1",
+            [submission.marketer_unique_id]
+          );
+          
+          // Get admin verification details
+          const adminVerificationResult = await pool.query(
+            "SELECT * FROM admin_verification_details WHERE verification_submission_id = $1",
+            [submission.submission_id]
+          );
+          
+          return {
+            ...submission,
+            forms: {
+              biodata: biodataResult.rows[0] || null,
+              guarantor: guarantorResult.rows[0] || null,
+              commitment: commitmentResult.rows[0] || null,
+              admin_verification: adminVerificationResult.rows[0] || null
+            }
+          };
+        } catch (error) {
+          console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
+          return submission;
+        }
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      submissions: submissionsWithDetails,
+      count: submissionsWithDetails.length,
+      status: status
+    });
+  } catch (error) {
+    console.error('MasterAdmin approved submissions error:', error);
+    next(error);
+  }
+};
+
+/**
+ * getVerificationWorkflowLogs
+ * Retrieves verification workflow logs for MasterAdmin audit trail
+ */
+const getVerificationWorkflowLogs = async (req, res, next) => {
+  try {
+    console.log('🔍 MasterAdmin workflow logs request');
+    
+    const { submissionId, limit = 50, offset = 0 } = req.query;
+    
+    let whereClause = '';
+    let queryParams = [];
+    
+    if (submissionId) {
+      whereClause = 'WHERE vwl.verification_submission_id = $1';
+      queryParams.push(submissionId);
+    }
+    
+    const logsQuery = `
+      SELECT
+        vwl.id,
+        vwl.verification_submission_id,
+        vwl.action_by,
+        vwl.action_by_role,
+        vwl.action_type,
+        vwl.action_description,
+        vwl.previous_status,
+        vwl.new_status,
+        vwl.notes,
+        vwl.created_at,
+        u.first_name,
+        u.last_name,
+        u.unique_id as action_by_unique_id,
+        vs.marketer_id,
+        marketer.first_name as marketer_first_name,
+        marketer.last_name as marketer_last_name,
+        marketer.unique_id as marketer_unique_id
+      FROM verification_workflow_logs vwl
+      LEFT JOIN users u ON u.id = vwl.action_by
+      LEFT JOIN verification_submissions vs ON vs.id = vwl.verification_submission_id
+      LEFT JOIN users marketer ON marketer.id = vs.marketer_id
+      ${whereClause}
+      ORDER BY vwl.created_at DESC
+      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+    `;
+    
+    queryParams.push(parseInt(limit), parseInt(offset));
+    
+    const logsResult = await pool.query(logsQuery, queryParams);
+    console.log(`✅ Found ${logsResult.rows.length} workflow logs`);
+    
+    res.status(200).json({
+      success: true,
+      logs: logsResult.rows,
+      count: logsResult.rows.length,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      }
+    });
+  } catch (error) {
+    console.error('MasterAdmin workflow logs error:', error);
     next(error);
   }
 };
@@ -776,43 +1621,147 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
 /**
  * getSubmissionsForAdmin
  * Retrieves all submissions for marketers assigned to the logged-in Admin.
+ * Now uses the new verification workflow system.
  */
 const getSubmissionsForAdmin = async (req, res, next) => {
   try {
     const adminId = req.user.id; // Logged-in Admin's numeric ID
-    const biodataQuery = `
-      SELECT mb.*
-      FROM marketer_biodata mb
-      JOIN users m ON mb.marketer_unique_id = m.unique_id
-      WHERE m.admin_id = $1
-      ORDER BY mb.created_at DESC
+    console.log(`🔍 Admin submissions request from admin ID: ${adminId}`);
+    
+    // Get verification submissions with workflow status
+    const submissionsQuery = `
+      SELECT 
+        vs.id as submission_id,
+        vs.submission_status,
+        vs.created_at as submission_created_at,
+        vs.updated_at as last_updated,
+        vs.rejection_reason as admin_notes,
+        u.id as marketer_id,
+        u.unique_id as marketer_unique_id,
+        u.first_name as marketer_first_name,
+        u.last_name as marketer_last_name,
+        u.email as marketer_email,
+        u.phone as marketer_phone,
+        u.location as marketer_location,
+        u.bio_submitted,
+        u.guarantor_submitted,
+        u.commitment_submitted,
+        u.overall_verification_status,
+        -- Add fields for frontend compatibility
+        CONCAT(u.first_name, ' ', u.last_name) as marketer_name,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone,
+        u.location as marketer_address,
+        -- Form status fields
+        CASE WHEN u.bio_submitted THEN 'completed' ELSE 'not_submitted' END as biodata_status,
+        CASE WHEN u.guarantor_submitted THEN 'completed' ELSE 'not_submitted' END as guarantor_status,
+        CASE WHEN u.commitment_submitted THEN 'completed' ELSE 'not_submitted' END as commitment_status,
+        -- Check if all forms are submitted
+        (u.bio_submitted AND u.guarantor_submitted AND u.commitment_submitted) as all_forms_submitted,
+        -- Admin verification fields from admin_verification_details table
+        avd.admin_verification_date,
+        avd.verification_notes as admin_verification_notes,
+        avd.location_photo_url as location_photos,
+        avd.admin_marketer_photo_url as admin_marketer_photos,
+        avd.landmark_description as landmark_photos,
+        -- Admin name
+        CONCAT(admin.first_name, ' ', admin.last_name) as admin_name,
+        -- Detailed form data
+        mb.name as biodata_name,
+        mb.address as biodata_address,
+        mb.phone as biodata_phone,
+        mb.religion as biodata_religion,
+        mb.date_of_birth as biodata_dob,
+        mb.marital_status as biodata_marital_status,
+        mb.state_of_origin as biodata_state_origin,
+        mb.state_of_residence as biodata_state_residence,
+        mb.mothers_maiden_name as biodata_mothers_maiden,
+        mb.school_attended as biodata_school,
+        mb.means_of_identification as biodata_id_type,
+        mb.id_document_url as biodata_id_document,
+        mb.last_place_of_work as biodata_work_place,
+        mb.job_description as biodata_job_desc,
+        mb.reason_for_quitting as biodata_quit_reason,
+        mb.medical_condition as biodata_medical,
+        mb.next_of_kin_name as biodata_kin_name,
+        mb.next_of_kin_phone as biodata_kin_phone,
+        mb.next_of_kin_address as biodata_kin_address,
+        mb.next_of_kin_relationship as biodata_kin_relationship,
+        mb.bank_name as biodata_bank_name,
+        mb.account_name as biodata_account_name,
+        mb.account_number as biodata_account_number,
+        mb.passport_photo_url as biodata_passport_photo,
+        mb.created_at as biodata_submitted_at,
+        -- Guarantor form data
+        mgf.is_candidate_known as guarantor_well_known,
+        mgf.relationship as guarantor_relationship,
+        mgf.known_duration as guarantor_known_duration,
+        mgf.occupation as guarantor_occupation,
+        mgf.means_of_identification as guarantor_means_of_identification,
+        mgf.guarantor_full_name as guarantor_full_name,
+        mgf.guarantor_home_address as guarantor_home_address,
+        mgf.guarantor_office_address as guarantor_office_address,
+        mgf.guarantor_email as guarantor_email,
+        mgf.guarantor_phone as guarantor_phone,
+        mgf.candidate_name as guarantor_candidate_name,
+        mgf.identification_file_url as guarantor_id_document,
+        mgf.signature_url as guarantor_signature,
+        mgf.created_at as guarantor_submitted_at,
+        -- Commitment form data
+        mcf.promise_accept_false_documents as commitment_false_docs,
+        mcf.promise_not_request_unrelated_info as commitment_irrelevant_info,
+        mcf.promise_not_charge_customer_fees as commitment_no_fees,
+        mcf.promise_not_modify_contract_info as commitment_no_modify,
+        mcf.promise_not_sell_unapproved_phones as commitment_approved_phones,
+        mcf.promise_not_make_unofficial_commitment as commitment_no_unofficial,
+        mcf.promise_not_operate_customer_account as commitment_no_operate_account,
+        mcf.promise_accept_fraud_firing as commitment_fraud_firing,
+        mcf.promise_not_share_company_info as commitment_no_share_info,
+        mcf.promise_ensure_loan_recovery as commitment_loan_recovery,
+        mcf.promise_abide_by_system as commitment_abide_system,
+        mcf.direct_sales_rep_name as commitment_rep_name,
+        mcf.direct_sales_rep_signature_url as commitment_rep_signature,
+        mcf.date_signed as commitment_date_signed,
+        mcf.created_at as commitment_submitted_at
+      FROM verification_submissions vs
+      JOIN users u ON vs.marketer_id = u.id
+      LEFT JOIN users admin ON vs.admin_id = admin.id
+      LEFT JOIN admin_verification_details avd ON vs.id = avd.verification_submission_id
+      LEFT JOIN (
+        SELECT DISTINCT ON (marketer_unique_id) *
+        FROM marketer_biodata
+        ORDER BY marketer_unique_id, created_at DESC
+      ) mb ON u.unique_id = mb.marketer_unique_id
+      LEFT JOIN guarantor_employment_form mgf ON u.unique_id = mgf.marketer_unique_id
+      LEFT JOIN direct_sales_commitment_form mcf ON u.unique_id = mcf.marketer_unique_id
+      WHERE vs.admin_id = $1
+      ORDER BY vs.updated_at DESC
     `;
-    const biodataResult = await pool.query(biodataQuery, [adminId]);
+    
+    console.log(`📊 Executing submissions query for admin ${adminId}...`);
+    const submissionsResult = await pool.query(submissionsQuery, [adminId]);
+    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
 
-    const guarantorQuery = `
-      SELECT ge.*
-      FROM guarantor_employment_form ge
-      JOIN users m ON ge.marketer_unique_id = m.unique_id
-      WHERE m.admin_id = $1
-      ORDER BY ge.created_at DESC
+    // Get assigned admins for filter dropdown
+    const assignedAdminsQuery = `
+      SELECT id, first_name, last_name, email
+      FROM users 
+      WHERE super_admin_id = (SELECT super_admin_id FROM users WHERE id = $1)
+      AND role = 'Admin'
+      ORDER BY first_name, last_name
     `;
-    const guarantorResult = await pool.query(guarantorQuery, [adminId]);
-
-    const commitmentQuery = `
-      SELECT dc.*
-      FROM direct_sales_commitment_form dc
-      JOIN users m ON dc.marketer_unique_id = m.unique_id
-      WHERE m.admin_id = $1
-      ORDER BY dc.created_at DESC
-    `;
-    const commitmentResult = await pool.query(commitmentQuery, [adminId]);
+    console.log(`📊 Executing assigned admins query...`);
+    const assignedAdminsResult = await pool.query(assignedAdminsQuery, [adminId]);
+    console.log(`✅ Found ${assignedAdminsResult.rows.length} assigned admins`);
 
     res.status(200).json({
-      biodata: biodataResult.rows,
-      guarantor: guarantorResult.rows,
-      commitment: commitmentResult.rows,
+      submissions: submissionsResult.rows,
+      assignedAdmins: assignedAdminsResult.rows
     });
   } catch (error) {
+    console.error('❌ Error in getSubmissionsForAdmin:', error);
     next(error);
   }
 };
@@ -820,45 +1769,96 @@ const getSubmissionsForAdmin = async (req, res, next) => {
 /**
  * getSubmissionsForSuperAdmin
  * Retrieves all submissions for marketers whose assigned admin is under the logged-in SuperAdmin.
+ * Now uses the new verification workflow system with proper hierarchy filtering.
  */
 const getSubmissionsForSuperAdmin = async (req, res, next) => {
   try {
     const superadminId = req.user.id; // Logged-in SuperAdmin's numeric ID
 
-    const biodataQuery = `
-      SELECT mb.*
-      FROM marketer_biodata mb
-      JOIN users m ON mb.marketer_unique_id = m.unique_id
-      JOIN users a ON m.admin_id = a.id
-      WHERE a.super_admin_id = $1
-      ORDER BY mb.created_at DESC
+    // Get verification submissions from assigned admins only
+    const submissionsQuery = `
+      SELECT 
+        vs.id as submission_id,
+        vs.submission_status,
+        vs.created_at as submission_created_at,
+        vs.updated_at as last_updated,
+        vs.rejection_reason as admin_notes,
+        vs.rejection_reason as superadmin_notes,
+        u.id as marketer_id,
+        u.unique_id as marketer_unique_id,
+        u.first_name as marketer_first_name,
+        u.last_name as marketer_last_name,
+        u.email as marketer_email,
+        u.phone as marketer_phone,
+        u.location as marketer_location,
+        u.bio_submitted,
+        u.guarantor_submitted,
+        u.commitment_submitted,
+        u.overall_verification_status,
+        admin_user.id as admin_id,
+        admin_user.first_name as admin_first_name,
+        admin_user.last_name as admin_last_name,
+        admin_user.email as admin_email
+      FROM verification_submissions vs
+      JOIN users u ON vs.marketer_id = u.id
+      JOIN users admin_user ON vs.admin_id = admin_user.id
+      WHERE admin_user.super_admin_id = $1
+      ORDER BY vs.updated_at DESC
     `;
-    const biodataResult = await pool.query(biodataQuery, [superadminId]);
+    const submissionsResult = await pool.query(submissionsQuery, [superadminId]);
 
-    const guarantorQuery = `
-      SELECT ge.*
-      FROM guarantor_employment_form ge
-      JOIN users m ON ge.marketer_unique_id = m.unique_id
-      JOIN users a ON m.admin_id = a.id
-      WHERE a.super_admin_id = $1
-      ORDER BY ge.created_at DESC
+    // Get assigned admins for filter dropdown
+    const assignedAdminsQuery = `
+      SELECT id, first_name, last_name, email
+      FROM users 
+      WHERE super_admin_id = $1
+      AND role = 'Admin'
+      ORDER BY first_name, last_name
     `;
-    const guarantorResult = await pool.query(guarantorQuery, [superadminId]);
+    const assignedAdminsResult = await pool.query(assignedAdminsQuery, [superadminId]);
 
-    const commitmentQuery = `
-      SELECT dc.*
-      FROM direct_sales_commitment_form dc
-      JOIN users m ON dc.marketer_unique_id = m.unique_id
-      JOIN users a ON m.admin_id = a.id
-      WHERE a.super_admin_id = $1
-      ORDER BY dc.created_at DESC
-    `;
-    const commitmentResult = await pool.query(commitmentQuery, [superadminId]);
+    // For each submission, fetch detailed form data
+    const enrichedSubmissions = await Promise.all(
+      submissionsResult.rows.map(async (submission) => {
+        const marketerId = submission.marketer_id;
+        
+        // Fetch biodata details
+        const biodataResult = await pool.query(
+          `SELECT * FROM marketer_biodata WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          [marketerId]
+        );
+        
+        // Fetch guarantor details
+        const guarantorResult = await pool.query(
+          `SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          [marketerId]
+        );
+        
+        // Fetch commitment details
+        const commitmentResult = await pool.query(
+          `SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          [marketerId]
+        );
+        
+        // Fetch admin verification details
+        const adminVerificationResult = await pool.query(
+          `SELECT * FROM admin_verification_details WHERE verification_submission_id = $1`,
+          [submission.submission_id]
+        );
+
+        return {
+          ...submission,
+          biodata: biodataResult.rows[0] || null,
+          guarantor: guarantorResult.rows[0] || null,
+          commitment: commitmentResult.rows[0] || null,
+          admin_verification: adminVerificationResult.rows[0] || null
+        };
+      })
+    );
 
     res.status(200).json({
-      biodata: biodataResult.rows,
-      guarantor: guarantorResult.rows,
-      commitment: commitmentResult.rows,
+      submissions: enrichedSubmissions,
+      assignedAdmins: assignedAdminsResult.rows
     });
   } catch (error) {
     next(error);
@@ -872,51 +1872,53 @@ const getSubmissionsForSuperAdmin = async (req, res, next) => {
  * to flip the flag on the user record without re‑submitting the entire form.
  */
 
-const biodataSuccess = async (req, res, next) => {
-  try {
-    const uniqueId = req.user.unique_id;
-    await pool.query(
-      `UPDATE users
-         SET bio_submitted = TRUE,
-             updated_at = NOW()
-       WHERE unique_id = $1`,
-      [uniqueId]
-    );
-    return res.sendStatus(204);
-  } catch (err) {
-    next(err);
-  }
-};
+// Removed redundant success endpoints - main submission endpoints handle everything
 
-const guarantorSuccess = async (req, res, next) => {
+/**
+ * getFormStatus - Check which forms a user has submitted
+ */
+const getFormStatus = async (req, res, next) => {
   try {
-    const uniqueId = req.user.unique_id;
-    await pool.query(
-      `UPDATE users
-         SET guarantor_submitted = TRUE,
-             updated_at = NOW()
+    const marketerUniqueId = req.user.unique_id;
+    
+    const result = await pool.query(
+      `SELECT 
+        bio_submitted, 
+        guarantor_submitted, 
+        commitment_submitted,
+        overall_verification_status,
+        locked
+      FROM users 
        WHERE unique_id = $1`,
-      [uniqueId]
+      [marketerUniqueId]
     );
-    return res.sendStatus(204);
-  } catch (err) {
-    next(err);
-  }
-};
-
-const commitmentSuccess = async (req, res, next) => {
-  try {
-    const uniqueId = req.user.unique_id;
-    await pool.query(
-      `UPDATE users
-         SET commitment_submitted = TRUE,
-             updated_at = NOW()
-       WHERE unique_id = $1`,
-      [uniqueId]
-    );
-    return res.sendStatus(204);
-  } catch (err) {
-    next(err);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const user = result.rows[0];
+    
+    res.status(200).json({
+      forms: {
+        biodata: user.bio_submitted,
+        guarantor: user.guarantor_submitted,
+        commitment: user.commitment_submitted
+      },
+      status: {
+        verification: user.overall_verification_status,
+        locked: user.locked
+      },
+      nextStep: user.bio_submitted 
+        ? (user.guarantor_submitted 
+          ? (user.commitment_submitted ? 'completed' : 'commitment')
+          : 'guarantor')
+        : 'biodata'
+    });
+    
+  } catch (error) {
+    console.error('Error fetching form status:', error);
+    next(error);
   }
 };
 
@@ -1001,34 +2003,1106 @@ async function getVerifiedMarketersAdmin(req, res, next) {
 }
 
 
+/**
+ * Send verified submission to SuperAdmin
+ */
+async function sendToSuperAdmin(req, res) {
+  const client = await pool.connect();
+  
+  try {
+    const { submissionId } = req.params;
+    const adminId = req.user.id;
+    
+    await client.query('BEGIN');
+    
+    // Update submission status
+    const updateResult = await client.query(
+      `UPDATE verification_submissions 
+       SET submission_status = 'sent_to_superadmin',
+           updated_at = NOW()
+       WHERE id = $1 AND admin_id = $2`,
+      [submissionId, adminId]
+    );
+    
+    if (updateResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Submission not found or not assigned to this admin' 
+      });
+    }
+    
+    // Get marketer details for notification
+    const marketerResult = await client.query(
+      `SELECT u.unique_id, u.first_name, u.last_name 
+       FROM verification_submissions vs
+       JOIN users u ON vs.marketer_id = u.id
+       WHERE vs.id = $1`,
+      [submissionId]
+    );
+    
+    const marketer = marketerResult.rows[0];
+    
+    await client.query('COMMIT');
+    
+    // Send notification to marketer
+    if (marketer) {
+      sendSocketNotification(
+        marketer.unique_id,
+        `Your verification has been completed by your Admin and sent to SuperAdmin for review. Status: Under SuperAdmin Review`,
+        req.app
+      );
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Submission sent to SuperAdmin successfully',
+      submissionId: submissionId
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error sending to SuperAdmin:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to send submission to SuperAdmin' 
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Get comprehensive verification status and progress for a submission
+ */
+async function getVerificationStatus(req, res, next) {
+  try {
+    const { submissionId } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    console.log(`🔍 Getting verification status for submission ${submissionId} by ${userRole} ${userId}`);
+
+    // Get submission details with all related data
+    const statusQuery = `
+      SELECT 
+        vs.id as submission_id,
+        vs.submission_status,
+        vs.created_at as submission_created_at,
+        vs.updated_at as last_updated,
+        vs.admin_reviewed_at,
+        vs.superadmin_reviewed_at,
+        vs.masteradmin_approved_at,
+        vs.rejection_reason,
+        vs.rejected_by,
+        vs.rejected_at,
+        
+        -- Marketer details
+        u.id as marketer_id,
+        u.unique_id as marketer_unique_id,
+        u.first_name as marketer_first_name,
+        u.last_name as marketer_last_name,
+        u.email as marketer_email,
+        u.phone as marketer_phone,
+        u.location as marketer_location,
+        u.bio_submitted,
+        u.guarantor_submitted,
+        u.commitment_submitted,
+        u.overall_verification_status,
+        
+        -- Admin details
+        admin_user.first_name as admin_first_name,
+        admin_user.last_name as admin_last_name,
+        admin_user.email as admin_email,
+        
+        -- SuperAdmin details
+        superadmin_user.first_name as superadmin_first_name,
+        superadmin_user.last_name as superadmin_last_name,
+        superadmin_user.email as superadmin_email,
+        
+        -- Admin verification details
+        avd.admin_verification_date,
+        avd.verification_notes,
+        avd.location_photo_url,
+        avd.admin_marketer_photo_url,
+        avd.landmark_description,
+        avd.additional_documents,
+        
+        -- Workflow logs will be fetched separately
+        NULL as last_action,
+        NULL as last_action_by,
+        NULL as last_action_role,
+        NULL as last_action_details,
+        NULL as last_action_date
+        
+      FROM verification_submissions vs
+      JOIN users u ON vs.marketer_id = u.id
+      LEFT JOIN users admin_user ON vs.admin_id = admin_user.id
+      LEFT JOIN users superadmin_user ON vs.super_admin_id = superadmin_user.id
+      LEFT JOIN admin_verification_details avd ON vs.id = avd.verification_submission_id
+      WHERE vs.id = $1
+      ORDER BY vs.updated_at DESC
+      LIMIT 1
+    `;
+
+    const statusResult = await pool.query(statusQuery, [submissionId]);
+    
+    if (statusResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Submission not found'
+      });
+    }
+
+    const submission = statusResult.rows[0];
+
+    // Get all workflow logs for this submission (if table exists)
+    let workflowLogs = [];
+    try {
+      const logsQuery = `
+        SELECT 
+          action,
+          performed_by,
+          role,
+          details,
+          created_at
+        FROM verification_workflow_logs
+        WHERE verification_submission_id = $1
+        ORDER BY created_at ASC
+      `;
+      const logsResult = await pool.query(logsQuery, [submissionId]);
+      workflowLogs = logsResult.rows;
+    } catch (error) {
+      console.log('⚠️  Workflow logs table not found, continuing without logs');
+      workflowLogs = [];
+    }
+
+    // Calculate progress percentage
+    const progressSteps = [
+      { name: 'Forms Submitted', completed: submission.bio_submitted && submission.guarantor_submitted && submission.commitment_submitted },
+      { name: 'Admin Review', completed: !!submission.admin_reviewed_at },
+      { name: 'SuperAdmin Validation', completed: !!submission.superadmin_reviewed_at },
+      { name: 'MasterAdmin Approval', completed: !!submission.masteradmin_approved_at }
+    ];
+
+    const completedSteps = progressSteps.filter(step => step.completed).length;
+    const progressPercentage = Math.round((completedSteps / progressSteps.length) * 100);
+
+    // Determine current stage
+    let currentStage = 'Form Submission';
+    if (submission.submission_status === 'pending_admin_review') {
+      currentStage = 'Admin Review';
+    } else if (submission.submission_status === 'pending_superadmin_review') {
+      currentStage = 'SuperAdmin Validation';
+    } else if (submission.submission_status === 'pending_masteradmin_approval') {
+      currentStage = 'MasterAdmin Approval';
+    } else if (submission.submission_status === 'approved') {
+      currentStage = 'Approved';
+    } else if (submission.submission_status === 'rejected') {
+      currentStage = 'Rejected';
+    }
+
+    // Prepare response
+    const response = {
+      success: true,
+      submission: {
+        id: submission.submission_id,
+        status: submission.submission_status,
+        currentStage,
+        progressPercentage,
+        progressSteps,
+        createdAt: submission.submission_created_at,
+        updatedAt: submission.last_updated,
+        
+        // Marketer info
+        marketer: {
+          id: submission.marketer_id,
+          uniqueId: submission.marketer_unique_id,
+          name: `${submission.marketer_first_name} ${submission.marketer_last_name}`,
+          email: submission.marketer_email,
+          phone: submission.marketer_phone,
+          location: submission.marketer_location,
+          formsSubmitted: {
+            biodata: submission.bio_submitted,
+            guarantor: submission.guarantor_submitted,
+            commitment: submission.commitment_submitted
+          }
+        },
+        
+        // Admin info
+        admin: {
+          name: submission.admin_first_name ? `${submission.admin_first_name} ${submission.admin_last_name}` : null,
+          email: submission.admin_email,
+          reviewedAt: submission.admin_reviewed_at,
+          verificationNotes: submission.verification_notes,
+          locationPhoto: submission.location_photo_url,
+          adminMarketerPhoto: submission.admin_marketer_photo_url,
+          landmarkDescription: submission.landmark_description
+        },
+        
+        // SuperAdmin info
+        superadmin: {
+          name: submission.superadmin_first_name ? `${submission.superadmin_first_name} ${submission.superadmin_last_name}` : null,
+          email: submission.superadmin_email,
+          reviewedAt: submission.superadmin_reviewed_at
+        },
+        
+        // MasterAdmin info
+        masteradmin: {
+          approvedAt: submission.masteradmin_approved_at
+        },
+        
+        // Rejection info
+        rejection: {
+          reason: submission.rejection_reason,
+          rejectedBy: submission.rejected_by,
+          rejectedAt: submission.rejected_at
+        },
+        
+        // Workflow logs
+        workflowLogs: workflowLogs.map(log => ({
+          action: log.action,
+          performedBy: log.performed_by,
+          role: log.role,
+          details: log.details,
+          timestamp: log.created_at
+        })),
+        
+        // Last action
+        lastAction: submission.last_action ? {
+          action: submission.last_action,
+          performedBy: submission.last_action_by,
+          role: submission.last_action_role,
+          details: submission.last_action_details,
+          timestamp: submission.last_action_date
+        } : null
+      }
+    };
+
+    console.log(`✅ Verification status retrieved for submission ${submissionId}`);
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('❌ Error getting verification status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get verification status',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Upload Admin verification details and photos
+ */
+async function uploadAdminVerification(req, res) {
+  const client = await pool.connect();
+  
+  try {
+    const { submissionId } = req.params;
+    const { verificationNotes } = req.body;
+    const adminId = req.user.id;
+    
+    console.log(`🔍 Admin verification upload request:`, {
+      submissionId,
+      adminId,
+      verificationNotes: verificationNotes ? 'Present' : 'Not provided',
+      files: req.files ? Object.keys(req.files) : 'No files'
+    });
+    
+    if (!submissionId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Submission ID is required' 
+      });
+    }
+
+    // Check if submission exists and belongs to this admin
+    const submissionCheck = await client.query(
+      `SELECT vs.*, u.first_name, u.last_name, u.location as marketer_location
+       FROM verification_submissions vs
+       JOIN users u ON vs.marketer_id = u.id
+       WHERE vs.id = $1 AND vs.admin_id = $2`,
+      [submissionId, adminId]
+    );
+
+    if (submissionCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Submission not found or not assigned to this admin' 
+      });
+    }
+
+    const submission = submissionCheck.rows[0];
+    console.log(`✅ Submission found:`, {
+      submissionId: submission.id,
+      marketerId: submission.marketer_id,
+      adminId: submission.admin_id,
+      status: submission.submission_status,
+      marketerLocation: submission.marketer_location
+    });
+
+    // Upload files to Cloudinary
+    const uploadedFiles = {};
+    
+    if (req.files) {
+      const { locationPhotos, adminMarketerPhotos, landmarkPhotos } = req.files;
+      const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
+                                     process.env.CLOUDINARY_API_KEY && 
+                                     process.env.CLOUDINARY_API_SECRET &&
+                                     process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloud_name';
+      
+      // Upload location photos
+      if (locationPhotos) {
+        uploadedFiles.location_photos = [];
+        for (const photo of locationPhotos) {
+          if (isCloudinaryConfigured) {
+          try {
+            const result = await uploadToCloudinary(photo.buffer, {
+              folder: 'verification/location',
+              allowed_formats: ['jpg', 'jpeg', 'png']
+            });
+            uploadedFiles.location_photos.push(result.secure_url);
+          } catch (error) {
+            console.error('Error uploading location photo:', error);
+            }
+          } else {
+            uploadedFiles.location_photos.push('https://via.placeholder.com/300x200?text=Location+Photo');
+          }
+        }
+      }
+
+      // Upload admin + marketer photos
+      if (adminMarketerPhotos) {
+        uploadedFiles.admin_marketer_photos = [];
+        for (const photo of adminMarketerPhotos) {
+          if (isCloudinaryConfigured) {
+          try {
+            const result = await uploadToCloudinary(photo.buffer, {
+              folder: 'verification/admin_marketer',
+              allowed_formats: ['jpg', 'jpeg', 'png']
+            });
+            uploadedFiles.admin_marketer_photos.push(result.secure_url);
+          } catch (error) {
+            console.error('Error uploading admin marketer photo:', error);
+            }
+          } else {
+            uploadedFiles.admin_marketer_photos.push('https://via.placeholder.com/300x200?text=Admin+%2B+Marketer');
+          }
+        }
+      }
+
+      // Upload landmark photos
+      if (landmarkPhotos) {
+        uploadedFiles.landmark_photos = [];
+        for (const photo of landmarkPhotos) {
+          if (isCloudinaryConfigured) {
+          try {
+            const result = await uploadToCloudinary(photo.buffer, {
+              folder: 'verification/landmarks',
+              allowed_formats: ['jpg', 'jpeg', 'png']
+            });
+            uploadedFiles.landmark_photos.push(result.secure_url);
+          } catch (error) {
+            console.error('Error uploading landmark photo:', error);
+            }
+          } else {
+            uploadedFiles.landmark_photos.push('https://via.placeholder.com/300x200?text=Landmark+Photo');
+          }
+        }
+      }
+    }
+
+    // Check if admin verification details already exist
+    const existingDetails = await client.query(
+      'SELECT id FROM admin_verification_details WHERE verification_submission_id = $1',
+      [submissionId]
+    );
+
+    let insertResult;
+    if (existingDetails.rows.length > 0) {
+      // Update existing record
+      console.log(`🔄 Updating existing admin verification details for submission ${submissionId}`);
+      const updateQuery = `
+        UPDATE admin_verification_details SET
+          admin_id = $2,
+          marketer_id = $3,
+          marketer_address = $4,
+          landmark_description = $5,
+          location_photo_url = $6,
+          admin_marketer_photo_url = $7,
+          verification_notes = $8,
+          admin_verification_date = NOW(),
+          additional_documents = $9::jsonb,
+          updated_at = NOW()
+        WHERE verification_submission_id = $1
+        RETURNING *
+      `;
+
+      const updateValues = [
+        submissionId,
+        adminId,
+        submission.marketer_id,
+        submission.marketer_location || 'Not provided',
+        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
+        uploadedFiles.location_photos ? uploadedFiles.location_photos[0] : null,
+        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos[0] : null,
+        verificationNotes || null,
+        uploadedFiles.location_photos ? JSON.stringify(uploadedFiles.location_photos) : null
+      ];
+
+      try {
+        insertResult = await client.query(updateQuery, updateValues);
+        console.log(`✅ Admin verification details updated successfully`);
+      } catch (dbError) {
+        console.error(`❌ Database error updating admin verification details:`, dbError);
+        throw new Error(`Failed to update verification details: ${dbError.message}`);
+      }
+    } else {
+      // Insert new record
+      console.log(`🔄 Inserting new admin verification details for submission ${submissionId}`);
+      const insertQuery = `
+      INSERT INTO admin_verification_details (
+        verification_submission_id,
+        admin_id,
+        marketer_id,
+        marketer_address,
+        landmark_description,
+        location_photo_url,
+        admin_marketer_photo_url,
+        verification_notes,
+        admin_verification_date,
+        additional_documents
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9::jsonb)
+      RETURNING *
+    `;
+
+      const insertValues = [
+      submissionId,
+      adminId,
+      submission.marketer_id,
+        submission.marketer_location || 'Not provided',
+      uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
+      uploadedFiles.location_photos ? uploadedFiles.location_photos[0] : null,
+      uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos[0] : null,
+      verificationNotes || null,
+      uploadedFiles.location_photos ? JSON.stringify(uploadedFiles.location_photos) : null
+      ];
+
+      try {
+        insertResult = await client.query(insertQuery, insertValues);
+        console.log(`✅ Admin verification details inserted successfully`);
+      } catch (dbError) {
+        console.error(`❌ Database error inserting admin verification details:`, dbError);
+        throw new Error(`Failed to save verification details: ${dbError.message}`);
+      }
+    }
+    console.log(`✅ Admin verification details inserted:`, insertResult.rows[0]);
+
+    // Update verification submission status
+    const statusUpdateQuery = `
+      UPDATE verification_submissions 
+      SET 
+        submission_status = 'pending_superadmin_review',
+        admin_reviewed_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $1
+    `;
+
+    // Note: Status update removed - will be handled by separate verify-and-send endpoint
+    console.log(`✅ Verification files uploaded successfully. Status remains: ${submission.submission_status}`);
+
+    // Log the file upload action
+    const workflowLogDetails = {
+          verification_notes: verificationNotes,
+          photos_uploaded: {
+            location: uploadedFiles.location_photos?.length || 0,
+            admin_marketer: uploadedFiles.admin_marketer_photos?.length || 0,
+            landmarks: uploadedFiles.landmark_photos?.length || 0
+          }
+    };
+
+    console.log(`🔄 Logging file upload action...`);
+    try {
+      await client.query(
+        `INSERT INTO verification_workflow_logs 
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          submissionId,
+          adminId,
+          'Admin',
+          'file_upload',
+          'Admin uploaded verification files and photos',
+          submission.submission_status,
+          submission.submission_status, // Status remains the same
+          JSON.stringify(workflowLogDetails)
+        ]
+      );
+      console.log(`✅ File upload action logged successfully`);
+    } catch (logError) {
+      console.error(`❌ Error logging file upload action:`, logError);
+      // Don't throw error here as the main operation succeeded
+      console.log(`⚠️ Continuing despite workflow log error`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Verification details uploaded successfully',
+      data: {
+        submission_id: submissionId,
+        status: 'pending_superadmin_review',
+        admin_verification_date: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error uploading admin verification:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to upload verification details',
+      error: error.message 
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * verifyAndSendToSuperAdmin
+ * Admin verifies the uploaded details and sends to SuperAdmin for review
+ */
+const verifyAndSendToSuperAdmin = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { submissionId } = req.params;
+    const adminId = req.user.id;
+    
+    console.log(`🔍 Admin verify and send request:`, {
+      submissionId,
+      adminId
+    });
+    
+    if (!submissionId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Submission ID is required' 
+      });
+    }
+
+    // Check if submission exists and belongs to this admin
+    const submissionCheck = await client.query(
+      `SELECT vs.*, u.first_name, u.last_name, u.location as marketer_location
+       FROM verification_submissions vs
+       JOIN users u ON vs.marketer_id = u.id
+       WHERE vs.id = $1 AND vs.admin_id = $2`,
+      [submissionId, adminId]
+    );
+
+    if (submissionCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Submission not found or not assigned to this admin' 
+      });
+    }
+
+    const submission = submissionCheck.rows[0];
+    
+    // Check if admin verification details exist
+    const verificationDetails = await client.query(
+      'SELECT * FROM admin_verification_details WHERE verification_submission_id = $1',
+      [submissionId]
+    );
+
+    if (verificationDetails.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please upload verification details first before sending to SuperAdmin' 
+      });
+    }
+
+    // Validate status transition
+    if (!validateWorkflowStatusTransition(submission.submission_status, 'pending_superadmin_review')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot send submission with status '${submission.submission_status}' to SuperAdmin` 
+      });
+    }
+
+    // Update verification submission status
+    const statusUpdateQuery = `
+      UPDATE verification_submissions 
+      SET 
+        submission_status = 'pending_superadmin_review',
+        admin_reviewed_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $1
+    `;
+
+    console.log(`🔄 Updating submission status to pending_superadmin_review...`);
+    try {
+      await client.query(statusUpdateQuery, [submissionId]);
+      console.log(`✅ Submission status updated successfully`);
+    } catch (statusError) {
+      console.error(`❌ Error updating verification submission status:`, statusError);
+      throw new Error(`Failed to update submission status: ${statusError.message}`);
+    }
+
+    // Update marketer's overall verification status
+    const userStatusUpdateQuery = `
+      UPDATE users 
+      SET overall_verification_status = 'awaiting_superadmin_validation',
+          updated_at = NOW()
+      WHERE id = $1
+    `;
+
+    console.log(`🔄 Updating marketer verification status to awaiting_superadmin_validation...`);
+    try {
+      await client.query(userStatusUpdateQuery, [submission.marketer_id]);
+      console.log(`✅ Marketer verification status updated successfully`);
+    } catch (userStatusError) {
+      console.error(`❌ Error updating marketer verification status:`, userStatusError);
+      throw new Error(`Failed to update marketer status: ${userStatusError.message}`);
+    }
+
+    // Log the verification and send action
+    const workflowLogDetails = {
+      action: 'admin_verified_and_sent',
+      admin_id: adminId,
+      verification_details_id: verificationDetails.rows[0].id,
+      marketer_name: `${submission.first_name} ${submission.last_name}`,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`🔄 Logging verify and send action...`);
+    try {
+      await client.query(
+        `INSERT INTO verification_workflow_logs 
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          submissionId,
+          adminId,
+          'Admin',
+          'verify_and_send',
+          'Admin verified and sent submission to SuperAdmin',
+          submission.submission_status,
+          'pending_superadmin_review',
+          JSON.stringify(workflowLogDetails)
+        ]
+      );
+      console.log(`✅ Verify and send action logged successfully`);
+    } catch (logError) {
+      console.error(`❌ Error logging verify and send action:`, logError);
+      // Don't throw error here as the main operation succeeded
+      console.log(`⚠️ Continuing despite workflow log error`);
+    }
+
+    // Notify SuperAdmin about new submission
+    await notifySuperAdminOfNewSubmission(submissionId, submission.super_admin_id);
+
+    // Notify marketer about status change
+    await notifyMarketerOfStatusChange(submission.marketer_id, 'awaiting_superadmin_validation', 'Your verification has been reviewed by your Admin and is now under SuperAdmin review.');
+
+    res.json({
+      success: true,
+      message: 'Submission verified and sent to SuperAdmin successfully',
+      data: {
+        submission_id: submissionId,
+        new_status: 'pending_superadmin_review',
+        admin_id: adminId,
+        marketer_name: `${submission.first_name} ${submission.last_name}`,
+        verification_details_id: verificationDetails.rows[0].id
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in verifyAndSendToSuperAdmin:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to verify and send submission',
+      error: error.message 
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * resetSubmissionStatus
+ * Reset submission status back to pending_admin_review for testing purposes
+ */
+const resetSubmissionStatus = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { submissionId } = req.params;
+    const adminId = req.user.id;
+    
+    console.log(`🔄 Reset submission status request:`, {
+      submissionId,
+      adminId
+    });
+    
+    if (!submissionId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Submission ID is required' 
+      });
+    }
+
+    // Check if submission exists and belongs to this admin
+    const submissionCheck = await client.query(
+      `SELECT vs.*, u.first_name, u.last_name
+       FROM verification_submissions vs
+       JOIN users u ON vs.marketer_id = u.id
+       WHERE vs.id = $1 AND vs.admin_id = $2`,
+      [submissionId, adminId]
+    );
+
+    if (submissionCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Submission not found or not assigned to this admin' 
+      });
+    }
+
+    const submission = submissionCheck.rows[0];
+
+    // Reset verification submission status
+    const statusUpdateQuery = `
+      UPDATE verification_submissions 
+      SET 
+        submission_status = 'pending_admin_review',
+        admin_reviewed_at = NULL,
+        updated_at = NOW()
+      WHERE id = $1
+    `;
+
+    console.log(`🔄 Resetting submission status to pending_admin_review...`);
+    try {
+      await client.query(statusUpdateQuery, [submissionId]);
+      console.log(`✅ Submission status reset successfully`);
+    } catch (statusError) {
+      console.error(`❌ Error resetting verification submission status:`, statusError);
+      throw new Error(`Failed to reset submission status: ${statusError.message}`);
+    }
+
+    // Reset marketer's overall verification status
+    const userStatusUpdateQuery = `
+      UPDATE users 
+      SET overall_verification_status = 'awaiting_admin_review',
+          updated_at = NOW()
+      WHERE id = $1
+    `;
+
+    console.log(`🔄 Resetting marketer verification status to awaiting_admin_review...`);
+    try {
+      await client.query(userStatusUpdateQuery, [submission.marketer_id]);
+      console.log(`✅ Marketer verification status reset successfully`);
+    } catch (userStatusError) {
+      console.error(`❌ Error resetting marketer verification status:`, userStatusError);
+      throw new Error(`Failed to reset marketer status: ${userStatusError.message}`);
+    }
+
+    // Log the reset action
+    const workflowLogDetails = {
+      action: 'admin_reset_for_testing',
+      admin_id: adminId,
+      marketer_name: `${submission.first_name} ${submission.last_name}`,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`🔄 Logging reset action...`);
+    try {
+      await client.query(
+        `INSERT INTO verification_workflow_logs 
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          submissionId,
+          adminId,
+          'Admin',
+          'reset_for_testing',
+          'Admin reset submission status for testing purposes',
+          submission.submission_status,
+          'pending_admin_review',
+          JSON.stringify(workflowLogDetails)
+        ]
+      );
+      console.log(`✅ Reset action logged successfully`);
+    } catch (logError) {
+      console.error(`❌ Error logging reset action:`, logError);
+      // Don't throw error here as the main operation succeeded
+      console.log(`⚠️ Continuing despite workflow log error`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Submission status reset successfully. You can now test the upload and verify process again.',
+      data: {
+        submission_id: submissionId,
+        new_status: 'pending_admin_review',
+        admin_id: adminId,
+        marketer_name: `${submission.first_name} ${submission.last_name}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in resetSubmissionStatus:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to reset submission status',
+      error: error.message 
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Helper function to notify SuperAdmin about new submission
+ */
+const notifySuperAdminOfNewSubmission = async (submissionId, superAdminId) => {
+  try {
+    if (!superAdminId) {
+      console.log(`⚠️ No SuperAdmin assigned to submission ${submissionId}`);
+      return;
+    }
+
+    // Get submission details
+    const submissionResult = await pool.query(
+      `SELECT vs.id, vs.marketer_id, u.first_name, u.last_name, u.email as marketer_email
+       FROM verification_submissions vs
+       JOIN users u ON vs.marketer_id = u.id
+       WHERE vs.id = $1`,
+      [submissionId]
+    );
+
+    if (submissionResult.rows.length === 0) return;
+
+    const submission = submissionResult.rows[0];
+
+    // Get SuperAdmin details
+    const superAdminResult = await pool.query(
+      'SELECT first_name, last_name, email FROM users WHERE id = $1',
+      [superAdminId]
+    );
+
+    if (superAdminResult.rows.length === 0) {
+      console.log(`⚠️ SuperAdmin ${superAdminId} not found for submission ${submissionId}`);
+      return;
+    }
+
+    const superAdmin = superAdminResult.rows[0];
+
+    // Create notification record
+    await pool.query(
+      `INSERT INTO verification_notifications (user_id, type, data, created_at)
+       VALUES ($1, 'verification_sent_for_review', $2, NOW())`,
+      [
+        superAdminId,
+        JSON.stringify({
+          title: 'New Verification Submission for Review',
+          message: `Admin has verified and sent submission from ${submission.first_name} ${submission.last_name} for your review`,
+          submission_id: submissionId,
+          marketer_id: submission.marketer_id,
+          marketer_name: `${submission.first_name} ${submission.last_name}`,
+          marketer_email: submission.marketer_email,
+          action_required: 'superadmin_review'
+        })
+      ]
+    );
+
+    console.log(`✅ SuperAdmin ${superAdmin.first_name} ${superAdmin.last_name} (${superAdmin.email}) notified about verification submission from ${submission.first_name} ${submission.last_name}`);
+
+  } catch (error) {
+    console.error('Error notifying SuperAdmin of new submission:', error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+};
+
+/**
+ * Helper function to notify marketer about verification status change
+ */
+const notifyMarketerOfStatusChange = async (marketerId, newStatus, message) => {
+  try {
+    console.log(`🔔 Notifying marketer ${marketerId} of status change to ${newStatus}`);
+    
+    // Get marketer's unique_id for WebSocket notification
+    const marketerResult = await pool.query(
+      'SELECT unique_id, first_name, last_name FROM users WHERE id = $1',
+      [marketerId]
+    );
+
+    if (marketerResult.rows.length === 0) {
+      console.log(`⚠️ Marketer ${marketerId} not found for status change notification`);
+      return;
+    }
+
+    const marketer = marketerResult.rows[0];
+    console.log(`📋 Found marketer: ${marketer.first_name} ${marketer.last_name} (${marketer.unique_id})`);
+
+    // Get the app instance to access socket.io
+    const app = require('../server').app;
+    const io = app.get('socketio');
+    
+    if (!io) {
+      console.warn('⚠️ Socket.IO instance not found on app');
+      return;
+    }
+
+    // Create notification record
+    const notificationResult = await pool.query(
+      `INSERT INTO notifications (user_unique_id, message, created_at)
+       VALUES ($1, $2, NOW())
+       RETURNING *`,
+      [marketer.unique_id, message]
+    );
+    
+    console.log(`📝 Created notification record:`, notificationResult.rows[0]);
+
+    // Send WebSocket notification to marketer
+    const notificationData = {
+      marketerUniqueId: marketer.unique_id,
+      newStatus: newStatus,
+      message: message,
+      timestamp: new Date().toISOString(),
+      notificationId: notificationResult.rows[0].id
+    };
+    
+    console.log(`📡 Sending WebSocket notification to room: ${marketer.unique_id}`);
+    console.log(`📡 Notification data:`, notificationData);
+    
+    io.to(marketer.unique_id).emit('verificationStatusChanged', notificationData);
+    
+    // Also emit a general notification event
+    io.to(marketer.unique_id).emit('newNotification', {
+      id: notificationResult.rows[0].id,
+      message: message,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`✅ Marketer ${marketer.first_name} ${marketer.last_name} (${marketer.unique_id}) notified about status change to ${newStatus}`);
+
+  } catch (error) {
+    console.error('❌ Error notifying marketer of status change:', error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+};
+
+/**
+ * Helper function to notify admin about verification status change
+ */
+const notifyAdminOfStatusChange = async (adminUniqueId, message) => {
+  try {
+    // Get the app instance to access socket.io
+    const app = require('../server').app;
+    const io = app.get('socketio');
+    
+    if (!io) {
+      console.warn('⚠️ Socket.IO instance not found on app');
+      return;
+    }
+
+    // Create notification record
+    await pool.query(
+      `INSERT INTO notifications (user_unique_id, message, created_at)
+       VALUES ($1, $2, NOW())`,
+      [adminUniqueId, message]
+    );
+
+    // Send WebSocket notification to admin
+    io.to(adminUniqueId).emit('verificationStatusChanged', {
+      adminUniqueId: adminUniqueId,
+      message: message,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`✅ Admin ${adminUniqueId} notified about verification status change`);
+
+  } catch (error) {
+    console.error('Error notifying admin of status change:', error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+};
+
+/**
+ * Helper function to notify MasterAdmin about new submission awaiting approval
+ */
+const notifyMasterAdminOfNewSubmission = async (marketerFirstName, marketerLastName, adminFirstName, adminLastName) => {
+  try {
+    // Get all MasterAdmin users
+    const masterAdmins = await pool.query('SELECT unique_id FROM users WHERE role = $1', ['MasterAdmin']);
+    
+    if (masterAdmins.rows.length === 0) {
+      console.log('⚠️ No MasterAdmin users found for notification');
+      return;
+    }
+
+    // Get the app instance to access socket.io
+    const app = require('../server').app;
+    const io = app.get('socketio');
+    
+    if (!io) {
+      console.warn('⚠️ Socket.IO instance not found on app');
+      return;
+    }
+
+    const message = `New verification submission from ${marketerFirstName} ${marketerLastName} (under Admin ${adminFirstName} ${adminLastName}) is awaiting your approval.`;
+
+    // Notify each MasterAdmin
+    for (const masterAdmin of masterAdmins.rows) {
+      // Create notification record
+      await pool.query(
+        `INSERT INTO notifications (user_unique_id, message, created_at)
+         VALUES ($1, $2, NOW())`,
+        [masterAdmin.unique_id, message]
+      );
+
+      // Send WebSocket notification to MasterAdmin
+      io.to(masterAdmin.unique_id).emit('newVerificationSubmission', {
+        masterAdminUniqueId: masterAdmin.unique_id,
+        marketerName: `${marketerFirstName} ${marketerLastName}`,
+        adminName: `${adminFirstName} ${adminLastName}`,
+        message: message,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ MasterAdmin ${masterAdmin.unique_id} notified about new verification submission`);
+    }
+
+  } catch (error) {
+    console.error('Error notifying MasterAdmin of new submission:', error);
+    // Don't throw error to avoid breaking the main workflow
+  }
+};
+
 module.exports = {
-  // form‐submission endpoints
   submitBiodata,
   submitGuarantor,
   submitCommitment,
   allowRefillForm,
-
-  // review & approval
+  getFormStatus,
   adminReview,
   superadminVerify,
   masterApprove,
-
-  // deletion
   deleteBiodataSubmission,
   deleteGuarantorSubmission,
   deleteCommitmentSubmission,
-
-  // fetching
   getAllSubmissionsForMasterAdmin,
+  getApprovedSubmissionsForMasterAdmin,
+  getVerificationWorkflowLogs,
   getSubmissionsForAdmin,
   getSubmissionsForSuperAdmin,
-
-  // **new** one‐line success flips
-  biodataSuccess,
-  guarantorSuccess,
-  commitmentSuccess,
-
   getVerifiedMarketersMaster,
   getVerifiedMarketersSuperadmin,
   getVerifiedMarketersAdmin,
+  uploadAdminVerification,
+  verifyAndSendToSuperAdmin,
+  resetSubmissionStatus,
+  getVerificationStatus,
+  sendToSuperAdmin,
 };
+

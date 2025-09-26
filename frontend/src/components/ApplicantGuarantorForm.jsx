@@ -1,7 +1,9 @@
 // src/components/ApplicantGuarantorForm.jsx
 import React, { useState } from "react";
 import api from "../api";
+import AlertDialog from "@/components/ui/alert-dialog";
 import FormStepper from "./FormStepper";
+import { validateGuarantorForm, isValidPhone, isValidEmail } from '../utils/formValidation';
 
 const IDENTIFICATION_OPTIONS = [
   "NIN",
@@ -25,6 +27,9 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
   });
   const [identificationFile, setIdentificationFile] = useState(null);
   const [signatureFile, setSignatureFile] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -46,6 +51,28 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (loading) return;
+    
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setLoading(true);
+    setShowConfirmDialog(false);
+    
+    // Use comprehensive validation
+    const { errors: validationErrors, isValid } = validateGuarantorForm(formData, identificationFile, signatureFile);
+    
+    // If there are validation errors, show them and stop submission
+    if (!isValid) {
+      setErrors(validationErrors);
+      setLoading(false);
+      return;
+    }
+    
     const payload = new FormData();
     Object.entries(formData).forEach(([k, v]) => payload.append(k, v));
     if (formData.means_of_identification && identificationFile) {
@@ -64,13 +91,16 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
         }
       );
       if (res.status !== 201) {
-        return alert(res.data.message || "Submission failed.");
+        setLoading(false);
+        setErrors({ general: res.data.message || "Submission failed." });
+        return;
       }
 
-      alert(res.data.message || "Guarantor form submitted successfully.");
+      // Success - form submitted successfully
+      setErrors({});
 
-      // notify back‑end that we succeeded (so front‑end success endpoints no longer 404)
-      await api.patch("/verification/guarantor-success");
+      // Scroll to top for better UX
+      window.scrollTo({ top: 0, behavior: 'smooth' });
 
       // advance stepper
       onSuccess?.();
@@ -92,59 +122,102 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
       setIdentificationFile(null);
       setSignatureFile(null);
     } catch (err) {
-      console.error(err);
-      alert("Error submitting the guarantor form.");
+      console.error('❌ Guarantor form submission error:', err);
+      
+      let errorMessage = "Error submitting guarantor form. Please try again.";
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.field) {
+        errorMessage = `${err.response.data.field}: ${err.response.data.message}`;
+      } else if (err.response?.status === 500) {
+        errorMessage = "Server error occurred. Please try again or contact support if the problem persists.";
+      } else if (err.response?.status === 400) {
+        errorMessage = "Please check your form data and try again.";
+      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
+      setErrors({ general: errorMessage });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded">
-      {/* show step 2 in your FormStepper */}
-      <FormStepper currentStep={2} />
+    <div className="w-full">
+      {/* Mobile Header */}
+      <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6">
+        <h2 className="text-xl font-bold mb-2">Guarantor Form</h2>
+        <p className="text-green-100 text-sm">Step 2 of 3 - Guarantor Information</p>
+      </div>
 
-      <h2 className="text-2xl font-bold mb-4">Guarantor Employment Form</h2>
-      <p className="text-sm text-gray-600 mb-4">
-        Acceptable Guarantors: Lecturer, Architects, Engineers, Teachers, Doctors, Lawyers, Nurses,
-        Bankers, Accountants, Managers/Directors, Traditional rulers, Clergy, Senior Civil Servants.
-      </p>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 1) Known to you */}
+      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Eligibility Notice */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-3 mt-0.5">
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-blue-800 mb-1">Eligible Guarantors</h3>
+              <p className="text-xs text-blue-700">
+                Lecturer, Architects, Engineers, Teachers, Doctors, Lawyers, Nurses, Bankers, 
+                Accountants, Managers/Directors, Traditional rulers, Clergy, Senior Civil Servants.
+              </p>
+            </div>
+          </div>
+        </div>
+        {/* Relationship Section */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">1</span>
+            Relationship Information
+          </h3>
+          
+          <div className="space-y-4">
+            {/* Known to you - Mobile-friendly radio buttons */}
         <div>
-          <label className="block font-semibold">Is the candidate well known to you?</label>
-          <div className="mt-1 flex gap-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Is the candidate well known to you? *</label>
+              <div className="grid grid-cols-2 gap-3">
             {["yes", "no"].map((val) => (
-              <label key={val}>
+                  <label key={val} className="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                 <input
                   type="radio"
                   name="is_candidate_known"
                   value={val}
                   onChange={handleChange}
                   required
-                />{" "}
+                      className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                    />
+                    <span className="ml-3 text-sm font-medium text-gray-700">
                 {val.charAt(0).toUpperCase() + val.slice(1)}
+                    </span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* 2) Relationship */}
+            {/* Relationship */}
         <div>
-          <label className="block font-semibold">Relationship with the candidate:</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Relationship with the candidate *</label>
           <input
             type="text"
             name="relationship"
             value={formData.relationship}
             onChange={handleChange}
             required
-            className="w-full border rounded px-3 py-2"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="e.g., Friend, Colleague, Family member"
           />
         </div>
 
-        {/* 3) Known duration */}
+            {/* Known duration */}
         <div>
-          <label className="block font-semibold">
-            How long have you known the candidate? (Min 3 years)
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                How long have you known the candidate? (Min 3 years) *
           </label>
           <input
             type="text"
@@ -152,34 +225,46 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             value={formData.known_duration}
             onChange={handleChange}
             required
-            className="w-full border rounded px-3 py-2"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="e.g., 5 years, 3 years 6 months"
           />
         </div>
 
-        {/* 4) Occupation */}
+            {/* Occupation */}
         <div>
-          <label className="block font-semibold">Your Occupation:</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Your Occupation *</label>
           <input
             type="text"
             name="occupation"
             value={formData.occupation}
             onChange={handleChange}
             required
-            className="w-full border rounded px-3 py-2"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="e.g., Engineer, Teacher, Doctor"
           />
+            </div>
+          </div>
         </div>
 
-        {/* 5) Means of ID */}
+        {/* Identification Section */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">2</span>
+            Identification Documents
+          </h3>
+          
+          <div className="space-y-4">
+            {/* Means of ID */}
         <div>
-          <label className="block font-semibold">Means of Identification:</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Means of Identification *</label>
           <select
             name="means_of_identification"
             value={formData.means_of_identification}
             onChange={handleMeansChange}
             required
-            className="w-full border rounded px-3 py-2"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
           >
-            <option value="">-- Select --</option>
+                <option value="">Select ID Type</option>
             {IDENTIFICATION_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -188,75 +273,80 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
           </select>
         </div>
 
-        {/* 6) ID file upload */}
+            {/* ID file upload */}
         {formData.means_of_identification && (
           <div>
-            <label className="block font-semibold">
-              Upload your {formData.means_of_identification} image:
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload your {formData.means_of_identification} image *
             </label>
+                <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
+                  <label htmlFor="guarantor-id-upload" className="cursor-pointer block">
             <input
               type="file"
               accept="image/*"
               onChange={handleIdentificationFileChange}
               required
-              className="w-full border rounded p-2"
-            />
+                      className="hidden"
+                      id="guarantor-id-upload"
+                    />
+                    <div className="text-gray-600">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <p className="mt-2 text-sm">Click to upload {formData.means_of_identification}</p>
+                      <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+                      {identificationFile && (
+                        <p className="mt-2 text-green-600 text-sm font-medium">
+                          ✓ Selected: {identificationFile.name}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* 7) Guarantor Full Name */}
+        {/* Guarantor Personal Information Section */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">3</span>
+            Guarantor Personal Information
+          </h3>
+          
+          <div className="space-y-4">
+            {/* Full Name */}
         <div>
-          <label className="block font-semibold">Guarantor Full Name:</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Guarantor Full Name *</label>
           <input
             type="text"
             name="guarantor_full_name"
             value={formData.guarantor_full_name}
             onChange={handleChange}
             required
-            className="w-full border rounded px-3 py-2"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter guarantor's full name"
           />
         </div>
 
-        {/* 8) Home Address */}
+            {/* Email and Phone - Side by side on larger screens */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block font-semibold">Guarantor Home Address:</label>
-          <textarea
-            name="guarantor_home_address"
-            value={formData.guarantor_home_address}
-            onChange={handleChange}
-            required
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        {/* 9) Office Address */}
-        <div>
-          <label className="block font-semibold">Guarantor Office Address:</label>
-          <textarea
-            name="guarantor_office_address"
-            value={formData.guarantor_office_address}
-            onChange={handleChange}
-            required
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        {/* 10) Email */}
-        <div>
-          <label className="block font-semibold">Guarantor Email:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
           <input
             type="email"
             name="guarantor_email"
             value={formData.guarantor_email}
             onChange={handleChange}
             required
-            className="w-full border rounded px-3 py-2"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                  placeholder="guarantor@email.com"
           />
         </div>
 
-        {/* 11) Phone */}
         <div>
-          <label className="block font-semibold">Guarantor Phone (11 digits):</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number (11 digits) *</label>
           <input
             type="text"
             name="guarantor_phone"
@@ -264,47 +354,129 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             onChange={handleChange}
             required
             pattern="\d{11}"
-            className="w-full border rounded px-3 py-2"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                  placeholder="08012345678"
+                />
+              </div>
+            </div>
+
+            {/* Home Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Home Address *</label>
+              <textarea
+                name="guarantor_home_address"
+                value={formData.guarantor_home_address}
+                onChange={handleChange}
+                required
+                rows="3"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter guarantor's home address"
+              />
+            </div>
+
+            {/* Office Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Office Address *</label>
+              <textarea
+                name="guarantor_office_address"
+                value={formData.guarantor_office_address}
+                onChange={handleChange}
+                required
+                rows="3"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter guarantor's office address"
           />
         </div>
 
-        {/* 12) Candidate Name (optional) */}
+            {/* Candidate Name (optional) */}
         <div>
-          <label className="block font-semibold">Candidate Name (if any):</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Candidate Name (if any)</label>
           <input
             type="text"
             name="candidate_name"
             value={formData.candidate_name}
             onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter candidate's name (optional)"
           />
+            </div>
+          </div>
         </div>
 
-        {/* 13) Guarantor Signature */}
-        <div>
-          <label className="block font-semibold">Upload Guarantor Signature:</label>
+        {/* Signature Upload Section */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">4</span>
+            Guarantor Signature
+          </h3>
+          
+          <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
           <input
             type="file"
             accept="image/*"
             onChange={handleSignatureFileChange}
             required
-            className="w-full border rounded p-2"
-          />
+              className="hidden"
+              id="guarantor-signature-upload"
+            />
+            <label htmlFor="guarantor-signature-upload" className="cursor-pointer">
+              <div className="text-gray-600">
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="mt-2 text-sm">Click to upload guarantor signature</p>
+                <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
           {signatureFile && (
-            <p className="mt-1 text-xs text-green-600">
-              Selected: {signatureFile.name}
+                  <p className="mt-2 text-green-600 text-sm font-medium">
+                    ✓ Selected: {signatureFile.name}
             </p>
           )}
+              </div>
+            </label>
+          </div>
         </div>
 
-        {/* Submit */}
-        <div className="flex justify-end">
+        {/* Error Display */}
+        {errors.general && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <div className="text-red-600 text-sm font-medium">
+                {errors.general}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <div className="bg-white p-6 rounded-lg shadow-sm">
           <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded"
+            type="button"
+            onClick={() => setShowConfirmDialog(true)}
+            disabled={loading}
+            className="w-full text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            style={{ backgroundColor: '#f59e0b' }}
           >
-            Submit Guarantor Form
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Submitting...
+              </div>
+            ) : (
+              'Submit Guarantor Form'
+            )}
           </button>
+          
+          <AlertDialog
+            open={showConfirmDialog}
+            type="warning"
+            title="Confirm Submission"
+            message="Are you sure you want to submit the Guarantor Form? This action cannot be undone."
+            confirmText="Submit Form"
+            cancelText="Cancel"
+            onConfirm={handleConfirmSubmit}
+            onCancel={() => setShowConfirmDialog(false)}
+            variant="default"
+          />
         </div>
       </form>
     </div>

@@ -258,9 +258,133 @@ async function getDailyTotals({ start, end }) {
   return totals;
 }
 
+/**
+ * Get location-based profit breakdown:
+ *  • location (state)
+ *  • total_orders
+ *  • total_units_sold
+ *  • total_revenue
+ *  • total_initial_profit
+ *  • total_commission_expense
+ *  • total_final_profit
+ */
+async function getLocationBreakdown({ start, end }) {
+  const sql = `
+    SELECT
+      u.location,
+      COUNT(DISTINCT o.id)                                          AS total_orders,
+      SUM(sr.quantity_sold)                                         AS total_units_sold,
+      SUM(p.selling_price * sr.quantity_sold)::NUMERIC(14,2)        AS total_revenue,
+      SUM((p.selling_price - p.cost_price) * sr.quantity_sold)::NUMERIC(14,2)
+                                                                    AS total_initial_profit,
+      SUM(sr.quantity_sold * (cr.marketer_rate + cr.admin_rate + cr.superadmin_rate))::NUMERIC(14,2)
+                                                                    AS total_commission_expense,
+      SUM(
+        (p.selling_price - p.cost_price) * sr.quantity_sold
+        - sr.quantity_sold * (cr.marketer_rate + cr.admin_rate + cr.superadmin_rate)
+      )::NUMERIC(14,2)                                              AS total_final_profit
+    FROM sales_record sr
+    JOIN products p ON p.id = sr.product_id
+    JOIN commission_rates cr ON LOWER(cr.device_type) = LOWER(p.device_type)
+    JOIN orders o ON o.id = sr.order_id
+    JOIN users u ON u.id = o.marketer_id
+    WHERE sr.sale_date::date BETWEEN $1 AND $2
+      AND o.status = 'released_confirmed'
+      AND u.location IS NOT NULL
+    GROUP BY u.location
+    ORDER BY total_revenue DESC
+  `;
+  const { rows } = await pool.query(sql, [start, end]);
+  return rows;
+}
+
+/**
+ * Get location-based aggregated data with device breakdown:
+ *  • location, device_type, device_name
+ *  • total_units_sold, total_revenue, total_initial_profit
+ *  • total_commission_expense, total_final_profit
+ */
+async function getLocationAggregated({ start, end }) {
+  const sql = `
+    SELECT
+      u.location,
+      p.device_type,
+      p.device_name,
+      SUM(sr.quantity_sold)                                         AS total_units_sold,
+      SUM(p.selling_price * sr.quantity_sold)::NUMERIC(14,2)        AS total_revenue,
+      SUM((p.selling_price - p.cost_price) * sr.quantity_sold)::NUMERIC(14,2)
+                                                                    AS total_initial_profit,
+      SUM(sr.quantity_sold * (cr.marketer_rate + cr.admin_rate + cr.superadmin_rate))::NUMERIC(14,2)
+                                                                    AS total_commission_expense,
+      SUM(
+        (p.selling_price - p.cost_price) * sr.quantity_sold
+        - sr.quantity_sold * (cr.marketer_rate + cr.admin_rate + cr.superadmin_rate)
+      )::NUMERIC(14,2)                                              AS total_final_profit
+    FROM sales_record sr
+    JOIN products p ON p.id = sr.product_id
+    JOIN commission_rates cr ON LOWER(cr.device_type) = LOWER(p.device_type)
+    JOIN orders o ON o.id = sr.order_id
+    JOIN users u ON u.id = o.marketer_id
+    WHERE sr.sale_date::date BETWEEN $1 AND $2
+      AND o.status = 'released_confirmed'
+      AND u.location IS NOT NULL
+    GROUP BY u.location, p.device_type, p.device_name
+    ORDER BY u.location, total_revenue DESC
+  `;
+  const { rows } = await pool.query(sql, [start, end]);
+  return rows;
+}
 
 
 
+
+
+/**
+ * Get order status summary counts
+ * Returns counts for different order statuses mapped to frontend expected values
+ */
+async function getOrderStatusSummary() {
+  const sql = `
+    SELECT 
+      status,
+      COUNT(*) as count
+    FROM orders
+    GROUP BY status
+    ORDER BY count DESC
+  `;
+  
+  const { rows } = await pool.query(sql);
+  
+  // Map database statuses to frontend expected statuses
+  const statusMap = {
+    'released_confirmed': 'completed',
+    'canceled': 'return',
+    'pending': 'new_order',
+    'in_progress': 'on_progress',
+    'processing': 'on_progress',
+    'shipped': 'on_progress',
+    'delivered': 'completed'
+  };
+  
+  // Initialize with zeros (using frontend expected field names)
+  const summary = {
+    new: 0,
+    progress: 0,
+    completed: 0,
+    returned: 0
+  };
+  
+  // Map actual counts
+  rows.forEach(row => {
+    const mappedStatus = statusMap[row.status] || 'new';
+    const frontendField = mappedStatus === 'new_order' ? 'new' : 
+                         mappedStatus === 'on_progress' ? 'progress' :
+                         mappedStatus === 'return' ? 'returned' : mappedStatus;
+    summary[frontendField] = parseInt(row.count);
+  });
+  
+  return summary;
+}
 
 module.exports = {
   getInventorySnapshot,
@@ -270,4 +394,7 @@ module.exports = {
   getProductsSold,
   getAggregatedSales,    // ← newly exported
   getDailyTotals,
+  getLocationBreakdown,  // ← location-based breakdown
+  getLocationAggregated, // ← location-based aggregated data
+  getOrderStatusSummary, // ← order status summary
 };

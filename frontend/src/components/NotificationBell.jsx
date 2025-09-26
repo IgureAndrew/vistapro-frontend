@@ -14,10 +14,14 @@ export default function NotificationBell() {
     // 1) Fetch initial list + count
     api.get("/notifications")
       .then(({ data }) => {
+        console.log('NotificationBell: Received data:', data);
         setNotifications(data.notifications);
         setUnreadCount(data.unread);
+        console.log('NotificationBell: Set unread count to:', data.unread);
       })
-      .catch(console.error);
+      .catch(error => {
+        console.error('NotificationBell: Error fetching notifications:', error);
+      });
 
     // 2) Real‑time via socket.io
     const token = localStorage.getItem('token');
@@ -85,6 +89,12 @@ export default function NotificationBell() {
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1 min-w-[18px] h-[18px] flex items-center justify-center">
             {unreadCount}
           </span>
+        )}
+        {/* Debug info - remove after fixing */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="absolute -bottom-6 left-0 text-xs text-red-500 bg-yellow-100 px-1 rounded">
+            Debug: {unreadCount}
+          </div>
         )}
       </button>
 

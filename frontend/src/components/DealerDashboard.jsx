@@ -80,7 +80,7 @@ export default function DealerDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-gray-800">
+    <div className="h-screen flex flex-col bg-white text-gray-800 overflow-hidden">
       {/* Mobile header */}
       <header className="md:hidden flex items-center justify-between px-4 h-16 border-b">
         <button onClick={() => setSidebarOpen(o => !o)} className="p-2">
@@ -106,30 +106,31 @@ export default function DealerDashboard() {
         <aside
           className={`
             fixed inset-y-0 left-0 z-50 w-3/4 sm:w-64 bg-white border-r
-            transform transition-transform duration-200
+            transform transition-transform duration-200 flex flex-col
             ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
             md:relative md:translate-x-0
           `}
         >
-          <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
             <h2 className="text-xl font-bold">Vistapro</h2>
             <button className="md:hidden" onClick={() => setSidebarOpen(false)}>
               <X size={24} />
             </button>
           </div>
-          <ul className="p-4 space-y-2 text-sm">
+          <ul className="flex-1 overflow-y-auto p-4 space-y-2 text-sm">
             <SidebarItem label="Overview"       Icon={Home}         moduleName="overview" />
             <SidebarItem label="Profile"        Icon={User}         moduleName="profile" />
             <SidebarItem label="Manage Orders"  Icon={ClipboardList} moduleName="manage-orders" />
-            <li>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 w-full rounded hover:bg-gray-50"
-              >
-                <LogOut size={16} /> Logout
-              </button>
-            </li>
           </ul>
+          <div className="flex-shrink-0 p-4 border-t border-gray-200">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 w-full rounded hover:bg-gray-50 text-gray-700"
+            >
+              <LogOut size={16} /> 
+              <span>Logout</span>
+            </button>
+          </div>
         </aside>
 
         {/* Content */}

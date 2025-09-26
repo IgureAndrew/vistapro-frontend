@@ -38,7 +38,7 @@ export default function AlertDialog({
         };
       default:
         return {
-          confirmButton: "bg-blue-600 hover:bg-blue-700 text-white",
+          confirmButton: "bg-[#f59e0b] hover:bg-[#d97706] text-white",
           cancelButton: "bg-gray-100 hover:bg-gray-200 text-gray-900"
         };
     }

@@ -5,6 +5,8 @@ const { pool } = require("../config/database");
 const { verifyToken } = require("../middlewares/authMiddleware");
 const { verifyRole }  = require("../middlewares/roleMiddleware");
 const {
+  getAccount,
+  updateAccount,
   getAccountSettings,
   updateAccountSettings,
   uploadInventory,
@@ -36,17 +38,26 @@ router.get(
 );
 
 /**
- * ── Dealer: view & update own account ─────────────────────────────────
+ * ── Dealer: view & update own account (standardized) ─────────────────────────────────
+ */
+// GET /api/dealer/account - Get Dealer account details (standardized)
+router.get('/account', verifyToken, verifyRole(['Dealer']), getAccount);
+
+// PATCH /api/dealer/account - Update Dealer account settings (standardized)
+router.patch('/account', verifyToken, verifyRole(['Dealer']), upload.single('profile_image'), updateAccount);
+
+/**
+ * ── Dealer: view & update own account (legacy) ─────────────────────────────────
  */
 router
-  .route("/account")
-  // GET  /api/dealer/account
+  .route("/account-legacy")
+  // GET  /api/dealer/account-legacy
   .get(
     verifyToken,
     verifyRole(["Dealer"]),
     getAccountSettings
   )
-  // PATCH /api/dealer/account
+  // PATCH /api/dealer/account-legacy
   .patch(
     verifyToken,
     verifyRole(["Dealer"]),

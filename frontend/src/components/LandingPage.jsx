@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import AlertDialog from "@/components/ui/alert-dialog";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 
 // Define our colors
@@ -41,8 +42,30 @@ function LandingPage() {
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
+  // Alert dialog state
+  const [alertDialog, setAlertDialog] = useState({
+    open: false,
+    type: "info",
+    title: "",
+    message: "",
+    confirmText: "OK",
+    onConfirm: null
+  });
+
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
+
+  // Helper function to show alert dialog
+  const showAlert = (type, title, message, confirmText = "OK", onConfirm = null) => {
+    setAlertDialog({
+      open: true,
+      type,
+      title,
+      message,
+      confirmText,
+      onConfirm: onConfirm || (() => setAlertDialog(prev => ({ ...prev, open: false })))
+    });
+  };
 
   // Handler for login submission.
   const handleLoginSubmit = async (e) => {
@@ -79,15 +102,17 @@ function LandingPage() {
             break;
         }
       } else {
-        if (data.emailNotVerified) {
-          alert("Please verify your email address before logging in. Check your inbox for a verification link.");
+        if (data.requiresAssignment) {
+          showAlert("warning", "Account Pending Assignment", "Your account is pending Admin assignment. Please wait for assignment.");
+        } else if (data.accountLocked) {
+          showAlert("error", "Account Locked", "Your account is locked. Please contact your assigned Admin.");
         } else {
-          alert(data.message || "Login failed");
+          showAlert("error", "Login Failed", data.message || "Login failed");
         }
       }
     } catch (error) {
       console.error("Error logging in:", error);
-      alert("Error logging in");
+      showAlert("error", "Error", "Error logging in");
     }
   };
 
@@ -95,7 +120,7 @@ function LandingPage() {
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     if (!isPasswordValid(registerData.password)) {
-      alert("Password must be at least 12 alphanumeric characters.");
+      showAlert("error", "Invalid Password", "Password must be at least 12 alphanumeric characters.");
       return;
     }
     try {
@@ -106,7 +131,11 @@ function LandingPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("Registration successful! Please check your email to verify your account.");
+        if (data.requiresAssignment) {
+          showAlert("success", "Registration Successful", "Your account is pending Admin assignment. You will be notified when assigned.");
+        } else {
+          showAlert("success", "Registration Successful", "Please check your email to verify your account.");
+        }
         setView("login");
         setRegisterData({
           secretKey: "",
@@ -117,11 +146,11 @@ function LandingPage() {
           gender: "",
         });
       } else {
-        alert(data.message || "Registration failed");
+        showAlert("error", "Registration Failed", data.message || "Registration failed");
       }
     } catch (error) {
       console.error("Error registering:", error);
-      alert("Error registering");
+      showAlert("error", "Error", "Error registering");
     }
   };
 
@@ -136,15 +165,15 @@ function LandingPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("Password reset instructions sent to your email!");
+        showAlert("success", "Reset Instructions Sent", "Password reset instructions sent to your email!");
         setView("login");
         setForgotData({ email: "" });
       } else {
-        alert(data.message || "Failed to send reset instructions");
+        showAlert("error", "Failed to Send", data.message || "Failed to send reset instructions");
       }
     } catch (error) {
       console.error("Error sending reset instructions:", error);
-      alert("Error sending reset instructions");
+      showAlert("error", "Error", "Error sending reset instructions");
     }
   };
 
@@ -489,6 +518,18 @@ function LandingPage() {
           </Card>
         </div>
       </div>
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={alertDialog.open}
+        type={alertDialog.type}
+        title={alertDialog.title}
+        message={alertDialog.message}
+        confirmText={alertDialog.confirmText}
+        onConfirm={alertDialog.onConfirm}
+        onCancel={() => setAlertDialog(prev => ({ ...prev, open: false }))}
+        showCancel={false}
+      />
     </div>
   );
 }

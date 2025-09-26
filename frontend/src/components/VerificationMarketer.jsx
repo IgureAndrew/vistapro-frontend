@@ -139,12 +139,37 @@ export default function VerificationMarketer({ onComplete }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6 px-4 flex justify-center">
-      <div className="w-full max-w-2xl">
-        <h1 className="text-2xl font-bold text-center sm:text-left mb-4">
-          Marketer Verification
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Mobile-First Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+        <div className="px-4 py-4">
+          <h1 className="text-xl font-bold text-gray-900 text-center">
+            Marketer Verification
+          </h1>
+          <p className="text-sm text-gray-600 text-center mt-1">
+            Complete your verification to unlock your dashboard
+          </p>
+        </div>
+      </div>
 
+      {/* Mobile Progress Indicator */}
+      <div className="px-4 py-4">
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-gray-700">Progress</span>
+            <span className="text-sm font-semibold text-blue-600">
+              {doneCount}/{FORM_KEYS.length} Complete
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(doneCount / FORM_KEYS.length) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+
+        {/* Mobile Stepper */}
         <FormStepper
           steps={steps}
           activeIndex={activeIndex}
@@ -156,8 +181,11 @@ export default function VerificationMarketer({ onComplete }) {
             }
           }}
         />
+      </div>
 
-        <div className="mt-6 bg-white p-4 sm:p-6 rounded-lg shadow">
+      {/* Mobile Form Container */}
+      <div className="px-4 pb-6">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {renderForm()}
         </div>
       </div>

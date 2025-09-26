@@ -170,7 +170,10 @@ export default function StockUpdates() {
 
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Stock Update</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Stock Update</h1>
+        <p className="text-gray-600">Manage your stock settings and configurations.</p>
+      </div>
 
       {/* ── Notification ────────────────────────────────────── */}
       {notif.message && (
@@ -188,12 +191,13 @@ export default function StockUpdates() {
       {/* ── Additional Pickup Requests ────────────────────── */}
       {isMasterAdmin && (
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-2">Additional Pickup Requests</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-gray-800">Additional Pickup Requests</h2>
+          <p className="text-gray-600 mb-4">Review and approve requests for additional stock pickups from marketers.</p>
           <div className="overflow-x-auto bg-white shadow rounded-lg">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  {["Req ID","Marketer","Device","Qty","Requested At","Status","Actions"].map(h => (
+                  {["Req ID","Marketer","Requested At","Status","Actions"].map(h => (
                     <th key={h} className="px-4 py-2 text-left font-medium text-gray-700">
                       {h}
                     </th>
@@ -203,30 +207,43 @@ export default function StockUpdates() {
               <tbody className="divide-y divide-gray-200">
                 {requests.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-500">
-                      No additional‐pickup requests.
+                    <td colSpan={5} className="p-4 text-center text-gray-500">
+                      No additional pickup requests.
                     </td>
                   </tr>
                 ) : requests.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">{r.id}</td>
-                    <td className="px-4 py-2">{r.marketer_name} ({r.marketer_uid})</td>
-                    <td className="px-4 py-2">{r.device_name} {r.device_model}</td>
-                    <td className="px-4 py-2">{r.requested_qty}</td>
+                    <td className="px-4 py-2 font-mono text-sm">{r.id}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900">{r.marketer_name}</span>
+                        <span className="text-xs text-gray-600 font-mono">({r.marketer_uid})</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-2">{new Date(r.requested_at).toLocaleString()}</td>
-                    <td className="px-4 py-2 capitalize">{r.status}</td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        r.status === 'pending' 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : r.status === 'approved'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                      </span>
+                    </td>
                     <td className="px-4 py-2 space-x-2">
                       {r.status === "pending" && (
                         <>
                           <button
                             onClick={() => handleRequestAction(r.id, "approve")}
-                            className="px-2 py-1 bg-green-500 text-white rounded"
+                            className="px-3 py-1 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-600 transition-colors"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => handleRequestAction(r.id, "reject")}
-                            className="px-2 py-1 bg-red-500 text-white rounded"
+                            className="px-3 py-1 bg-red-500 text-white rounded text-xs font-medium hover:bg-red-600 transition-colors"
                           >
                             Reject
                           </button>

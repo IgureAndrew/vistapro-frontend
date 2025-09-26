@@ -1,3 +1,4 @@
+require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { pool } = require('../config/database');
@@ -6,6 +7,33 @@ const {
   sendVerificationEmail, 
   sendPasswordResetEmail 
 } = require('../services/emailService');
+
+// Notification function for MasterAdmin
+const notifyMasterAdminNewMarketer = async (marketer) => {
+  try {
+    // Get all MasterAdmin users
+    const masterAdmins = await pool.query('SELECT id, unique_id FROM users WHERE role = $1', ['MasterAdmin']);
+    
+    // Send socket notification to each MasterAdmin
+    for (const masterAdmin of masterAdmins.rows) {
+      // This would typically use your socket.io implementation
+      // For now, we'll log it and you can implement the actual socket notification
+      console.log(`🔔 NOTIFICATION for MasterAdmin ${masterAdmin.unique_id}: New marketer registered - ${marketer.first_name} ${marketer.last_name} (${marketer.email})`);
+      
+      // TODO: Implement actual socket notification
+      // await sendSocketNotification(masterAdmin.unique_id, {
+      //   type: 'new_marketer_registration',
+      //   message: `New marketer registered: ${marketer.first_name} ${marketer.last_name} (${marketer.email})`,
+      //   marketerId: marketer.id,
+      //   marketerName: `${marketer.first_name} ${marketer.last_name}`,
+      //   marketerEmail: marketer.email
+      // });
+    }
+  } catch (error) {
+    console.error('Error notifying MasterAdmin:', error);
+    throw error;
+  }
+};
 
 /**
  * loginUser - Handles user login, returns token and full user profile including verification flags.
@@ -24,14 +52,20 @@ const loginUser = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // Check if email is verified (for non-admin users)
-    if (user.role !== 'MasterAdmin' && user.role !== 'SuperAdmin' && user.role !== 'Admin') {
-      if (!user.email_verified) {
-        return res.status(401).json({ 
-          message: 'Please verify your email address before logging in.',
-          emailNotVerified: true 
+    // Email verification check removed - all users can login immediately
+
+    // Special access control for Marketers
+    if (user.role === 'Marketer') {
+      // Check if marketer is assigned to an admin
+      if (!user.admin_id) {
+        return res.status(403).json({ 
+          message: 'Your account is pending Admin assignment. Please wait for assignment.',
+          requiresAssignment: true 
         });
       }
+      
+      // Note: Locked marketers can still login but will see verification page only
+      // The frontend will handle showing the verification dashboard for locked accounts
     }
 
     const token = jwt.sign(
@@ -49,11 +83,14 @@ const loginUser = async (req, res, next) => {
         last_name: user.last_name,
         email: user.email,
         role: user.role,
+        location: user.location,
         email_verified: user.email_verified,
         bio_submitted: user.bio_submitted,
         guarantor_submitted: user.guarantor_submitted,
         commitment_submitted: user.commitment_submitted,
-        overall_verification_status: user.overall_verification_status
+        overall_verification_status: user.overall_verification_status,
+        locked: user.locked,
+        admin_id: user.admin_id
       }
     });
   } catch (error) {
@@ -106,7 +143,32 @@ const registerUser = async (req, res, next) => {
     const result = await pool.query(query, values);
     const newUser = result.rows[0];
 
-    // Send verification email
+    // Handle marketer-specific registration flow
+    if (role === 'Marketer') {
+      // Lock the marketer account immediately
+      await pool.query('UPDATE users SET locked = true WHERE id = $1', [newUser.id]);
+      
+      // Send notification to MasterAdmin
+      try {
+        await notifyMasterAdminNewMarketer(newUser);
+      } catch (notificationError) {
+        console.error('Failed to notify MasterAdmin:', notificationError);
+        // Don't fail registration if notification fails
+      }
+
+      return res.status(201).json({
+        message: 'Registration successful. Your account is pending Admin assignment. You will be notified when assigned.',
+        requiresAssignment: true,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          locked: true
+        }
+      });
+    }
+
+    // Send verification email for non-marketer roles
     try {
       await sendVerificationEmail(email, verificationToken, first_name);
     } catch (emailError) {
@@ -304,19 +366,53 @@ const getCurrentUser = async (req, res, next) => {
   try {
     const { unique_id } = req.user; // injected by your auth middleware
     const query = `
-      SELECT id, unique_id, first_name, last_name, email, role,
-             email_verified, bio_submitted, guarantor_submitted, commitment_submitted,
-             overall_verification_status
-      FROM users
-      WHERE unique_id = $1
+      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location,
+             u.email_verified, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
+             u.overall_verification_status, u.locked, u.admin_id,
+             a.first_name as admin_first_name, a.last_name as admin_last_name
+      FROM users u
+      LEFT JOIN users a ON u.admin_id = a.id
+      WHERE u.unique_id = $1
     `;
     const { rows } = await pool.query(query, [unique_id]);
     if (!rows.length) {
       return res.status(404).json({ message: 'User not found.' });
     }
-    return res.json({ user: rows[0] });
+    
+    const user = rows[0];
+    
+    // Add admin name if admin_id exists
+    if (user.admin_id && user.admin_first_name && user.admin_last_name) {
+      user.admin_name = `${user.admin_first_name} ${user.admin_last_name}`;
+    }
+    
+    // Remove the separate admin name fields
+    delete user.admin_first_name;
+    delete user.admin_last_name;
+    
+    return res.json({ user });
   } catch (err) {
     next(err);
+  }
+};
+
+/**
+ * logoutUser - Handles user logout
+ */
+const logoutUser = async (req, res, next) => {
+  try {
+    // Since we're using JWT tokens, logout is handled on the client side
+    // by removing the token from localStorage/sessionStorage
+    // This endpoint is mainly for logging purposes and future enhancements
+    
+    console.log(`👋 User ${req.user?.unique_id || 'unknown'} logged out`);
+    
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -327,5 +423,6 @@ module.exports = {
   resendVerificationEmail,
   forgotPassword,
   resetPassword,
-  getCurrentUser
+  getCurrentUser,
+  logoutUser
 };

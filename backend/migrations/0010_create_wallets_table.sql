@@ -1,4 +1,4 @@
-CREATE TABLE wallets (
+CREATE TABLE IF NOT EXISTS wallets (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL,
   total_commission NUMERIC(12,2) DEFAULT 0,      -- Total commission earned

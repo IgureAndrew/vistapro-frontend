@@ -21,7 +21,13 @@ async function getPendingOrders(req, res, next) {
         o.sold_amount,
         o.sale_date,
         o.status,
-        m.first_name || ' ' || m.last_name AS marketer_name,
+        o.customer_name,
+        o.customer_phone,
+        o.customer_address,
+        m.first_name || ' ' || m.last_name AS user_name,
+        m.unique_id AS user_unique_id,
+        m.role AS user_role,
+        m.location AS user_location,
 
         -- pick product info from either the confirmed product_id or the original stock_update
         COALESCE(p1.device_name, p2.device_name)   AS device_name,
@@ -54,11 +60,12 @@ async function getPendingOrders(req, res, next) {
 
       WHERE o.status = 'pending'
       GROUP BY
-        o.id, m.first_name, m.last_name,
+        o.id, m.first_name, m.last_name, m.unique_id, m.role, m.location,
         COALESCE(p1.device_name, p2.device_name),
         COALESCE(p1.device_model, p2.device_model),
         COALESCE(p1.device_type,  p2.device_type),
-        o.bnpl_platform, o.number_of_devices, o.sold_amount, o.sale_date, o.status
+        o.bnpl_platform, o.number_of_devices, o.sold_amount, o.sale_date, o.status,
+        o.customer_name, o.customer_phone, o.customer_address
 
       ORDER BY o.sale_date DESC
     `);
@@ -88,7 +95,8 @@ async function confirmOrder(req, res, next) {
         product_id,
         stock_update_id,
         number_of_devices AS qty,
-        commission_paid
+        commission_paid,
+        bnpl_platform
       FROM orders
       WHERE id = $1
         AND status = 'pending'
@@ -105,7 +113,8 @@ async function confirmOrder(req, res, next) {
       product_id:      productId,
       stock_update_id: stockUpdateId,
       qty,
-      commission_paid: commissionPaid
+      commission_paid: commissionPaid,
+      bnpl_platform:   bnplPlatform
     } = order;
 
     // 2) If product_id was null (edge‐case for stock orders), backfill it
@@ -129,25 +138,36 @@ async function confirmOrder(req, res, next) {
 
     // ─── 3) PAY COMMISSIONS FIRST (while status is still 'pending') ───────────────────────
     if (!commissionPaid) {
-      // a) fetch marketer UID
-      const { rows: [mu] } = await client.query(
-        `SELECT unique_id FROM users WHERE id = $1`,
-        [marketerId]
-      );
-      const marketerUid = mu.unique_id;
+      // Check if BNPL platform is Easybuy - if so, skip all commissions
+      if (bnplPlatform && bnplPlatform.toUpperCase() === 'EASYBUY') {
+        console.log(`Skipping commission for order ${orderId} - Easybuy BNPL platform`);
+      } else {
+        // a) fetch marketer UID and role
+        const { rows: [mu] } = await client.query(
+          `SELECT unique_id, role FROM users WHERE id = $1`,
+          [marketerId]
+        );
+        const marketerUid = mu.unique_id;
+        const userRole = mu.role;
 
-      // b) fetch device_type
-      const { rows: [pd] } = await client.query(
-        `SELECT device_type FROM products WHERE id = $1`,
-        [productId]
-      );
-      const deviceType = pd.device_type;
+        // b) fetch device_type
+        const { rows: [pd] } = await client.query(
+          `SELECT device_type FROM products WHERE id = $1`,
+          [productId]
+        );
+        const deviceType = pd.device_type;
 
-      // c) credit all three commissions
-      //    (these helpers only check commission_paid, not status, so they WILL run)
-      await creditMarketerCommission   (marketerUid, orderId, deviceType, qty);
-      await creditAdminCommission      (marketerUid, orderId,           qty);
-      await creditSuperAdminCommission (marketerUid, orderId,           qty);
+        // c) credit commissions based on user role
+        if (userRole === 'Marketer') {
+          // For marketers: credit all three commissions (marketer + hierarchy)
+          await creditMarketerCommission   (marketerUid, orderId, deviceType, qty);
+          await creditAdminCommission      (marketerUid, orderId,           qty);
+          await creditSuperAdminCommission (marketerUid, orderId,           qty);
+        } else if (userRole === 'SuperAdmin' || userRole === 'Admin') {
+          // For SuperAdmin/Admin: only credit marketer commission (they act as marketers)
+          await creditMarketerCommission   (marketerUid, orderId, deviceType, qty);
+        }
+      }
 
       // d) compute initial_profit for the sales_record
       const { rows: [profitRow] } = await client.query(`
@@ -240,43 +260,171 @@ async function getOrderHistory(req, res, next) {
   try {
     const clauses = [];
     const params  = [];
+    
+    // Always exclude dealers (dealers cannot place orders)
+    clauses.push(`u.role != 'Dealer'`);
+    
+    // Build WHERE clause based on query parameters
     if (req.query.adminId) {
       params.push(req.query.adminId);
-      clauses.push(`m.admin_id = $${params.length}`);
+      clauses.push(`u.admin_id = (SELECT id FROM users WHERE unique_id = $${params.length})`);
     }
+    
     if (req.query.superAdminId) {
       params.push(req.query.superAdminId);
-      clauses.push(`s.unique_id = $${params.length}`);
+      clauses.push(`sa.unique_id = $${params.length}`);
     }
-    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    
+    const where = `WHERE ${clauses.join(" AND ")}`;
+    
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
     const { rows } = await pool.query(`
       SELECT
         o.id,
+        o.marketer_id,
         o.bnpl_platform,
         o.number_of_devices,
         o.sold_amount,
         o.sale_date,
         o.status,
-        m.first_name || ' ' || m.last_name AS marketer_name,
+        o.customer_name,
+        u.first_name || ' ' || u.last_name AS user_name,
+        u.unique_id AS user_unique_id,
+        u.role AS user_role,
+        u.location AS user_location,
+        a.first_name || ' ' || a.last_name AS admin_name,
+        a.unique_id AS admin_unique_id,
+        sa.first_name || ' ' || sa.last_name AS super_admin_name,
+        sa.unique_id AS super_admin_unique_id,
         p.device_name,
         p.device_model,
         p.device_type,
         ARRAY_AGG(ii.imei ORDER BY ii.id)
           FILTER (WHERE ii.imei IS NOT NULL) AS imeis
       FROM orders o
-      JOIN users m          ON m.id = o.marketer_id
-      JOIN products p       ON p.id = o.product_id
-      LEFT JOIN order_items oi  ON oi.order_id = o.id
+      JOIN users u ON u.id = o.marketer_id
+      LEFT JOIN stock_updates su ON su.id = o.stock_update_id
+      LEFT JOIN products p ON p.id = su.product_id
+      LEFT JOIN users a ON a.id = u.admin_id
+      LEFT JOIN users sa ON sa.id = a.super_admin_id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN inventory_items ii ON ii.id = oi.inventory_item_id
-      -- … optional joins for admin/superAdmin …
+      ${where}
       GROUP BY
-        o.id, m.first_name, m.last_name,
-        p.device_name, p.device_model, p.device_type
+        o.id, o.marketer_id, u.first_name, u.last_name, u.unique_id, u.role, u.location,
+        a.first_name, a.last_name, a.unique_id,
+        sa.first_name, sa.last_name, sa.unique_id,
+        p.device_name, p.device_model, p.device_type,
+        o.customer_name, o.bnpl_platform, o.number_of_devices, o.sold_amount, o.sale_date, o.status
       ORDER BY o.sale_date DESC
-    `, /* your params array */);
-    res.json({ orders: rows });
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `, [...params, limit, offset]);
+    
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM orders o
+      JOIN users u ON u.id = o.marketer_id
+      LEFT JOIN stock_updates su ON su.id = o.stock_update_id
+      LEFT JOIN products p ON p.id = su.product_id
+      LEFT JOIN users a ON a.id = u.admin_id
+      LEFT JOIN users sa ON sa.id = a.super_admin_id
+      ${where}
+    `;
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].total);
+    
+    res.json({ 
+      orders: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      }
+    });
   } catch (err) {
+    console.error('Error in getOrderHistory:', err);
+    next(err);
+  }
+}
+
+/**
+ * GET /api/manage-orders/user-summary/:userId
+ * Get user's order summary for popover display
+ */
+async function getUserOrderSummary(req, res, next) {
+  try {
+    const { userId } = req.params;
+    
+    // Get user's order summary
+    const summaryQuery = `
+      SELECT 
+        u.first_name || ' ' || u.last_name AS user_name,
+        u.unique_id AS user_unique_id,
+        u.role AS user_role,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.sold_amount), 0) as total_value,
+        COUNT(CASE WHEN o.status = 'pending' THEN 1 END) as pending_orders,
+        COUNT(CASE WHEN o.status = 'released_confirmed' THEN 1 END) as confirmed_orders,
+        COUNT(CASE WHEN o.status = 'canceled' THEN 1 END) as canceled_orders
+      FROM users u
+      LEFT JOIN orders o ON o.marketer_id = u.id
+      WHERE u.id = $1 AND u.role != 'Dealer'
+      GROUP BY u.id, u.first_name, u.last_name, u.unique_id, u.role
+    `;
+    
+    const { rows: summaryRows } = await pool.query(summaryQuery, [userId]);
+    
+    if (summaryRows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const summary = summaryRows[0];
+    
+    // Get recent orders for this user (last 5)
+    const recentOrdersQuery = `
+      SELECT 
+        o.id,
+        o.customer_name,
+        o.sold_amount,
+        o.status,
+        o.sale_date,
+        p.device_name,
+        p.device_model
+      FROM orders o
+      LEFT JOIN products p ON p.id = o.product_id
+      WHERE o.marketer_id = $1
+      ORDER BY o.sale_date DESC
+      LIMIT 5
+    `;
+    
+    const { rows: recentOrders } = await pool.query(recentOrdersQuery, [userId]);
+    
+    res.json({
+      user: {
+        name: summary.user_name,
+        unique_id: summary.user_unique_id,
+        role: summary.user_role
+      },
+      summary: {
+        total_orders: parseInt(summary.total_orders),
+        total_value: parseFloat(summary.total_value),
+        pending_orders: parseInt(summary.pending_orders),
+        confirmed_orders: parseInt(summary.confirmed_orders),
+        canceled_orders: parseInt(summary.canceled_orders)
+      },
+      recent_orders: recentOrders
+    });
+    
+  } catch (err) {
+    console.error('Error in getUserOrderSummary:', err);
     next(err);
   }
 }
@@ -448,13 +596,309 @@ async function cancelOrder(req, res, next) {
   }
 }
 
+/**
+ * GET /api/manage-orders/user-pending-orders/:userId
+ * Get pending orders for a specific user (for popover actions)
+ */
+async function getUserPendingOrders(req, res, next) {
+  try {
+    const userId = req.params.userId;
+    
+    const { rows } = await pool.query(`
+      SELECT
+        o.id,
+        o.bnpl_platform,
+        o.number_of_devices,
+        o.sold_amount,
+        o.sale_date,
+        o.status,
+        o.customer_name,
+        m.first_name || ' ' || m.last_name AS marketer_name,
+        m.unique_id AS marketer_unique_id,
+        m.role AS marketer_role,
+
+        -- pick product info from either the confirmed product_id or the original stock_update
+        COALESCE(p1.device_name, p2.device_name)   AS device_name,
+        COALESCE(p1.device_model, p2.device_model) AS device_model,
+        COALESCE(p1.device_type,  p2.device_type)  AS device_type,
+
+        COALESCE(
+          ARRAY_AGG(ii.imei ORDER BY ii.id)
+            FILTER (WHERE ii.imei IS NOT NULL),
+          ARRAY[]::text[]
+        ) AS imeis
+
+      FROM orders o
+      JOIN users m
+        ON m.id = o.marketer_id
+
+      -- product if already confirmed
+      LEFT JOIN products p1
+        ON p1.id = o.product_id
+      -- otherwise via the original stock pickup
+      LEFT JOIN stock_updates su
+        ON su.id = o.stock_update_id
+      LEFT JOIN products p2
+        ON p2.id = su.product_id
+
+      LEFT JOIN order_items oi
+        ON oi.order_id = o.id
+      LEFT JOIN inventory_items ii
+        ON ii.id = oi.inventory_item_id
+
+      WHERE o.status = 'pending'
+        AND m.unique_id = $1
+
+      GROUP BY
+        o.id, o.bnpl_platform, o.number_of_devices, o.sold_amount,
+        o.sale_date, o.status, o.customer_name,
+        m.first_name, m.last_name, m.unique_id, m.role,
+        p1.device_name, p1.device_model, p1.device_type,
+        p2.device_name, p2.device_model, p2.device_type
+
+      ORDER BY o.sale_date DESC
+    `, [userId]);
+
+    res.json({ orders: rows });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/manage-orders/bulk-actions
+ * Perform bulk actions on selected orders
+ */
+async function performBulkActions(req, res, next) {
+  const { orderIds, action } = req.body;
+  
+  if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+    return res.status(400).json({ message: "Order IDs are required." });
+  }
+  
+  if (!action || !['confirm', 'cancel', 'reject'].includes(action)) {
+    return res.status(400).json({ message: "Valid action is required (confirm, cancel, reject)." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const results = [];
+    const errors = [];
+
+    for (const orderId of orderIds) {
+      try {
+        if (action === 'confirm') {
+          // Use existing confirmOrder logic
+          const { rows: ordRows } = await client.query(
+            `SELECT status, stock_update_id, number_of_devices, marketer_id
+               FROM orders
+              WHERE id = $1`,
+            [orderId]
+          );
+          
+          if (!ordRows.length) {
+            errors.push({ orderId, error: "Order not found" });
+            continue;
+          }
+          
+          const order = ordRows[0];
+          if (order.status !== 'pending') {
+            errors.push({ orderId, error: "Only pending orders can be confirmed" });
+            continue;
+          }
+
+          // Confirm the order
+          await client.query(
+            `UPDATE orders
+                SET status = 'confirmed', updated_at = NOW()
+              WHERE id = $1`,
+            [orderId]
+          );
+
+          // Update stock_update status
+          if (order.stock_update_id) {
+            await client.query(
+              `UPDATE stock_updates
+                  SET status = 'confirmed', updated_at = NOW()
+                WHERE id = $1`,
+              [order.stock_update_id]
+            );
+          }
+
+          results.push({ orderId, status: 'confirmed' });
+          
+        } else if (action === 'cancel') {
+          // Use existing cancelOrder logic
+          const { rows: ordRows } = await client.query(
+            `SELECT status, stock_update_id, number_of_devices
+               FROM orders
+              WHERE id = $1`,
+            [orderId]
+          );
+          
+          if (!ordRows.length) {
+            errors.push({ orderId, error: "Order not found" });
+            continue;
+          }
+          
+          const order = ordRows[0];
+          if (order.status !== 'pending') {
+            errors.push({ orderId, error: "Only pending orders can be canceled" });
+            continue;
+          }
+
+          if (order.stock_update_id) {
+            // Restore reserved IMEIs
+            await client.query(
+              `UPDATE inventory_items
+                  SET status = 'available', stock_update_id = NULL
+                WHERE stock_update_id = $1`,
+              [order.stock_update_id]
+            );
+            
+            // Reset stock_update status
+            await client.query(
+              `UPDATE stock_updates
+                  SET status = 'pending', updated_at = NOW()
+                WHERE id = $1`,
+              [order.stock_update_id]
+            );
+          }
+
+          // Mark the order canceled
+          await client.query(
+            `UPDATE orders
+                SET status = 'canceled', updated_at = NOW()
+              WHERE id = $1`,
+            [orderId]
+          );
+
+          results.push({ orderId, status: 'canceled' });
+          
+        } else if (action === 'reject') {
+          // Mark as rejected
+          await client.query(
+            `UPDATE orders
+                SET status = 'rejected', updated_at = NOW()
+              WHERE id = $1`,
+            [orderId]
+          );
+
+          results.push({ orderId, status: 'rejected' });
+        }
+      } catch (orderError) {
+        errors.push({ orderId, error: orderError.message });
+      }
+    }
+
+    await client.query('COMMIT');
+    
+    res.json({
+      message: `Bulk ${action} completed`,
+      results,
+      errors,
+      successCount: results.length,
+      errorCount: errors.length
+    });
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * GET /api/manage-orders/analytics/bnpl
+ * Get BNPL analytics data with daily/monthly/custom filters
+ */
+async function getBnplAnalytics(req, res, next) {
+  try {
+    const { period = 'month', startDate, endDate } = req.query;
+    
+    let dateFilter = '';
+    let groupBy = '';
+    
+    if (period === 'custom' && startDate && endDate) {
+      dateFilter = `WHERE o.sale_date >= $1::date AND o.sale_date <= $2::date`;
+      groupBy = 'DATE(o.sale_date)';
+    } else if (period === 'day') {
+      dateFilter = `WHERE o.sale_date >= CURRENT_DATE - INTERVAL '30 days'`;
+      groupBy = 'DATE(o.sale_date)';
+    } else if (period === 'month') {
+      dateFilter = `WHERE o.sale_date >= CURRENT_DATE - INTERVAL '12 months'`;
+      groupBy = 'DATE_TRUNC(\'month\', o.sale_date)';
+    }
+    
+    const query = `
+      SELECT 
+        ${groupBy} as period,
+        bnpl_platform,
+        COUNT(*) as order_count,
+        SUM(number_of_devices) as total_devices,
+        SUM(sold_amount) as total_amount,
+        AVG(sold_amount) as avg_amount
+      FROM orders o
+      ${dateFilter}
+        AND o.status IN ('confirmed', 'released_confirmed')
+        AND o.bnpl_platform IS NOT NULL
+      GROUP BY ${groupBy}, bnpl_platform
+      ORDER BY period DESC, total_amount DESC
+    `;
+    
+    const params = period === 'custom' && startDate && endDate ? [startDate, endDate] : [];
+    const { rows } = await pool.query(query, params);
+    
+    // Calculate summary statistics
+    const summary = {
+      total_orders: 0,
+      total_devices: 0,
+      total_amount: 0,
+      platforms: {}
+    };
+    
+    rows.forEach(row => {
+      summary.total_orders += parseInt(row.order_count);
+      summary.total_devices += parseInt(row.total_devices);
+      summary.total_amount += parseFloat(row.total_amount);
+      
+      if (!summary.platforms[row.bnpl_platform]) {
+        summary.platforms[row.bnpl_platform] = {
+          orders: 0,
+          devices: 0,
+          amount: 0
+        };
+      }
+      
+      summary.platforms[row.bnpl_platform].orders += parseInt(row.order_count);
+      summary.platforms[row.bnpl_platform].devices += parseInt(row.total_devices);
+      summary.platforms[row.bnpl_platform].amount += parseFloat(row.total_amount);
+    });
+    
+    res.json({
+      period,
+      summary,
+      data: rows
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getPendingOrders,
   confirmOrder,
   confirmOrderToDealer,
   getOrderHistory,
+  getUserOrderSummary,
+  getUserPendingOrders,
+  performBulkActions,
   updateOrder,
   deleteOrder,
   getConfirmedOrderDetail,
   cancelOrder,
+  getBnplAnalytics,
 };

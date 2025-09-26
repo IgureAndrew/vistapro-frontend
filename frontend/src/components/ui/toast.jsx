@@ -26,12 +26,16 @@ export default function Toast({
   }, [duration, onClose]);
 
   return (
-    <div className={`fixed top-4 right-4 z-50 w-96 max-w-sm rounded-lg border p-4 shadow-lg transition-all duration-300 ease-in-out ${className}`}>
+    <div className={`fixed top-4 right-4 z-50 w-96 max-w-md rounded-lg border p-4 shadow-lg transition-all duration-300 ease-in-out ${className}`}>
       <div className="flex items-start gap-3">
         <Icon className="h-5 w-5 mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           {title && <h4 className="font-medium text-sm mb-1">{title}</h4>}
-          {message && <p className="text-sm">{message}</p>}
+          {message && (
+            <div className="text-sm whitespace-pre-line">
+              {message}
+            </div>
+          )}
         </div>
         <button
           onClick={onClose}

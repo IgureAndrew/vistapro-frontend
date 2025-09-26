@@ -4,7 +4,7 @@
 -- The application can compute the countdown using the pickup_time to determine if 4 days have passed.
 -- Optionally, foreign key constraints can be added if needed.
 
-CREATE TABLE stock_updates (
+CREATE TABLE IF NOT EXISTS stock_updates (
   id SERIAL PRIMARY KEY,
   marketer_id INTEGER NOT NULL,
   dealer_id INTEGER NOT NULL,

@@ -1,6 +1,10 @@
 // src/components/MarketerStockPickup.jsx
 import React, { useState, useEffect, useRef } from 'react'
 import api from '../api'
+import AlertDialog from './ui/alert-dialog'
+import { useAlert } from '../hooks/useAlert'
+import { formatCurrency } from '../utils/currency'
+import TransferPopover from './TransferPopover'
 
 export default function MarketerStockPickup() {
   const [dealers, setDealers]               = useState([])
@@ -18,6 +22,24 @@ export default function MarketerStockPickup() {
   const prevStatusRef  = useRef(allowanceInfo.request_status)
   const [transferringId, setTransferringId] = useState(null)
   const [transferTarget, setTransferTarget] = useState('')
+  const [hasConfirmedOrders, setHasConfirmedOrders] = useState(false)
+  const [showTransferPopover, setShowTransferPopover] = useState(false)
+  const [currentStockId, setCurrentStockId] = useState(null)
+  const [currentUserLocation, setCurrentUserLocation] = useState('')
+  const [eligibilityInfo, setEligibilityInfo] = useState({
+    eligible: false,
+    hasConfirmedOrder: false,
+    hasPendingCompletion: false,
+    hasPendingRequest: false
+  })
+  const [accountStatus, setAccountStatus] = useState({
+    blocked: false,
+    violationCount: 0,
+    blockingReason: null
+  })
+  
+  // Alert dialog hook
+  const { alert, showSuccess, showError, showInfo, showWarning, showConfirmation, hideAlert } = useAlert()
 
   // 1s tick for live countdowns
   useEffect(() => {
@@ -25,7 +47,7 @@ export default function MarketerStockPickup() {
     return () => clearInterval(iv)
   }, [])
 
-  // Initial load: dealers, allowance, pickups
+  // Initial load: dealers, allowance, pickups, confirmed orders
   useEffect(() => {
     api.get('/stock/pickup/dealers')
       .then(r => setDealers(r.data.dealers || []))
@@ -33,7 +55,83 @@ export default function MarketerStockPickup() {
 
     refreshAllowance()
     loadPickups()
+    checkConfirmedOrders()
+    loadCurrentUserLocation()
+    checkEligibility()
+    checkAccountStatus()
   }, [])
+
+  // Load current user location
+  function loadCurrentUserLocation() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    setCurrentUserLocation(user.location || '')
+  }
+
+  function checkEligibility() {
+    api.get('/stock/pickup/eligibility')
+      .then(r => {
+        setEligibilityInfo(r.data)
+        console.log('Eligibility check:', r.data)
+      })
+      .catch(err => {
+        console.error('Eligibility check failed:', err)
+        setEligibilityInfo({
+          eligible: false,
+          hasConfirmedOrder: false,
+          hasPendingCompletion: false,
+          hasPendingRequest: false
+        })
+      })
+  }
+
+  function checkAccountStatus() {
+    // Get current user info from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    setAccountStatus({
+      blocked: user.account_blocked || false,
+      violationCount: user.pickup_violation_count || 0,
+      blockingReason: user.blocking_reason || null
+    })
+  }
+
+  function getEligibilityMessage() {
+    if (!eligibilityInfo.hasConfirmedOrder) {
+      return 'You must have at least one confirmed order to request additional pickup'
+    }
+    if (eligibilityInfo.hasPendingCompletion) {
+      return 'You must complete your current additional pickup before requesting another'
+    }
+    if (eligibilityInfo.hasPendingRequest) {
+      return 'You already have a pending additional pickup request'
+    }
+    return 'You are not eligible for additional pickup request'
+  }
+
+  // Track pickup completion (returned/transferred)
+  async function trackPickupCompletion(pickupId, completionType, notes = '') {
+    try {
+      const response = await api.post('/stock/pickup/completion', {
+        pickupId,
+        completionType,
+        notes
+      })
+      
+      if (response.data.success) {
+        showSuccess(
+          `Pickup marked as ${completionType} successfully`,
+          'Completion Tracked'
+        )
+        loadPickups() // Refresh the pickups list
+        checkEligibility() // Refresh eligibility status
+      }
+    } catch (error) {
+      console.error('Error tracking completion:', error)
+      showError(
+        error.response?.data?.message || 'Failed to track completion',
+        'Error'
+      )
+    }
+  }
 
   function refreshAllowance() {
     api.get('/stock/pickup/allowance')
@@ -59,6 +157,17 @@ export default function MarketerStockPickup() {
       .catch(console.error)
   }
 
+  function checkConfirmedOrders() {
+    api.get('/marketer/orders/history')
+      .then(r => {
+        const confirmedOrders = r.data.data?.filter(order => 
+          order.status === 'confirmed' && order.stock_update_id
+        ) || []
+        setHasConfirmedOrders(confirmedOrders.length > 0)
+      })
+      .catch(console.error)
+  }
+
   // Auto-expand lines and alert once, but skip on the very first mount
   useEffect(() => {
     const prev = prevStatusRef.current
@@ -77,9 +186,9 @@ export default function MarketerStockPickup() {
       )
 
       // show alert exactly on that transition
-      alert(
-        `Your request for additional pickup has been approved!\n` +
-        `You can now pick up up to ${allowanceInfo.allowance} items.`
+      showSuccess(
+        `Your request for additional pickup has been approved! You can now pick up up to ${allowanceInfo.allowance} items.`,
+        'Request Approved!'
       )
     }
 
@@ -117,13 +226,22 @@ export default function MarketerStockPickup() {
   // Submit all pickups (qty = 1 each)
   async function handleSubmit(e) {
     e.preventDefault()
+    
+    // Check if account is blocked
+    if (accountStatus.blocked) {
+      return showError(
+        `Your account is blocked due to pickup violations. ${accountStatus.blockingReason || 'Please contact MasterAdmin to unlock your account.'}`,
+        'Account Blocked'
+      )
+    }
+    
     if (!selectedDealer) {
-      return alert('Please select a dealer.')
+      return showError('Please select a dealer.', 'Validation Error')
     }
     // ensure every line has a product
     for (const { product_id } of lines) {
       if (!product_id) {
-        return alert('Please choose a product on every line.')
+        return showError('Please choose a product on every line.', 'Validation Error')
       }
     }
     try {
@@ -134,16 +252,46 @@ export default function MarketerStockPickup() {
           quantity: 1
         })
       ))
-      alert('Pickup recorded!')
+      showSuccess('Pickup recorded successfully!')
       // reset form
       setSelectedDealer('')
       setProducts([])
       setLines([{ product_id: '' }])
       refreshAllowance()
       loadPickups()
+      checkAccountStatus() // Refresh account status
     } catch (err) {
       console.error(err)
-      alert(err.response?.data?.message || 'Error recording pickup')
+      
+      // Handle violation responses
+      if (err.response?.data?.violationCount) {
+        const violationData = err.response.data
+        if (violationData.accountBlocked) {
+          showError(
+            `ACCOUNT BLOCKED: ${violationData.message}`,
+            'Account Blocked'
+          )
+          // Update local account status
+          const user = JSON.parse(localStorage.getItem('user') || '{}')
+          user.account_blocked = true
+          user.pickup_violation_count = violationData.violationCount
+          user.blocking_reason = violationData.message
+          localStorage.setItem('user', JSON.stringify(user))
+          checkAccountStatus()
+        } else {
+          showWarning(
+            `WARNING: ${violationData.message}`,
+            `Violation ${violationData.violationCount}/3`
+          )
+          // Update local violation count
+          const user = JSON.parse(localStorage.getItem('user') || '{}')
+          user.pickup_violation_count = violationData.violationCount
+          localStorage.setItem('user', JSON.stringify(user))
+          checkAccountStatus()
+        }
+      } else {
+        showError(err.response?.data?.message || 'Error recording pickup', 'Pickup Failed')
+      }
     }
   }
 
@@ -151,67 +299,162 @@ export default function MarketerStockPickup() {
   async function onRequestAdditional() {
     try {
       await api.post('/stock/pickup/request-additional')
-      alert('Additional pickup requested—waiting for approval.')
+      showInfo('Additional pickup requested—waiting for approval.', 'Request Submitted')
       refreshAllowance()
+      checkEligibility() // Refresh eligibility status
     } catch (err) {
       console.error(err)
-      alert(err.response?.data?.message || 'Request failed')
+      showError(err.response?.data?.message || 'Request failed', 'Request Failed')
     }
   }
 
   // Transfer & return handlers
   async function submitTransfer() {
-    if (!transferTarget.trim()) return alert('Enter a target ID.')
+    if (!transferTarget.trim()) return showError('Enter a target ID.', 'Validation Error')
     try {
       await api.post(`/stock/${transferringId}/transfer`, {
         targetIdentifier: transferTarget.trim()
       })
-      alert('Transfer requested!')
+      showSuccess('Transfer requested successfully!')
       setTransferringId(null)
       setTransferTarget('')
       loadPickups()
     } catch (err) {
       console.error(err)
-      alert(err.response?.data?.message || 'Transfer failed')
-    }
-  }
-  async function submitReturn(id) {
-    try {
-      await api.patch(`/stock/${id}/return-request`)
-      alert('Return requested!')
-      loadPickups()
-    } catch (err) {
-      console.error(err)
-      alert(err.response?.data?.message || 'Return failed')
+      showError(err.response?.data?.message || 'Transfer failed', 'Transfer Failed')
     }
   }
 
-  // Countdown helper
+  // New transfer popover handlers
+  function handleTransferClick(stockId) {
+    setCurrentStockId(stockId)
+    setShowTransferPopover(true)
+  }
+
+  function handleTransferSuccess() {
+    // Mark the pickup as transferred using the new completion tracking
+    if (currentStockId) {
+      trackPickupCompletion(currentStockId, 'transferred')
+    }
+    setShowTransferPopover(false)
+    setCurrentStockId(null)
+  }
+
+  function handleTransferClose() {
+    setShowTransferPopover(false)
+    setCurrentStockId(null)
+  }
+  async function submitReturn(id) {
+    try {
+      // Use the new completion tracking system
+      await trackPickupCompletion(id, 'returned')
+    } catch (err) {
+      console.error(err)
+      showError(err.response?.data?.message || 'Return failed', 'Return Failed')
+    }
+  }
+
+  // Enhanced countdown helper with count-up functionality
   function formatRemaining(ms) {
-    const hrs  = Math.floor(ms / 3600000)
-    const mins = Math.floor((ms % 3600000) / 60000)
-    const secs = Math.floor((ms % 60000) / 1000)
-    return `${hrs}h ${mins}m ${secs}s`
+    const isOverdue = ms < 0
+    const absMs = Math.abs(ms)
+    const hrs  = Math.floor(absMs / 3600000)
+    const mins = Math.floor((absMs % 3600000) / 60000)
+    const secs = Math.floor((absMs % 60000) / 1000)
+    
+    if (isOverdue) {
+      return {
+        text: `+${hrs}h ${mins}m ${secs}s`,
+        className: 'text-red-600 font-bold',
+        status: 'overdue'
+      }
+    } else {
+      return {
+        text: `${hrs}h ${mins}m ${secs}s`,
+        className: 'text-green-600',
+        status: 'pending'
+      }
+    }
   }
 
   const { allowance, request_status, next_request_at } = allowanceInfo
   const canAddMore = request_status === 'approved' && lines.length < allowance
+  const canRequestAdditional = allowance === 1 && request_status === null && hasConfirmedOrders
   const rejectedCd = request_status === 'rejected' && next_request_at
-    ? formatRemaining(new Date(next_request_at).getTime() - now)
+    ? formatRemaining(new Date(next_request_at).getTime() - now).text
     : null
 
   return (
-    <div className="px-4 py-6 max-w-4xl mx-auto space-y-8">
+    <div className="px-4 py-6 md:px-6 lg:px-12 space-y-8">
       <h1 className="text-2xl font-bold text-center">Stock Pickup</h1>
+      
+      {/* Account Status Warning */}
+      {accountStatus.blocked && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Account Blocked
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{accountStatus.blockingReason || 'Your account has been blocked due to pickup violations.'}</p>
+                <p className="mt-1">Violations: {accountStatus.violationCount}/3</p>
+                <p className="mt-1">Please contact MasterAdmin to unlock your account.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Violation Warning (not blocked yet) */}
+      {!accountStatus.blocked && accountStatus.violationCount > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Violation Warning
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>You have {accountStatus.violationCount} violation(s). Please complete or return all active stock before picking up new stock.</p>
+                <p className="mt-1">After 3 violations, your account will be blocked.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={alert.open}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+        showCancel={alert.showCancel}
+        variant={alert.variant}
+      />
+
+      <form onSubmit={handleSubmit} className={`bg-white p-4 sm:p-6 rounded-lg shadow space-y-4 sm:space-y-6 ${accountStatus.blocked ? 'opacity-50 pointer-events-none' : ''}`}>
         {/* Dealer selector */}
         <div>
-          <label className="block mb-1 font-medium">Dealer</label>
+          <label className="block mb-2 font-medium text-sm sm:text-base">Dealer</label>
           <select
             value={selectedDealer}
             onChange={handleDealerChange}
-            className="w-full border p-2 rounded"
+            className="w-full border border-gray-300 p-3 rounded-lg text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">— choose dealer —</option>
             {dealers.map(d => (
@@ -224,42 +467,42 @@ export default function MarketerStockPickup() {
 
         {/* Product lines (qty fixed at 1) */}
         {lines.map((ln, i) => (
-          <div key={i} className="grid grid-cols-2 gap-4">
+          <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block mb-1 font-medium">Product #{i+1}</label>
+              <label className="block mb-2 font-medium text-sm sm:text-base">Product #{i+1}</label>
               <select
                 value={ln.product_id}
                 onChange={e => updateLine(i, e.target.value)}
                 disabled={!selectedDealer}
-                className="w-full border p-2 rounded"
+                className="w-full border border-gray-300 p-3 rounded-lg text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 <option value="">— choose product —</option>
                 {products.map(p => (
                   <option key={p.product_id} value={p.product_id}>
-                    {p.device_name} {p.device_model} — {p.qty_available} avail.
+                    {p.device_name} {p.device_model} — {p.qty_available} avail. — {formatCurrency(p.selling_price)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium">Quantity</label>
+              <label className="block mb-2 font-medium text-sm sm:text-base">Quantity</label>
               <input
                 type="number"
                 value={1}
                 readOnly
-                className="w-full border p-2 rounded bg-gray-100 cursor-not-allowed"
+                className="w-full border border-gray-300 p-3 rounded-lg bg-gray-100 cursor-not-allowed text-sm sm:text-base"
               />
             </div>
           </div>
         ))}
 
         {/* Controls */}
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
           {canAddMore && (
             <button
               type="button"
               onClick={addLine}
-              className="text-blue-600 hover:underline"
+              className="text-black hover:underline text-sm sm:text-base font-medium border border-[#f59e0b] px-3 py-1 rounded-lg hover:bg-[#f59e0b] hover:text-white transition-colors"
             >
               + Add another product
             </button>
@@ -268,7 +511,13 @@ export default function MarketerStockPickup() {
             <button
               type="button"
               onClick={onRequestAdditional}
-              className="ml-auto bg-gray-200 px-3 py-1 rounded"
+              disabled={!eligibilityInfo.eligible}
+              className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm sm:text-base font-medium transition-colors border-2 ${
+                eligibilityInfo.eligible 
+                  ? 'bg-white text-black hover:bg-[#f59e0b] hover:text-white border-[#f59e0b]' 
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+              }`}
+              title={!eligibilityInfo.eligible ? getEligibilityMessage() : ''}
             >
               Request Additional Pickup
             </button>
@@ -284,10 +533,15 @@ export default function MarketerStockPickup() {
             Your request was rejected. Try again in {rejectedCd}.
           </p>
         )}
+        {allowance === 1 && request_status === null && !eligibilityInfo.eligible && (
+          <p className="text-amber-700 text-sm">
+            💡 {getEligibilityMessage()}
+          </p>
+        )}
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          className="w-full bg-white text-black py-3 px-4 rounded-lg text-sm sm:text-base font-medium hover:bg-[#f59e0b] hover:text-white transition-colors focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-2 border-2 border-[#f59e0b]"
         >
           Pick up
         </button>
@@ -298,70 +552,75 @@ export default function MarketerStockPickup() {
         <h2 className="text-xl font-semibold">My Stock Pickups</h2>
 
         {/* Mobile cards */}
-        <div className="sm:hidden space-y-4">
+        <div className="sm:hidden space-y-3">
           {pickups.length === 0
-            ? <p className="text-gray-500">No pickups yet.</p>
+            ? <p className="text-gray-500 text-center py-8">No pickups yet.</p>
             : pickups.map(s => {
                 const diff      = new Date(s.deadline).getTime() - now
                 const remaining = s.status === 'pending'
                   ? formatRemaining(diff)
                   : s.status === 'expired'
-                    ? `${formatRemaining(-diff)} ago`
-                    : '—'
+                    ? formatRemaining(-diff)
+                    : s.status === 'sold'
+                      ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
+                      : { text: '—', className: 'text-gray-500', status: 'completed' }
                 return (
-                  <div key={s.id} className="bg-white p-4 rounded-lg shadow">
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium">
+                  <div key={s.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm">
                         {s.device_name} {s.device_model}
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Picked: {new Date(s.pickup_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        s.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        s.status === 'expired' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {s.status}
                       </span>
-                      <span className="text-sm text-gray-600">{s.status}</span>
                     </div>
-                    <p className="text-sm"><strong>Qty:</strong> {s.quantity}</p>
-                    <p className="text-xs text-gray-500">
-                      <strong>Picked:</strong> {new Date(s.pickup_date).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      <strong>Remaining:</strong> {remaining}
-                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <p className="text-xs text-gray-500">Quantity</p>
+                        <p className="text-sm font-medium">{s.quantity}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Value</p>
+                        <p className="text-sm font-medium text-green-600">{formatCurrency(s.total_value)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t pt-3">
+                      <p className="text-xs text-gray-500 mb-1">Time Remaining</p>
+                      <p className={`text-sm font-medium ${remaining.className}`}>
+                        {remaining.text}
+                      </p>
+                    </div>
                     {s.status === 'pending' && (
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-3 flex gap-2">
                         <button
-                          onClick={() => { setTransferringId(s.id); setTransferTarget('') }}
-                          className="flex-1 bg-yellow-500 text-white py-1 rounded"
+                          onClick={() => handleTransferClick(s.id)}
+                          className="flex-1 bg-white text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-50 transition-all duration-200 shadow-sm hover:shadow-md border-2 border-[#f59e0b]"
                         >
+                          <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                          </svg>
                           Transfer
                         </button>
                         <button
                           onClick={() => submitReturn(s.id)}
-                          className="flex-1 bg-red-500 text-white py-1 rounded"
+                          className="flex-1 bg-white text-red-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-red-50 transition-all duration-200 shadow-sm hover:shadow-md border-2 border-[#f59e0b]"
                         >
+                          <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m5 14v-5a2 2 0 00-2-2H6a2 2 0 00-2 2v5" />
+                          </svg>
                           Return
                         </button>
-                      </div>
-                    )}
-                    {transferringId === s.id && (
-                      <div className="mt-2 space-y-2">
-                        <input
-                          type="text"
-                          placeholder="Target unique ID"
-                          value={transferTarget}
-                          onChange={e => setTransferTarget(e.target.value)}
-                          className="w-full border p-2 rounded"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={submitTransfer}
-                            className="flex-1 bg-green-500 text-white py-1 rounded"
-                          >
-                            Submit
-                          </button>
-                          <button
-                            onClick={() => setTransferringId(null)}
-                            className="flex-1 bg-gray-300 py-1 rounded"
-                          >
-                            Cancel
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -372,10 +631,10 @@ export default function MarketerStockPickup() {
 
         {/* Desktop table */}
         <div className="hidden sm:block bg-white rounded-lg shadow overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-[1200px] w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-gray-600 uppercase">
               <tr>
-                {['Device','Qty','Picked','Deadline','Remaining','Status','Actions']
+                {['Device','Qty','Value','Picked','Deadline','Remaining','Status','Actions']
                   .map(h => (
                     <th key={h} className="px-4 py-2 text-left">{h}</th>
                   ))
@@ -386,7 +645,7 @@ export default function MarketerStockPickup() {
               {pickups.length === 0
                 ? (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-500">
+                    <td colSpan={8} className="p-4 text-center text-gray-500">
                       No pickups yet.
                     </td>
                   </tr>
@@ -396,64 +655,51 @@ export default function MarketerStockPickup() {
                     const remaining = s.status === 'pending'
                       ? formatRemaining(diff)
                       : s.status === 'expired'
-                        ? `${formatRemaining(-diff)} ago`
-                        : '—'
+                        ? formatRemaining(-diff)
+                        : s.status === 'sold'
+                          ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
+                          : { text: '—', className: 'text-gray-500', status: 'completed' }
                     return (
                       <tr key={s.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2">
                           {s.device_name} {s.device_model}
                         </td>
                         <td className="px-4 py-2">{s.quantity}</td>
+                        <td className="px-4 py-2 font-medium text-green-600">
+                          {formatCurrency(s.total_value)}
+                        </td>
                         <td className="px-4 py-2">
                           {new Date(s.pickup_date).toLocaleString()}
                         </td>
                         <td className="px-4 py-2">
                           {new Date(s.deadline).toLocaleString()}
                         </td>
-                        <td className={`px-4 py-2 ${diff < 0 ? 'text-red-600' : ''}`}>
-                          {remaining}
+                        <td className="px-4 py-2">
+                          <span className={remaining.className}>{remaining.text}</span>
                         </td>
                         <td className="px-4 py-2">{s.status}</td>
-                        <td className="px-4 py-2 space-x-2">
+                        <td className="px-4 py-2">
                           {s.status === 'pending' && (
-                            <>
-                              {transferringId === s.id ? (
-                                <div className="flex gap-2">
-                                  <input
-                                    type="text"
-                                    placeholder="Target ID"
-                                    value={transferTarget}
-                                    onChange={e => setTransferTarget(e.target.value)}
-                                    className="border p-2 rounded"
-                                  />
-                                  <button
-                                    onClick={submitTransfer}
-                                    className="bg-green-500 text-white px-2 py-1 rounded"
-                                  >
-                                    Send
-                                  </button>
-                                  <button
-                                    onClick={() => setTransferringId(null)}
-                                    className="bg-gray-300 px-2 py-1 rounded"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => { setTransferringId(s.id); setTransferTarget('') }}
-                                  className="bg-yellow-500 text-white px-2 py-1 rounded"
-                                >
-                                  Transfer
-                                </button>
-                              )}
+                            <div className="flex items-center space-x-2 whitespace-nowrap">
+                              <button
+                                onClick={() => handleTransferClick(s.id)}
+                                className="inline-flex items-center px-2 py-1.5 bg-white text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-50 transition-all duration-200 shadow-sm hover:shadow-md border-2 border-[#f59e0b]"
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                </svg>
+                                Transfer
+                              </button>
                               <button
                                 onClick={() => submitReturn(s.id)}
-                                className="bg-red-500 text-white px-2 py-1 rounded"
+                                className="inline-flex items-center px-2 py-1.5 bg-white text-red-600 text-xs font-medium rounded-lg hover:bg-red-50 transition-all duration-200 shadow-sm hover:shadow-md border-2 border-[#f59e0b]"
                               >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m5 14v-5a2 2 0 00-2-2H6a2 2 0 00-2 2v5" />
+                                </svg>
                                 Return
                               </button>
-                            </>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -464,6 +710,29 @@ export default function MarketerStockPickup() {
           </table>
         </div>
       </div>
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={alert.open}
+        onOpenChange={hideAlert}
+        title={alert.title}
+        description={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+        showCancel={alert.showCancel}
+        variant={alert.variant}
+      />
+
+      {/* Transfer Popover */}
+      <TransferPopover
+        isOpen={showTransferPopover}
+        onClose={handleTransferClose}
+        stockId={currentStockId}
+        onTransferSuccess={handleTransferSuccess}
+        currentUserLocation={currentUserLocation}
+      />
     </div>
   )
 }

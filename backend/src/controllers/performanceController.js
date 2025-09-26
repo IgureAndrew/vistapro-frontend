@@ -1,34 +1,100 @@
 // src/controllers/performanceController.js
-// Controller for performance metrics
+// Enhanced controller for performance metrics with user assignments
 
-const { pool } = require('../config/database');
+const performanceCalculationService = require('../services/performanceCalculationService');
+const { logger } = require('../utils/logger');
 
 /**
- * getPerformanceOverview - Retrieves overall performance metrics.
- * Returns total orders, total sales, and average order value for orders with status 'released_confirmed'.
- * In a more advanced implementation, you can filter or group data based on user role or date ranges.
+ * Get performance overview for all roles
  */
-const getPerformanceOverview = async (req, res, next) => {
+const getPerformanceOverview = async (req, res) => {
   try {
-    const query = `
-      SELECT 
-        COUNT(*) AS total_orders,
-        COALESCE(SUM(price), 0) AS total_sales,
-        COALESCE(AVG(price), 0) AS average_order_value
-      FROM orders
-      WHERE status = 'released_confirmed'
-    `;
-    const result = await pool.query(query);
+    const performanceData = await performanceCalculationService.getPerformanceSummary();
     
-    return res.status(200).json({
-      message: "Performance overview retrieved successfully.",
-      data: result.rows[0]
+    res.json({
+      success: true,
+      message: "Performance overview retrieved successfully",
+      data: performanceData
     });
   } catch (error) {
-    next(error);
+    logger.error('Error getting performance overview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get performance overview',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get performance for a specific marketer
+ */
+const getMarketerPerformance = async (req, res) => {
+  try {
+    const { marketerId } = req.params;
+    const performance = await performanceCalculationService.calculateMarketerPerformance(marketerId);
+    
+    res.json({
+      success: true,
+      data: performance
+    });
+  } catch (error) {
+    logger.error('Error getting marketer performance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get marketer performance',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get performance for a specific admin
+ */
+const getAdminPerformance = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    const performance = await performanceCalculationService.calculateAdminPerformance(adminId);
+    
+    res.json({
+      success: true,
+      data: performance
+    });
+  } catch (error) {
+    logger.error('Error getting admin performance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get admin performance',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get performance for a specific superadmin
+ */
+const getSuperAdminPerformance = async (req, res) => {
+  try {
+    const { superAdminId } = req.params;
+    const performance = await performanceCalculationService.calculateSuperAdminPerformance(superAdminId);
+    
+    res.json({
+      success: true,
+      data: performance
+    });
+  } catch (error) {
+    logger.error('Error getting superadmin performance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get superadmin performance',
+      error: error.message
+    });
   }
 };
 
 module.exports = {
-  getPerformanceOverview
+  getPerformanceOverview,
+  getMarketerPerformance,
+  getAdminPerformance,
+  getSuperAdminPerformance
 };

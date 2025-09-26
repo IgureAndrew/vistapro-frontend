@@ -5,29 +5,29 @@ const wc               = require('../controllers/walletController')
 
 const router = express.Router()
 
-// ─── Marketer endpoints ────────────────────────────────────────
+// ─── Marketer, SuperAdmin, Admin endpoints ────────────────────────
 router.get(
   '/',                           // GET  /api/wallets
   verifyToken,
-  verifyRole(['Marketer']),
+  verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   wc.getMyWallet
 )
 router.get(
   '/stats',                      // GET  /api/wallets/stats
   verifyToken,
-  verifyRole(['Marketer']),
+  verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   wc.getWalletStats
 )
 router.get(
   '/withdrawals',                // GET  /api/wallets/withdrawals
   verifyToken,
-  verifyRole(['Marketer']),
+  verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   wc.getMyWithdrawals
 )
 router.post(
   '/withdraw',                   // POST /api/wallets/withdraw
   verifyToken,
-  verifyRole(['Marketer']),
+  verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   wc.requestWithdrawal
 )
 
@@ -44,6 +44,30 @@ router.patch(
   verifyToken,
   verifyRole(['MasterAdmin']),
   wc.reviewRequest
+)
+
+// user summary for popover
+router.get(
+  '/user/:uniqueId/summary',     // GET  /api/wallets/user/:uniqueId/summary
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  wc.getUserSummary
+)
+
+// user-specific withheld releases for popover
+router.get(
+  '/user/:uniqueId/withheld-releases',  // GET  /api/wallets/user/:uniqueId/withheld-releases
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  wc.getUserWithheldReleases
+)
+
+// user-specific withdrawal requests for popover
+router.get(
+  '/user/:uniqueId/withdrawal-requests', // GET  /api/wallets/user/:uniqueId/withdrawal-requests
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  wc.getUserWithdrawalRequests
 )
 
 
@@ -146,7 +170,7 @@ router.get(
 router.get(
   '/withdrawals/fees',           // GET /api/wallets/withdrawals/fees
   verifyToken,
-  verifyRole(['Marketer','Admin','SuperAdmin']),
+  verifyRole(['Marketer','Admin','SuperAdmin','MasterAdmin']),
   wc.getWithdrawalFeeStats
 )
 
@@ -196,4 +220,4 @@ router.get(
   wc.listAllReleases
 );
 
-module.exports = router
+module.exports = router;

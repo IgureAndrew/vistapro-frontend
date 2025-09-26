@@ -2,7 +2,7 @@
 -- This migration creates the "orders" table used to track sales/orders made by marketers.
 -- Adjust foreign key constraints as needed based on your actual schema.
 
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   marketer_id INTEGER NOT NULL,
   device_name TEXT NOT NULL,

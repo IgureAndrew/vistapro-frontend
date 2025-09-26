@@ -37,11 +37,10 @@ cron.schedule('* * * * *', async () => {
       // a) MasterAdmin
       await client.query(`
         INSERT INTO notifications (user_unique_id, message, created_at)
-        SELECT unique_id, $2, NOW()
+        SELECT unique_id, $1::text, NOW()
           FROM users
          WHERE role = 'MasterAdmin'
       `, [
-        suId,
         `Stock‐pickup #${suId} has expired (48 h lapsed without sale/transfer/return).`
       ]);
 
@@ -55,10 +54,10 @@ cron.schedule('* * * * *', async () => {
       if (adminRows[0]) {
         await client.query(`
           INSERT INTO notifications (user_unique_id, message, created_at)
-          VALUES ($1, $2, NOW())
+          VALUES ($1::text, $2::text, NOW())
         `, [
           adminRows[0].unique_id,
-          `Your marketer’s stock‐pickup #${suId} has expired.`
+          `Your marketer's stock‐pickup #${suId} has expired.`
         ]);
       }
 
@@ -74,7 +73,7 @@ cron.schedule('* * * * *', async () => {
       if (superRows[0]) {
         await client.query(`
           INSERT INTO notifications (user_unique_id, message, created_at)
-          VALUES ($1, $2, NOW())
+          VALUES ($1::text, $2::text, NOW())
         `, [
           superRows[0].unique_id,
           `A stock‐pickup in your chain (#${suId}) has expired.`

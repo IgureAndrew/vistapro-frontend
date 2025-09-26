@@ -1,5 +1,5 @@
 // src/services/assignmentService.js
-const API_BASE_URL = 'http://localhost:5005/api';
+const API_BASE_URL = 'http://localhost:5007/api';
 
 const apiCall = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;

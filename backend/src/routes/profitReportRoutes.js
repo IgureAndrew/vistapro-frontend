@@ -8,7 +8,10 @@ const {
   getInventoryDetails,
   getProductsSold,
   getAggregatedSales,
-  getDailyTotals          // ← make sure your service exports this
+  getDailyTotals,          // ← make sure your service exports this
+  getLocationBreakdown,    // ← location-based breakdown
+  getLocationAggregated,   // ← location-based aggregated data
+  getOrderStatusSummary    // ← order status summary
 } = require('../services/profitReportService');
 const { verifyToken } = require('../middlewares/authMiddleware');
 
@@ -152,6 +155,51 @@ router.get('/daily-summary', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/profit-report/location-breakdown
+ * Returns location-based profit breakdown:
+ *   • location (state)
+ *   • total_orders, total_units_sold, total_revenue
+ *   • total_initial_profit, total_commission_expense, total_final_profit
+ */
+router.get('/location-breakdown', async (req, res, next) => {
+  try {
+    const { start, end } = req.query;
+    const data = await getLocationBreakdown({ start, end });
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
 
+/**
+ * GET /api/profit-report/location-aggregated
+ * Returns location-based aggregated data with device breakdown:
+ *   • location, device_type, device_name
+ *   • total_units_sold, total_revenue, total_initial_profit
+ *   • total_commission_expense, total_final_profit
+ */
+router.get('/location-aggregated', async (req, res, next) => {
+  try {
+    const { start, end } = req.query;
+    const data = await getLocationAggregated({ start, end });
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/profit-report/status-summary
+ * Returns order status summary counts
+ */
+router.get('/status-summary', async (req, res, next) => {
+  try {
+    const summary = await getOrderStatusSummary();
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;

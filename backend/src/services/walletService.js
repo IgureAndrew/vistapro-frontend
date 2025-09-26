@@ -203,11 +203,20 @@ async function creditSuperAdminCommission(marketerUid, orderId, qty) {
     return { totalComm: 0 };
   }
 
-  // Step B: find this marketer’s SuperAdmin UID and superadmin_rate
+  // Step B: find this marketer's SuperAdmin UID and superadmin_rate with detailed info
   const { rows: [row] } = await pool.query(`
     SELECT
       su.unique_id      AS superUid,
-      cr.superadmin_rate
+      su.first_name || ' ' || su.last_name AS superAdminName,
+      cr.superadmin_rate,
+      m.unique_id AS marketerUid,
+      m.first_name || ' ' || m.last_name AS marketerName,
+      a.unique_id AS adminUid,
+      a.first_name || ' ' || a.last_name AS adminName,
+      p.device_type,
+      p.device_name,
+      o.sold_amount,
+      o.number_of_devices
     FROM orders o
     JOIN users m
       ON o.marketer_id = m.id
@@ -231,11 +240,103 @@ async function creditSuperAdminCommission(marketerUid, orderId, qty) {
     return { totalComm: 0 };
   }
 
-  // Step C: pay full superadmin commission into available_balance
+  // Step C: pay full superadmin commission into available_balance with detailed metadata
   const total = rate * qty;
-  return creditFull(superUid, orderId, total, 'superadmin_commission');
+  
+  // Enhanced metadata for SuperAdmin commission tracking
+  const detailedMeta = JSON.stringify({
+    orderId: orderId,
+    marketerUid: row.marketerUid,
+    marketerName: row.marketerName,
+    adminUid: row.adminUid,
+    adminName: row.adminName,
+    deviceType: row.device_type,
+    deviceName: row.device_name,
+    soldAmount: parseFloat(row.sold_amount || 0),
+    quantity: parseInt(row.number_of_devices || 0),
+    commissionRate: rate,
+    commissionType: 'team_management'
+  });
+
+  await ensureWallet(superUid);
+  
+  // Insert the detailed commission transaction
+  const ins = await pool.query(
+    `INSERT INTO wallet_transactions
+       (user_unique_id, amount, transaction_type, meta)
+     VALUES ($1, $2, $3, $4::jsonb)
+     ON CONFLICT (user_unique_id, transaction_type, (meta->>'orderId'))
+       DO NOTHING
+     RETURNING 1;`,
+    [ superUid, total, 'superadmin_commission', detailedMeta ]
+  );
+
+  if (ins.rowCount === 0) {
+    return { totalComm: 0 };
+  }
+
+  // Update wallet balance
+  await pool.query(
+    `UPDATE wallets
+        SET total_balance     = total_balance     + $2,
+            available_balance = available_balance + $2,
+            updated_at        = NOW()
+      WHERE user_unique_id = $1;`,
+    [ superUid, total ]
+  );
+
+  return { totalComm: total };
 }
 
+/**
+ * Get detailed SuperAdmin commission transactions with order and marketer information
+ */
+async function getSuperAdminCommissionTransactions(superAdminUid, limit = 50) {
+  const { rows } = await pool.query(`
+    SELECT
+      wt.id,
+      wt.transaction_type,
+      wt.amount,
+      wt.created_at,
+      wt.meta,
+      (wt.meta->>'orderId')::int AS order_id,
+      (wt.meta->>'marketerUid') AS marketer_uid,
+      (wt.meta->>'marketerName') AS marketer_name,
+      (wt.meta->>'adminUid') AS admin_uid,
+      (wt.meta->>'adminName') AS admin_name,
+      (wt.meta->>'deviceType') AS device_type,
+      (wt.meta->>'deviceName') AS device_name,
+      (wt.meta->>'soldAmount')::float AS sold_amount,
+      (wt.meta->>'quantity')::int AS quantity,
+      (wt.meta->>'commissionRate')::float AS commission_rate,
+      (wt.meta->>'commissionType') AS commission_type
+    FROM wallet_transactions wt
+    WHERE wt.user_unique_id = $1
+      AND wt.transaction_type = 'superadmin_commission'
+      AND wt.meta ? 'orderId'
+    ORDER BY wt.created_at DESC
+    LIMIT $2
+  `, [superAdminUid, limit]);
+
+  return rows.map(row => ({
+    id: row.id,
+    transaction_type: row.transaction_type,
+    amount: Number(row.amount),
+    created_at: row.created_at,
+    order_id: row.order_id,
+    marketer_uid: row.marketer_uid,
+    marketer_name: row.marketer_name,
+    admin_uid: row.admin_uid,
+    admin_name: row.admin_name,
+    device_type: row.device_type,
+    device_name: row.device_name,
+    sold_amount: Number(row.sold_amount || 0),
+    quantity: Number(row.quantity || 0),
+    commission_rate: Number(row.commission_rate || 0),
+    commission_type: row.commission_type,
+    meta: row.meta
+  }));
+}
 
 async function getSubordinateWallets(superAdminUid) {
   // 1) Find internal ID of this SuperAdmin
@@ -376,6 +477,72 @@ async function getMyWallet(userId) {
   }));
 
   return { wallet, transactions, withdrawals };
+}
+
+/**
+ * Get detailed wallet breakdown for SuperAdmin/Admin with personal vs team earnings
+ */
+async function getDetailedWallet(userId) {
+  await ensureWallet(userId);
+
+  // 1) Get user role to determine if they need detailed breakdown
+  const { rows: [user] } = await pool.query(`
+    SELECT role FROM users WHERE unique_id = $1
+  `, [userId]);
+
+  if (!['SuperAdmin', 'Admin'].includes(user?.role)) {
+    // For non-SuperAdmin/Admin, return regular wallet
+    return getMyWallet(userId);
+  }
+
+  // 2) Personal earnings (from their own orders - marketer protocol)
+  const { rows: personalEarnings } = await pool.query(`
+    SELECT
+      COALESCE(SUM(CASE WHEN transaction_type = 'marketer_commission' THEN amount ELSE 0 END), 0) as total_personal,
+      COALESCE(SUM(CASE WHEN transaction_type = 'marketer_commission_available' THEN amount ELSE 0 END), 0) as available_personal,
+      COALESCE(SUM(CASE WHEN transaction_type = 'marketer_commission_withheld' THEN amount ELSE 0 END), 0) as withheld_personal
+    FROM wallet_transactions
+    WHERE user_unique_id = $1
+  `, [userId]);
+
+  // 3) Team management earnings (from team commissions)
+  const { rows: teamEarnings } = await pool.query(`
+    SELECT
+      COALESCE(SUM(CASE WHEN transaction_type IN ('admin_commission', 'superadmin_commission') THEN amount ELSE 0 END), 0) as total_team,
+      COALESCE(SUM(CASE WHEN transaction_type IN ('admin_commission', 'superadmin_commission') THEN amount ELSE 0 END), 0) as available_team
+    FROM wallet_transactions
+    WHERE user_unique_id = $1
+  `, [userId]);
+
+  // 4) Get regular wallet data
+  const regularWallet = await getMyWallet(userId);
+
+  // 5) Combine the data
+  const personal = personalEarnings[0];
+  const team = teamEarnings[0];
+
+  return {
+    ...regularWallet,
+    breakdown: {
+      personal: {
+        total: Number(personal.total_personal),
+        available: Number(personal.available_personal),
+        withheld: Number(personal.withheld_personal),
+        commission_rate: '40% available, 60% withheld'
+      },
+      team: {
+        total: Number(team.total_team),
+        available: Number(team.available_team),
+        withheld: 0, // Team earnings are typically 100% available
+        commission_rate: '100% available'
+      },
+      combined: {
+        total: Number(personal.total_personal) + Number(team.total_team),
+        available: Number(personal.available_personal) + Number(team.available_team),
+        withheld: Number(personal.withheld_personal)
+      }
+    }
+  };
 }
 
 
@@ -582,7 +749,8 @@ async function getWithdrawalFeeStats() {
       COALESCE(SUM(fee) FILTER (
         WHERE date_trunc('year', requested_at) = date_trunc('year', CURRENT_DATE)
       ), 0) AS yearly
-    FROM withdrawal_requests;
+    FROM withdrawal_requests
+    WHERE status = 'approved';
   `);
   return stats;
 }
@@ -688,6 +856,7 @@ async function getWithdrawalHistory({ startDate, endDate, name, role }) {
       u.first_name || ' ' || u.last_name AS name,
       u.role,
       u.phone,
+      u.location,
       wr.account_name,
       wr.bank_name,
       wr.account_number,
@@ -744,6 +913,181 @@ async function getWalletsByRole(role) {
     withheld_balance:  Number(r.withheld_balance),
     pending_cashout:   Number(r.pending_cashout),
   }));
+}
+
+/**
+ * Get user-specific withheld releases (pending approval)
+ */
+async function getUserWithheldReleases(userUniqueId) {
+  const { rows } = await pool.query(`
+    SELECT
+      w.user_unique_id,
+      u.first_name || ' ' || u.last_name AS name,
+      w.withheld_balance::int AS withheld_balance,
+      w.available_balance::int AS available_balance,
+      w.total_balance::int AS total_balance
+    FROM wallets w
+    JOIN users u ON u.unique_id = w.user_unique_id
+    WHERE w.user_unique_id = $1
+      AND w.withheld_balance > 0
+  `, [userUniqueId]);
+  
+  return rows;
+}
+
+/**
+ * Get user-specific pending withdrawal requests
+ */
+async function getUserWithdrawalRequests(userUniqueId) {
+  const { rows } = await pool.query(`
+    SELECT
+      id,
+      user_unique_id,
+      amount_requested::int AS amount,
+      fee::int AS fee,
+      net_amount::int AS net_amount,
+      status,
+      account_name,
+      account_number,
+      bank_name,
+      requested_at
+    FROM withdrawal_requests
+    WHERE user_unique_id = $1
+      AND status = 'pending'
+    ORDER BY requested_at DESC
+  `, [userUniqueId]);
+  
+  return rows;
+}
+
+/**
+ * Get comprehensive user summary for popover display
+ */
+async function getUserSummary(userUniqueId) {
+  // 1) Get basic user info and wallet data
+  const { rows: userRows } = await pool.query(`
+    SELECT
+      u.unique_id,
+      u.first_name || ' ' || u.last_name AS name,
+      u.role,
+      u.location,
+      u.phone,
+      u.email,
+      u.created_at,
+      w.total_balance,
+      w.available_balance,
+      w.withheld_balance,
+      COALESCE(
+        (SELECT SUM(r.net_amount)
+           FROM withdrawal_requests r
+          WHERE r.user_unique_id = u.unique_id
+            AND r.status = 'pending'
+        ),
+      0)::int AS pending_cashout
+    FROM users u
+    LEFT JOIN wallets w ON u.unique_id = w.user_unique_id
+    WHERE u.unique_id = $1
+  `, [userUniqueId]);
+
+  if (userRows.length === 0) {
+    throw new Error('User not found');
+  }
+
+  const user = userRows[0];
+
+  // 2) Get recent transactions (last 5)
+  const { rows: transactions } = await pool.query(`
+    SELECT
+      transaction_type,
+      amount,
+      created_at
+    FROM wallet_transactions
+    WHERE user_unique_id = $1
+    ORDER BY created_at DESC
+    LIMIT 5
+  `, [userUniqueId]);
+
+  // 3) Get recent orders (last 5)
+  const { rows: orders } = await pool.query(`
+    SELECT
+      id,
+      status,
+      sold_amount,
+      created_at
+    FROM orders
+    WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
+    ORDER BY created_at DESC
+    LIMIT 5
+  `, [userUniqueId]);
+
+  // 4) Get total order count and commission earned
+  const { rows: stats } = await pool.query(`
+    SELECT
+      COUNT(*) as total_orders,
+      COALESCE(SUM(sold_amount), 0) as total_sales,
+      COALESCE(
+        (SELECT SUM(amount)
+         FROM wallet_transactions
+         WHERE user_unique_id = $1
+           AND transaction_type LIKE '%commission%'
+        ), 0
+      ) as total_commission
+    FROM orders
+    WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
+  `, [userUniqueId]);
+
+  // 5) Get recent withdrawal requests (last 3)
+  const { rows: withdrawals } = await pool.query(`
+    SELECT
+      id,
+      amount_requested,
+      status,
+      requested_at
+    FROM withdrawal_requests
+    WHERE user_unique_id = $1
+    ORDER BY requested_at DESC
+    LIMIT 3
+  `, [userUniqueId]);
+
+  return {
+    user: {
+      unique_id: user.unique_id,
+      name: user.name,
+      role: user.role,
+      location: user.location,
+      phone: user.phone,
+      email: user.email,
+      created_at: user.created_at,
+    },
+    wallet: {
+      total_balance: Number(user.total_balance || 0),
+      available_balance: Number(user.available_balance || 0),
+      withheld_balance: Number(user.withheld_balance || 0),
+      pending_cashout: Number(user.pending_cashout || 0),
+    },
+    stats: {
+      total_orders: Number(stats[0]?.total_orders || 0),
+      total_sales: Number(stats[0]?.total_sales || 0),
+      total_commission: Number(stats[0]?.total_commission || 0),
+    },
+    recent_transactions: transactions.map(t => ({
+      type: t.transaction_type,
+      amount: Number(t.amount),
+      date: t.created_at,
+    })),
+    recent_orders: orders.map(o => ({
+      id: o.id,
+      status: o.status,
+      amount: Number(o.sold_amount),
+      date: o.created_at,
+    })),
+    recent_withdrawals: withdrawals.map(w => ({
+      id: w.id,
+      amount: Number(w.amount_requested),
+      status: w.status,
+      date: w.requested_at,
+    })),
+  };
 }
 
 
@@ -864,8 +1208,10 @@ module.exports = {
   creditMarketerCommission,
   creditAdminCommission,
   creditSuperAdminCommission,
+  getSuperAdminCommissionTransactions,
   getSubordinateWallets,
   getMyWallet,
+  getDetailedWallet,
   getMyWithdrawals,
   getAllWallets,
   getWalletsForAdmin,
@@ -875,6 +1221,9 @@ module.exports = {
   reviewWithdrawalRequest,
   getWithdrawalHistory,
   getWalletsByRole,
+  getUserSummary,
+  getUserWithheldReleases,
+  getUserWithdrawalRequests,
   getMarketersWithheld,
   manualRelease,
   manualReject

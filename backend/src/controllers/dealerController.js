@@ -3,7 +3,159 @@ const { pool } = require('../config/database');
 const bcrypt = require('bcrypt');
 
 /**
- * getAccountSettings - Retrieves current dealer’s account info.
+ * getAccount - Retrieves current dealer's account info (standardized).
+ */
+async function getAccount(req, res, next) {
+  try {
+    const userId = req.user.id; // From JWT token
+    
+    // Get user account details
+    const userQuery = `
+      SELECT 
+        id, unique_id, email, phone, first_name, last_name, profile_image, gender,
+        role, location, business_name, business_address, bank_details, 
+        cac_certificate, created_at, updated_at
+      FROM users 
+      WHERE id = $1 AND role = 'Dealer'
+    `;
+    
+    const result = await pool.query(userQuery, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Dealer account not found' 
+      });
+    }
+    
+    const account = result.rows[0];
+    
+    res.json({ 
+      success: true, 
+      account: {
+        id: account.id,
+        unique_id: account.unique_id,
+        email: account.email,
+        phone: account.phone,
+        displayName: account.first_name || account.last_name ? `${account.first_name || ''} ${account.last_name || ''}`.trim() : '',
+        profile_image: account.profile_image,
+        gender: account.gender,
+        role: account.role,
+        location: account.location,
+        business_name: account.business_name,
+        business_address: account.business_address,
+        bank_details: account.bank_details,
+        cac_certificate: account.cac_certificate,
+        createdAt: account.created_at,
+        updatedAt: account.updated_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching Dealer account:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch account details',
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * updateAccount - Updates dealer's account info (standardized).
+ */
+async function updateAccount(req, res, next) {
+  try {
+    const userId = req.user.id; // From JWT token
+    const { email, phone, displayName, profile_image, business_name, business_address, bank_details } = req.body;
+    
+    // Validate required fields
+    if (!email || !phone || !displayName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, phone, and display name are required'
+      });
+    }
+    
+    // Check if email is already taken by another user
+    const emailCheckQuery = `
+      SELECT id FROM users 
+      WHERE email = $1 AND id != $2 AND role = 'Dealer'
+    `;
+    const emailCheck = await pool.query(emailCheckQuery, [email, userId]);
+    
+    if (emailCheck.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already taken by another Dealer'
+      });
+    }
+    
+    // Split displayName into first_name and last_name
+    const nameParts = displayName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // Update user account
+    const updateQuery = `
+      UPDATE users 
+      SET 
+        email = $1,
+        phone = $2,
+        first_name = $3,
+        last_name = $4,
+        profile_image = $5,
+        business_name = $6,
+        business_address = $7,
+        bank_details = $8,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9 AND role = 'Dealer'
+      RETURNING id, unique_id, email, phone, first_name, last_name, profile_image, role, location, 
+                business_name, business_address, bank_details, updated_at
+    `;
+    
+    const result = await pool.query(updateQuery, [email, phone, firstName, lastName, profile_image, business_name, business_address, bank_details, userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dealer account not found'
+      });
+    }
+    
+    const updatedAccount = result.rows[0];
+    
+    res.json({
+      success: true,
+      message: 'Account updated successfully',
+      account: {
+        id: updatedAccount.id,
+        unique_id: updatedAccount.unique_id,
+        email: updatedAccount.email,
+        phone: updatedAccount.phone,
+        displayName: updatedAccount.first_name || updatedAccount.last_name ? `${updatedAccount.first_name || ''} ${updatedAccount.last_name || ''}`.trim() : '',
+        profile_image: updatedAccount.profile_image,
+        role: updatedAccount.role,
+        location: updatedAccount.location,
+        business_name: updatedAccount.business_name,
+        business_address: updatedAccount.business_address,
+        bank_details: updatedAccount.bank_details,
+        updatedAt: updatedAccount.updated_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating Dealer account:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update account',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * getAccountSettings - Retrieves current dealer's account info (legacy).
  * Returns business_name, business_address, bank_details, email, phone,
  * location, cac_certificate and profile_image.
  */
@@ -202,6 +354,8 @@ async function getOrderHistory(req, res, next) {
 }
 
 module.exports = {
+  getAccount,
+  updateAccount,
   getAccountSettings,
   updateAccountSettings,
   uploadInventory,

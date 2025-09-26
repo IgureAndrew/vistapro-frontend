@@ -20,16 +20,16 @@ BEGIN
         -- Drop the existing foreign key constraint if it exists
         IF EXISTS (
             SELECT 1 FROM information_schema.table_constraints 
-            WHERE constraint_name = 'user_assignments_user_id_fkey' 
+            WHERE constraint_name = 'user_assignments_marketer_id_fkey' 
             AND table_name = 'user_assignments'
         ) THEN
-            ALTER TABLE user_assignments DROP CONSTRAINT user_assignments_user_id_fkey;
+            ALTER TABLE user_assignments DROP CONSTRAINT user_assignments_marketer_id_fkey;
         END IF;
         
         -- Add the new constraint with CASCADE DELETE
         ALTER TABLE user_assignments 
-        ADD CONSTRAINT user_assignments_user_id_fkey 
-        FOREIGN KEY (user_id) REFERENCES users(unique_id) 
+        ADD CONSTRAINT user_assignments_marketer_id_fkey 
+        FOREIGN KEY (marketer_id) REFERENCES users(unique_id) 
         ON DELETE CASCADE;
         
         RAISE NOTICE 'Updated user_assignments foreign key constraint with CASCADE DELETE';
@@ -64,7 +64,7 @@ BEGIN
         AND tc.table_name != 'users'
     LOOP
         -- Skip if it's already a CASCADE constraint or if it's the one we just updated
-        IF constraint_record.constraint_name != 'user_assignments_user_id_fkey' THEN
+        IF constraint_record.constraint_name != 'user_assignments_marketer_id_fkey' THEN
             BEGIN
                 -- Drop the existing constraint
                 EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 

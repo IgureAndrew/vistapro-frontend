@@ -1,7 +1,8 @@
 // src/components/Verification.jsx
 import React, { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
-export default function Verification() {
+export default function Verification({ onNavigate }) {
   const API_ROOT = import.meta.env.VITE_API_URL;
   const token    = localStorage.getItem("token");
   const user     = JSON.parse(localStorage.getItem("user") || "{}");
@@ -65,6 +66,19 @@ export default function Verification() {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
+      {/* Back to Overview Navigation */}
+      {onNavigate && (
+        <div className="mb-6">
+          <button
+            onClick={() => onNavigate('overview')}
+            className="flex items-center space-x-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Overview</span>
+          </button>
+        </div>
+      )}
+      
       <h1 className="text-4xl font-bold text-center mb-6">Verified Marketers</h1>
 
       {error && (

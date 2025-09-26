@@ -9,6 +9,8 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 const { verifyRole  } = require('../middlewares/roleMiddleware');
 
 const {
+  getAccount,
+  updateAccount,
   getAccountSettings,
   updateAccountSettings,
   getPlaceOrderData,
@@ -35,6 +37,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ─ Account Settings ─────────────────────────────────────────────────────────
+// GET /api/marketer/account - Get Marketer account details (standardized)
+router.get('/account', verifyToken, verifyRole(['Marketer']), getAccount);
+
+// PATCH /api/marketer/account - Update Marketer account settings (standardized)
+router.patch('/account', verifyToken, verifyRole(['Marketer']), upload.single('profile_image'), updateAccount);
+
+// Legacy account settings endpoints
 router.get(
   '/account-settings',
   verifyToken, verifyRole(['Marketer']),
@@ -51,21 +60,21 @@ router.patch(
 // GET  /api/marketer/orders       → form data (stock vs free)
 router.get(
   '/orders',
-  verifyToken, verifyRole(['Marketer']),
+  verifyToken, verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   getPlaceOrderData
 );
 // POST /api/marketer/orders       → create a new order
 router.post(
   '/orders',
-  verifyToken, verifyRole(['Marketer']),
+  verifyToken, verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   createOrder
 );
 
 // ─ Order History ────────────────────────────────────────────────────────────
-// GET /api/marketer/orders/history  → marketer’s past orders
+// GET /api/marketer/orders/history  → marketer's past orders
 router.get(
   '/orders/history',
-  verifyToken, verifyRole(['Marketer']),
+  verifyToken, verifyRole(['Marketer', 'SuperAdmin', 'Admin']),
   getOrderHistory
 );
 

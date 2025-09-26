@@ -3,16 +3,20 @@ import React from "react";
 import { Routes, Route } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
 import ModernUnifiedDashboard from "./components/ModernUnifiedDashboard";
+import MarketerDashboard from "./components/MarketerDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import SubmissionUnderReview from "./components/SubmissionUnderReview";
 import EmailVerification from "./components/EmailVerification";
 import PasswordReset from "./components/PasswordReset";
+import { ToastContainer } from "./components/ui/toast";
 
 function App() {
   return (
     <>
+      <ToastContainer />
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LandingPage />} />
         <Route path="/verify-email" element={<EmailVerification />} />
         <Route path="/reset-password" element={<PasswordReset />} />
         <Route 
@@ -51,7 +55,7 @@ function App() {
           path="/dashboard/marketer"
           element={
             <PrivateRoute allowedRoles={["Marketer"]}>
-              <ModernUnifiedDashboard userRole="marketer" />
+              <MarketerDashboard />
             </PrivateRoute>
           }
         />

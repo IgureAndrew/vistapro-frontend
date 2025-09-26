@@ -1,11 +1,16 @@
 // src/components/SuperAdminStockPickups.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import MarketerStockPickup from "./MarketerStockPickup";
 
 export default function SuperAdminStockPickups() {
   const API_URL = import.meta.env.VITE_API_URL + "/api/stock/superadmin/stock-updates";
   const token   = localStorage.getItem("token") || "";
 
+  // Tab state - switch between "My Actions" and "Team Monitoring"
+  const [activeTab, setActiveTab] = useState("my-actions");
+
+  // Team monitoring state (existing functionality)
   const [pickups, setPickups] = useState([]);
   const [now,     setNow]     = useState(Date.now());
   const [error,   setError]   = useState(null);
@@ -120,20 +125,44 @@ export default function SuperAdminStockPickups() {
   // Get unique locations for filter
   const uniqueLocations = [...new Set(pickups.map(p => p.location_name).filter(Boolean))];
 
-  // format ms → "dd hh mm ss"
-  function formatRemaining(ms) {
-    if (ms <= 0) return "0h 0m 0s";
-    const secTotal = Math.floor(ms / 1000);
-    const days = Math.floor(secTotal / 86_400);
-    const hrs  = Math.floor((secTotal % 86_400) / 3600);
-    const mins = Math.floor((secTotal % 3600) / 60);
-    const secs = secTotal % 60;
-    return (
-      (days > 0 ? days + "d " : "") +
-      hrs + "h " +
-      mins + "m " +
-      secs + "s"
-    );
+  // Enhanced countdown function that continues counting for expired items
+  function formatCountdown(deadline) {
+    const diff = new Date(deadline).getTime() - now;
+    
+    if (diff >= 0) {
+      // Still pending - show remaining time (countdown)
+      const days = Math.floor(diff / 86_400_000);
+      const hrs = Math.floor((diff % 86_400_000) / 3_600_000);
+      const mins = Math.floor((diff % 3_600_000) / 60_000);
+      const secs = Math.floor((diff % 60_000) / 1_000);
+      
+      if (days > 0) {
+        return `${days}d ${hrs}h ${mins}m ${secs}s`;
+      } else if (hrs > 0) {
+        return `${hrs}h ${mins}m ${secs}s`;
+      } else if (mins > 0) {
+        return `${mins}m ${secs}s`;
+      } else {
+        return `${secs}s`;
+      }
+    } else {
+      // Expired - show how long ago it expired (count-up)
+      const absDiff = Math.abs(diff);
+      const days = Math.floor(absDiff / 86_400_000);
+      const hrs = Math.floor((absDiff % 86_400_000) / 3_600_000);
+      const mins = Math.floor((absDiff % 3_600_000) / 60_000);
+      const secs = Math.floor((absDiff % 60_000) / 1_000);
+      
+      if (days > 0) {
+        return `Expired ${days}d ${hrs}h ${mins}m ago`;
+      } else if (hrs > 0) {
+        return `Expired ${hrs}h ${mins}m ago`;
+      } else if (mins > 0) {
+        return `Expired ${mins}m ${secs}s ago`;
+      } else {
+        return `Expired ${secs}s ago`;
+      }
+    }
   }
 
   // Helper functions
@@ -226,22 +255,24 @@ export default function SuperAdminStockPickups() {
   }
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-6 md:px-6 lg:px-12">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">SuperAdmin Stock Pickups</h2>
+        <h2 className="text-2xl font-bold">Stock Pickups</h2>
         <div className="flex space-x-3">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center space-x-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>Filters</span>
-          </button>
-          <button
-            onClick={exportToCSV}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+          {activeTab === "team-monitoring" && (
+            <>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>Filters</span>
+              </button>
+              <button
+                onClick={exportToCSV}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -257,10 +288,45 @@ export default function SuperAdminStockPickups() {
             </svg>
             <span>Refresh</span>
           </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* No Hierarchy Message */}
+      {/* Tab Navigation */}
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab("my-actions")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "my-actions"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              My Stock Pickups
+            </button>
+            <button
+              onClick={() => setActiveTab("team-monitoring")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "team-monitoring"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Team Monitoring
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "my-actions" ? (
+        <MarketerStockPickup />
+      ) : (
+        <>
+          {/* No Hierarchy Message */}
       {noHierarchy && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
           <div className="flex">
@@ -391,8 +457,25 @@ export default function SuperAdminStockPickups() {
               </tr>
             ) : (
               paginatedPickups.map((p) => {
-                const deadlineMs = new Date(p.deadline).getTime();
-                const rem = deadlineMs - now;
+                // Show countdown/count-up based on status and time
+                let countdown;
+                if (p.status === 'sold') {
+                  // If sold, show "Sold" instead of countdown
+                  countdown = <span className="text-green-600 font-semibold">Sold</span>;
+                } else {
+                  // For other statuses, show countdown/count-up based on time
+                  const isExpired = new Date(p.deadline).getTime() < now;
+                  countdown = isExpired ? (
+                    <span className="text-red-600">
+                      {formatCountdown(p.deadline)}
+                    </span>
+                  ) : (
+                    <span className="text-green-600">
+                      {formatCountdown(p.deadline)}
+                    </span>
+                  );
+                }
+                
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2">{p.id}</td>
@@ -408,11 +491,7 @@ export default function SuperAdminStockPickups() {
                       {new Date(p.deadline).toLocaleString()}
                     </td>
                     <td className="px-4 py-2">
-                      {p.status === "pending"
-                        ? formatRemaining(rem)
-                        : p.status === "expired"
-                        ? "Expired"
-                        : "Sold"}
+                      {countdown}
                     </td>
                     <td className="px-4 py-2 capitalize">{p.status}</td>
                     <td className="px-4 py-2">{p.location_name || 'N/A'}</td>
@@ -473,6 +552,8 @@ export default function SuperAdminStockPickups() {
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

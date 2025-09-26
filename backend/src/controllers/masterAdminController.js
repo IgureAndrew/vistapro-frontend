@@ -4,6 +4,71 @@ const { createUser } = require('../models/userModel');
 const { generateUniqueID } = require('../utils/uniqueId');
 const logActivity = require('../utils/logActivity');
 
+// Notification function for marketer assignment
+const notifyMarketerAssignment = async (marketerId, adminId) => {
+  try {
+    // Get marketer details
+    const marketerResult = await pool.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [marketerId]);
+    const adminResult = await pool.query('SELECT first_name, last_name FROM users WHERE id = $1', [adminId]);
+    
+    if (marketerResult.rows.length > 0 && adminResult.rows.length > 0) {
+      const marketer = marketerResult.rows[0];
+      const admin = adminResult.rows[0];
+      
+      console.log(`🔔 NOTIFICATION for Marketer ${marketerId}: You have been assigned to Admin ${admin.first_name} ${admin.last_name}. Your account is locked until verification is complete. Please fill out the verification forms.`);
+      
+      // TODO: Implement actual socket notification
+      // await sendSocketNotification(marketerId, {
+      //   type: 'marketer_assigned',
+      //   message: `You have been assigned to Admin ${admin.first_name} ${admin.last_name}. You can now start verification.`,
+      //   adminName: `${admin.first_name} ${admin.last_name}`
+      // });
+    }
+  } catch (error) {
+    console.error('Error notifying marketer assignment:', error);
+    throw error;
+  }
+};
+
+// Notification function for admin when marketer is assigned
+const notifyAdminAssignment = async (adminId, marketerId) => {
+  try {
+    // Get admin and marketer details
+    const adminResult = await pool.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [adminId]);
+    const marketerResult = await pool.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [marketerId]);
+    
+    if (adminResult.rows.length > 0 && marketerResult.rows.length > 0) {
+      const admin = adminResult.rows[0];
+      const marketer = marketerResult.rows[0];
+      
+      console.log(`🔔 NOTIFICATION for Admin ${adminId}: New marketer ${marketer.first_name} ${marketer.last_name} has been assigned to you.`);
+      
+      // TODO: Implement actual socket notification and database notification
+      // await sendSocketNotification(adminId, {
+      //   type: 'marketer_assigned_to_admin',
+      //   message: `New marketer ${marketer.first_name} ${marketer.last_name} has been assigned to you.`,
+      //   marketerName: `${marketer.first_name} ${marketer.last_name}`,
+      //   marketerId: marketerId
+      // });
+      
+      // Store notification in database for persistence
+      // await pool.query(`
+      //   INSERT INTO notifications (user_id, type, title, message, data, created_at)
+      //   VALUES ($1, $2, $3, $4, $5, NOW())
+      // `, [
+      //   adminId,
+      //   'marketer_assigned',
+      //   'New Marketer Assigned',
+      //   `New marketer ${marketer.first_name} ${marketer.last_name} has been assigned to you.`,
+      //   JSON.stringify({ marketerId, marketerName: `${marketer.first_name} ${marketer.last_name}` })
+      // ]);
+    }
+  } catch (error) {
+    console.error('Error notifying admin assignment:', error);
+    throw error;
+  }
+};
+
 // Updated password regex: Minimum 12 characters, at least one letter, one digit, and one special character.
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{12,}$/;
 
@@ -424,13 +489,13 @@ const deleteUser = async (req, res, next) => {
       // Hard delete with cascade
       try {
         const deleteResult = await pool.query(
-          `DELETE FROM users WHERE id = $1 RETURNING *`,
-          [userId]
-        );
+      `DELETE FROM users WHERE id = $1 RETURNING *`,
+      [userId]
+    );
 
         if (deleteResult.rowCount === 0) {
-          return res.status(404).json({ message: 'User not found' });
-        }
+      return res.status(404).json({ message: 'User not found' });
+    }
 
         result = deleteResult.rows[0];
         deleteType = 'permanent';
@@ -604,29 +669,108 @@ const unlockUser = async (req, res, next) => {
  */
 const getUsers = async (req, res, next) => {
   try {
-    const { role, includeDeleted } = req.query;
+    const { 
+      q, 
+      role, 
+      status, 
+      location, 
+      sort = 'id', 
+      order = 'desc', 
+      page = 1, 
+      limit = 20, 
+      includeDeleted 
+    } = req.query;
+    
     let query = 'SELECT * FROM users';
     const values = [];
     const conditions = [];
+    let paramCount = 0;
 
     // Always exclude soft-deleted users unless explicitly requested
     if (includeDeleted !== 'true') {
       conditions.push('deleted = FALSE');
     }
 
+    // Search query (q) - search in name, email, unique_id
+    if (q) {
+      paramCount++;
+      conditions.push(`(
+        first_name ILIKE $${paramCount} OR 
+        last_name ILIKE $${paramCount} OR 
+        email ILIKE $${paramCount} OR 
+        unique_id ILIKE $${paramCount}
+      )`);
+      values.push(`%${q}%`);
+    }
+
+    // Role filter
     if (role) {
-      conditions.push('role = $1');
+      paramCount++;
+      conditions.push(`role = $${paramCount}`);
       values.push(role);
     }
 
+    // Status filter (locked/unlocked)
+    if (status) {
+      if (status === 'active') {
+        conditions.push('locked = FALSE');
+      } else if (status === 'locked') {
+        conditions.push('locked = TRUE');
+      }
+    }
+
+    // Location filter
+    if (location) {
+      paramCount++;
+      conditions.push(`location = $${paramCount}`);
+      values.push(location);
+    }
+
+    // Build WHERE clause
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' ORDER BY created_at DESC';
+    // Sorting
+    const validSortFields = ['id', 'first_name', 'last_name', 'email', 'role', 'location', 'created_at'];
+    const sortField = validSortFields.includes(sort) ? sort : 'id';
+    const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    query += ` ORDER BY ${sortField} ${sortOrder}`;
 
-    const { rows } = await pool.query(query, values);
-    return res.status(200).json({ users: rows });
+    // Pagination
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    paramCount++;
+    query += ` LIMIT $${paramCount}`;
+    values.push(parseInt(limit));
+    
+    paramCount++;
+    query += ` OFFSET $${paramCount}`;
+    values.push(offset);
+
+    // Get total count for pagination
+    let countQuery = 'SELECT COUNT(*) FROM users';
+    if (conditions.length > 0) {
+      countQuery += ' WHERE ' + conditions.join(' AND ');
+    }
+    const countValues = values.slice(0, -2); // Remove limit and offset for count query
+    
+    const [usersResult, countResult] = await Promise.all([
+      pool.query(query, values),
+      pool.query(countQuery, countValues)
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    return res.status(200).json({ 
+      users: usersResult.rows,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: totalPages,
+        limit: parseInt(limit)
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -652,41 +796,181 @@ const getUserSummary = async (req, res, next) => {
 };
 
 /**
- * getDashboardSummary - Provides a summary of the activities on the dashboard overview.
+ * getDashboardSummary - Provides a summary of the activities on the dashboard overview with previous period comparisons.
  */
 const getDashboardSummary = async (req, res, next) => {
   try {
-    const totalUsersResult = await pool.query('SELECT COUNT(*) AS total FROM users');
-    const totalOrdersResult = await pool.query('SELECT COUNT(*) AS total FROM orders');
-    const pendingApprovalsResult = await pool.query(
-      "SELECT COUNT(*) AS total FROM users WHERE overall_verification_status = 'pending'"
-    );
-    const totalSalesResult = await pool.query(
-      'SELECT COALESCE(SUM(sold_amount), 0) AS total_sales FROM orders'
-    );
-    const confirmedOrdersResult = await pool.query(
-      "SELECT COUNT(*) AS total FROM orders WHERE status = 'released_confirmed'"
-    );
-    const pendingOrdersResult = await pool.query(
-      "SELECT COUNT(*) AS total FROM orders WHERE status = 'pending'"
-    );
-    const availableProductsResult = await pool.query(
-      `SELECT COUNT(*) AS total FROM products AS p 
-       JOIN inventory_items AS i ON i.product_id = p.id 
-       WHERE i.status = 'available'`
-    );
+    // Get date range parameters (default to last 30 days vs previous 30 days)
+    const { period = '30d' } = req.query;
+    let daysBack, periodName;
+    
+    switch (period) {
+      case '7d':
+        daysBack = 7;
+        periodName = 'last 7 days';
+        break;
+      case '30d':
+        daysBack = 30;
+        periodName = 'last 30 days';
+        break;
+      case '90d':
+        daysBack = 90;
+        periodName = 'last 90 days';
+        break;
+      default:
+        daysBack = 30;
+        periodName = 'last 30 days';
+    }
+
+    const now = new Date();
+    const currentPeriodStart = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+    const previousPeriodStart = new Date(now.getTime() - (daysBack * 2 * 24 * 60 * 60 * 1000));
+    const previousPeriodEnd = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+
+    // Current period queries
+    const currentQueries = await Promise.all([
+      // Total Users (all time)
+      pool.query('SELECT COUNT(*) AS total FROM users'),
+      
+      // Total Users in current period
+      pool.query('SELECT COUNT(*) AS total FROM users WHERE created_at >= $1', [currentPeriodStart]),
+      
+      // Total Orders (all time)
+      pool.query('SELECT COUNT(*) AS total FROM orders'),
+      
+      // Total Orders in current period
+      pool.query('SELECT COUNT(*) AS total FROM orders WHERE created_at >= $1', [currentPeriodStart]),
+      
+      // Pending Orders (all time) - using canceled as pending since there's no pending status
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'canceled'"),
+      
+      // Pending Orders in current period
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'canceled' AND created_at >= $1", [currentPeriodStart]),
+      
+      // Confirmed Orders (all time)
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'released_confirmed'"),
+      
+      // Confirmed Orders in current period
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'released_confirmed' AND created_at >= $1", [currentPeriodStart]),
+      
+      // Total Sales (all time)
+      pool.query('SELECT COALESCE(SUM(sold_amount), 0) AS total_sales FROM orders'),
+      
+      // Total Sales in current period
+      pool.query('SELECT COALESCE(SUM(sold_amount), 0) AS total_sales FROM orders WHERE created_at >= $1', [currentPeriodStart]),
+      
+      // Available Products (all time)
+      pool.query(`SELECT COUNT(*) AS total FROM products AS p 
+                  JOIN inventory_items AS i ON i.product_id = p.id 
+                  WHERE i.status = 'available'`),
+      
+      // Available Products in current period
+      pool.query(`SELECT COUNT(*) AS total FROM products AS p 
+                  JOIN inventory_items AS i ON i.product_id = p.id 
+                  WHERE i.status = 'available' AND p.created_at >= $1`, [currentPeriodStart]),
+      
+      // Pending Verification (all time)
+      pool.query("SELECT COUNT(*) AS total FROM users WHERE overall_verification_status = 'pending'"),
+      
+      // Pending Verification in current period
+      pool.query("SELECT COUNT(*) AS total FROM users WHERE overall_verification_status = 'pending' AND created_at >= $1", [currentPeriodStart]),
+      
+      // Pickup Stocks (all time) - using 'return_pending' status for items currently in the field
+      pool.query("SELECT COUNT(*) AS total FROM stock_updates WHERE status = 'return_pending'"),
+      
+      // Pickup Stocks in current period
+      pool.query("SELECT COUNT(*) AS total FROM stock_updates WHERE status = 'return_pending' AND pickup_date >= $1", [currentPeriodStart])
+    ]);
+
+    // Previous period queries
+    const previousQueries = await Promise.all([
+      // Total Users in previous period
+      pool.query('SELECT COUNT(*) AS total FROM users WHERE created_at >= $1 AND created_at < $2', [previousPeriodStart, previousPeriodEnd]),
+      
+      // Total Orders in previous period
+      pool.query('SELECT COUNT(*) AS total FROM orders WHERE created_at >= $1 AND created_at < $2', [previousPeriodStart, previousPeriodEnd]),
+      
+      // Pending Orders in previous period
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'canceled' AND created_at >= $1 AND created_at < $2", [previousPeriodStart, previousPeriodEnd]),
+      
+      // Confirmed Orders in previous period
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'released_confirmed' AND created_at >= $1 AND created_at < $2", [previousPeriodStart, previousPeriodEnd]),
+      
+      // Total Sales in previous period
+      pool.query('SELECT COALESCE(SUM(sold_amount), 0) AS total_sales FROM orders WHERE created_at >= $1 AND created_at < $2', [previousPeriodStart, previousPeriodEnd]),
+      
+      // Available Products in previous period
+      pool.query(`SELECT COUNT(*) AS total FROM products AS p 
+                  JOIN inventory_items AS i ON i.product_id = p.id 
+                  WHERE i.status = 'available' AND p.created_at >= $1 AND p.created_at < $2`, [previousPeriodStart, previousPeriodEnd]),
+      
+      // Pending Verification in previous period
+      pool.query("SELECT COUNT(*) AS total FROM users WHERE overall_verification_status = 'pending' AND created_at >= $1 AND created_at < $2", [previousPeriodStart, previousPeriodEnd]),
+      
+      // Pickup Stocks in previous period
+      pool.query("SELECT COUNT(*) AS total FROM stock_updates WHERE status = 'return_pending' AND pickup_date >= $1 AND pickup_date < $2", [previousPeriodStart, previousPeriodEnd])
+    ]);
+
+    // Extract results
+    const [
+      totalUsersAll, totalUsersCurrent,
+      totalOrdersAll, totalOrdersCurrent,
+      pendingOrdersAll, pendingOrdersCurrent,
+      confirmedOrdersAll, confirmedOrdersCurrent,
+      totalSalesAll, totalSalesCurrent,
+      availableProductsAll, availableProductsCurrent,
+      pendingVerificationAll, pendingVerificationCurrent,
+      pickupStocksAll, pickupStocksCurrent
+    ] = currentQueries;
+
+    const [
+      totalUsersPrevious,
+      totalOrdersPrevious,
+      pendingOrdersPrevious,
+      confirmedOrdersPrevious,
+      totalSalesPrevious,
+      availableProductsPrevious,
+      pendingVerificationPrevious,
+      pickupStocksPrevious
+    ] = previousQueries;
 
     return res.status(200).json({
-      totalUsers: parseInt(totalUsersResult.rows[0].total, 10),
-      totalOrders: parseInt(totalOrdersResult.rows[0].total, 10),
-      totalPendingOrders: parseInt(pendingOrdersResult.rows[0].total, 10),
-      totalConfirmedOrders: parseInt(confirmedOrdersResult.rows[0].total, 10),
-      pendingApprovals: parseInt(pendingApprovalsResult.rows[0].total, 10),
-      totalSales: parseFloat(totalSalesResult.rows[0].total_sales) || 0,
-      totalAvailableProducts: parseInt(availableProductsResult.rows[0].total, 10),
+      // Current totals (all time)
+      totalUsers: parseInt(totalUsersAll.rows[0].total, 10),
+      totalOrders: parseInt(totalOrdersAll.rows[0].total, 10),
+      totalPendingOrders: parseInt(pendingOrdersAll.rows[0].total, 10),
+      totalConfirmedOrders: parseInt(confirmedOrdersAll.rows[0].total, 10),
+      pendingVerification: parseInt(pendingVerificationAll.rows[0].total, 10),
+      totalSales: parseFloat(totalSalesAll.rows[0].total_sales) || 0,
+      totalAvailableProducts: parseInt(availableProductsAll.rows[0].total, 10),
+      totalPickupStocks: parseInt(pickupStocksAll.rows[0].total, 10),
+      
+      // Previous period data for comparisons
+      previousTotalUsers: parseInt(totalUsersPrevious.rows[0].total, 10),
+      previousPendingOrders: parseInt(pendingOrdersPrevious.rows[0].total, 10),
+      previousConfirmedOrders: parseInt(confirmedOrdersPrevious.rows[0].total, 10),
+      previousSales: parseFloat(totalSalesPrevious.rows[0].total_sales) || 0,
+      previousAvailableProducts: parseInt(availableProductsPrevious.rows[0].total, 10),
+      previousPendingVerification: parseInt(pendingVerificationPrevious.rows[0].total, 10),
+      previousPickupStocks: parseInt(pickupStocksPrevious.rows[0].total, 10),
+      
+      // Current period data
+      currentPeriodUsers: parseInt(totalUsersCurrent.rows[0].total, 10),
+      currentPeriodOrders: parseInt(totalOrdersCurrent.rows[0].total, 10),
+      currentPeriodPendingOrders: parseInt(pendingOrdersCurrent.rows[0].total, 10),
+      currentPeriodConfirmedOrders: parseInt(confirmedOrdersCurrent.rows[0].total, 10),
+      currentPeriodSales: parseFloat(totalSalesCurrent.rows[0].total_sales) || 0,
+      currentPeriodAvailableProducts: parseInt(availableProductsCurrent.rows[0].total, 10),
+      currentPeriodPendingVerification: parseInt(pendingVerificationCurrent.rows[0].total, 10),
+      currentPeriodPickupStocks: parseInt(pickupStocksCurrent.rows[0].total, 10),
+      
+      // Metadata
+      period: periodName,
+      periodDays: daysBack,
       activeSessions: 0
     });
   } catch (error) {
+    console.error('Dashboard summary error:', error);
     next(error);
   }
 };
@@ -1131,6 +1415,289 @@ async function getRecentActivity(req, res, next) {
   }
 }
 
+/**
+ * assignMarketerToAdmin - Assigns a marketer to an admin (MasterAdmin only)
+ */
+const assignMarketerToAdmin = async (req, res, next) => {
+  try {
+    const { marketerId, adminId } = req.body;
+    
+    if (!marketerId || !adminId) {
+      return res.status(400).json({ message: 'Marketer ID and Admin ID are required.' });
+    }
+
+    // Verify marketer exists and is a marketer
+    const marketerResult = await pool.query('SELECT id, first_name, last_name, email, role, admin_id FROM users WHERE id = $1', [marketerId]);
+    if (marketerResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Marketer not found.' });
+    }
+    
+    const marketer = marketerResult.rows[0];
+    if (marketer.role !== 'Marketer') {
+      return res.status(400).json({ message: 'User is not a marketer.' });
+    }
+
+    // Verify admin exists and is an admin
+    const adminResult = await pool.query('SELECT id, first_name, last_name, role FROM users WHERE id = $1', [adminId]);
+    if (adminResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Admin not found.' });
+    }
+    
+    const admin = adminResult.rows[0];
+    if (admin.role !== 'Admin') {
+      return res.status(400).json({ message: 'User is not an admin.' });
+    }
+
+    // Check if marketer is already assigned
+    if (marketer.admin_id) {
+      return res.status(400).json({ message: 'Marketer is already assigned to an admin.' });
+    }
+
+    // Assign marketer to admin but keep account LOCKED until verification complete
+    await pool.query(
+      'UPDATE users SET admin_id = $1, locked = true, updated_at = NOW() WHERE id = $2',
+      [adminId, marketerId]
+    );
+
+    // Send notification to marketer
+    try {
+      await notifyMarketerAssignment(marketerId, adminId);
+    } catch (notificationError) {
+      console.error('Failed to notify marketer:', notificationError);
+      // Don't fail assignment if notification fails
+    }
+
+    // Send notification to admin
+    try {
+      await notifyAdminAssignment(adminId, marketerId);
+    } catch (notificationError) {
+      console.error('Failed to notify admin:', notificationError);
+      // Don't fail assignment if notification fails
+    }
+
+    // Log activity
+    await logActivity(
+      req.user.id,
+      'assign_marketer',
+      `Assigned marketer ${marketer.first_name} ${marketer.last_name} to admin ${admin.first_name} ${admin.last_name}`,
+      { marketerId, adminId, marketerName: `${marketer.first_name} ${marketer.last_name}`, adminName: `${admin.first_name} ${admin.last_name}` }
+    );
+
+    res.status(200).json({
+      message: 'Marketer assigned successfully.',
+      marketer: {
+        id: marketer.id,
+        name: `${marketer.first_name} ${marketer.last_name}`,
+        email: marketer.email
+      },
+      admin: {
+        id: admin.id,
+        name: `${admin.first_name} ${admin.last_name}`
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * getUnassignedMarketers - Gets all marketers that are not assigned to any admin
+ */
+const getUnassignedMarketers = async (req, res, next) => {
+  try {
+    const query = `
+      SELECT id, unique_id, first_name, last_name, email, location, 
+             COALESCE(overall_verification_status, 'pending') as status, 
+             created_at, locked
+      FROM users 
+      WHERE role = 'Marketer' AND admin_id IS NULL
+      ORDER BY created_at DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    res.status(200).json({
+      marketers: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * getAssignmentStats - Gets statistics for user assignments
+ */
+const getAssignmentStats = async (req, res, next) => {
+  try {
+    // Get total marketers
+    const totalMarketersResult = await pool.query(
+      "SELECT COUNT(*) AS total FROM users WHERE role = 'Marketer'"
+    );
+    
+    // Get assigned marketers
+    const assignedMarketersResult = await pool.query(
+      "SELECT COUNT(*) AS total FROM users WHERE role = 'Marketer' AND admin_id IS NOT NULL"
+    );
+    
+    // Get unassigned marketers
+    const unassignedMarketersResult = await pool.query(
+      "SELECT COUNT(*) AS total FROM users WHERE role = 'Marketer' AND admin_id IS NULL"
+    );
+    
+    // Get active assignees (admins and superadmins)
+    const activeAssigneesResult = await pool.query(
+      "SELECT COUNT(*) AS total FROM users WHERE role IN ('Admin', 'SuperAdmin')"
+    );
+    
+    res.status(200).json({
+      totalMarketers: parseInt(totalMarketersResult.rows[0].total),
+      assignedMarketers: parseInt(assignedMarketersResult.rows[0].total),
+      unassignedMarketers: parseInt(unassignedMarketersResult.rows[0].total),
+      activeAssignees: parseInt(activeAssigneesResult.rows[0].total)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * getAllLocations - Gets all unique locations from users
+ */
+const getAllLocations = async (req, res, next) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT location 
+      FROM users 
+      WHERE location IS NOT NULL AND location != ''
+      ORDER BY location
+    `);
+    
+    const locations = result.rows.map(row => row.location);
+    
+    res.status(200).json(locations);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * getHierarchicalAssignments - Gets assignments in hierarchical structure for UI display
+ */
+const getHierarchicalAssignments = async (req, res, next) => {
+  try {
+    // Get all superadmins with their assigned admins and marketers
+    const result = await pool.query(`
+      WITH superadmin_data AS (
+        SELECT 
+          u.id,
+          u.unique_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.location
+        FROM users u
+        WHERE u.role = 'SuperAdmin'
+      ),
+      admin_data AS (
+        SELECT 
+          u.id,
+          u.unique_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.location,
+          u.super_admin_id
+        FROM users u
+        WHERE u.role = 'Admin' AND u.super_admin_id IS NOT NULL
+      ),
+      marketer_data AS (
+        SELECT 
+          u.id,
+          u.unique_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.location,
+          u.admin_id
+        FROM users u
+        WHERE u.role = 'Marketer' AND u.admin_id IS NOT NULL
+      )
+      SELECT 
+        sa.id as superadmin_id,
+        sa.unique_id as superadmin_unique_id,
+        sa.first_name as superadmin_first_name,
+        sa.last_name as superadmin_last_name,
+        sa.email as superadmin_email,
+        sa.location as superadmin_location,
+        a.id as admin_id,
+        a.unique_id as admin_unique_id,
+        a.first_name as admin_first_name,
+        a.last_name as admin_last_name,
+        a.email as admin_email,
+        a.location as admin_location,
+        m.id as marketer_id,
+        m.unique_id as marketer_unique_id,
+        m.first_name as marketer_first_name,
+        m.last_name as marketer_last_name,
+        m.email as marketer_email,
+        m.location as marketer_location
+      FROM superadmin_data sa
+      LEFT JOIN admin_data a ON a.super_admin_id = sa.id
+      LEFT JOIN marketer_data m ON m.admin_id = a.id
+      ORDER BY sa.first_name, a.first_name, m.first_name
+    `);
+
+    // Group the data hierarchically
+    const hierarchical = {};
+    
+    result.rows.forEach(row => {
+      const superAdminId = row.superadmin_id;
+      
+      if (!hierarchical[superAdminId]) {
+        hierarchical[superAdminId] = {
+          superAdmin: {
+            id: row.superadmin_id,
+            unique_id: row.superadmin_unique_id,
+            firstName: row.superadmin_first_name,
+            lastName: row.superadmin_last_name,
+            email: row.superadmin_email,
+            location: row.superadmin_location
+          },
+          admins: {}
+        };
+      }
+      
+      if (row.admin_id && !hierarchical[superAdminId].admins[row.admin_id]) {
+        hierarchical[superAdminId].admins[row.admin_id] = {
+          admin: {
+            id: row.admin_id,
+            unique_id: row.admin_unique_id,
+            firstName: row.admin_first_name,
+            lastName: row.admin_last_name,
+            email: row.admin_email,
+            location: row.admin_location
+          },
+          marketers: []
+        };
+      }
+      
+      if (row.marketer_id) {
+        hierarchical[superAdminId].admins[row.admin_id].marketers.push({
+          id: row.marketer_id,
+          unique_id: row.marketer_unique_id,
+          firstName: row.marketer_first_name,
+          lastName: row.marketer_last_name,
+          email: row.marketer_email,
+          location: row.marketer_location
+        });
+      }
+    });
+
+    res.status(200).json(hierarchical);
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = {
   registerMasterAdmin,
@@ -1155,5 +1722,10 @@ module.exports = {
   getAllDealers,
   getTotalUsers,
   getStats,
-  getRecentActivity
+  getRecentActivity,
+  assignMarketerToAdmin,
+  getUnassignedMarketers,
+  getAssignmentStats,
+  getAllLocations,
+  getHierarchicalAssignments
 };
