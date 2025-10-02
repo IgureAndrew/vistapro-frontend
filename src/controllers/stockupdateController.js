@@ -1754,27 +1754,48 @@ async function getBlockedAccounts(req, res, next) {
       return res.status(403).json({ message: 'Only MasterAdmin can view blocked accounts' });
     }
     
-    const result = await pool.query(`
-      SELECT 
-        u.id,
-        u.unique_id,
-        u.first_name,
-        u.last_name,
-        u.role,
-        u.pickup_violation_count,
-        u.blocking_reason,
-        u.blocked_at,
-        u.blocked_by,
-        blocker.first_name || ' ' || blocker.last_name as blocked_by_name,
-        u.unlocked_at,
-        u.unlocked_by,
-        unlocker.first_name || ' ' || unlocker.last_name as unlocked_by_name
-      FROM users u
-      LEFT JOIN users blocker ON blocker.id = u.blocked_by
-      LEFT JOIN users unlocker ON unlocker.id = u.unlocked_by
-      WHERE u.account_blocked = TRUE
-      ORDER BY u.blocked_at DESC
+    // First, check what columns actually exist in the users table
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' 
+      AND column_name IN ('blocking_reason', 'blocked_at', 'unlocked_at', 'account_blocked')
     `);
+    
+    const existingColumns = columnCheck.rows.map(row => row.column_name);
+    console.log('Available columns:', existingColumns);
+    
+    // Build query based on available columns
+    let selectColumns = ['u.id', 'u.unique_id', 'u.first_name', 'u.last_name', 'u.role', 'u.pickup_violation_count'];
+    
+    if (existingColumns.includes('blocking_reason')) {
+      selectColumns.push('u.blocking_reason');
+    }
+    if (existingColumns.includes('blocked_at')) {
+      selectColumns.push('u.blocked_at');
+    }
+    if (existingColumns.includes('unlocked_at')) {
+      selectColumns.push('u.unlocked_at');
+    }
+    
+    const whereClause = existingColumns.includes('account_blocked') 
+      ? 'WHERE u.account_blocked = TRUE'
+      : 'WHERE u.account_blocked = true'; // fallback
+    
+    const orderClause = existingColumns.includes('blocked_at')
+      ? 'ORDER BY u.blocked_at DESC'
+      : 'ORDER BY u.id DESC';
+    
+    const query = `
+      SELECT ${selectColumns.join(', ')}
+      FROM users u
+      ${whereClause}
+      ${orderClause}
+    `;
+    
+    console.log('Executing query:', query);
+    
+    const result = await pool.query(query);
     
     res.json({
       success: true,
@@ -1783,7 +1804,11 @@ async function getBlockedAccounts(req, res, next) {
     
   } catch (error) {
     console.error('Get blocked accounts error:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load blocked accounts',
+      error: error.message
+    });
   }
 }
 
