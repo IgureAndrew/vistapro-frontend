@@ -49,23 +49,23 @@ app.options('*', (req, res) => {
 
 // Comprehensive CORS configuration
 app.use(cors({
-  origin: (origin, cb) => {
+  origin: (origin, callback) => {
     console.log('🌐 CORS request from origin:', origin);
     
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) {
       console.log('✅ Allowing request with no origin');
-      return cb(null, true);
+      return callback(null, true);
     }
     
     // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
       console.log('✅ Origin allowed:', origin);
-      return cb(null, true);
+      return callback(null, true);
     }
     
     console.log('❌ Origin blocked:', origin);
-    return cb(new Error(`Origin ${origin} not allowed by CORS`));
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
