@@ -1467,7 +1467,7 @@ async function trackPickupCompletion(req, res, next) {
     res.json({
       success: true,
       message: `Pickup completion tracked successfully`,
-      completionId: result.rows[0].id
+      completionId: pickupId
     });
     
   } catch (error) {
