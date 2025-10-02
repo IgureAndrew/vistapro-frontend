@@ -6,6 +6,9 @@ const { createUser } = require('../models/userModel');
 const { generateUniqueID } = require('../utils/uniqueId');
 const logActivity = require('../utils/logActivity');
 
+// Version marker for deployment - enum values fixed
+console.log('🚀 Backend Version 2.2 - Stock pickup enum values fixed');
+
 // Notification function for marketer assignment
 const notifyMarketerAssignment = async (marketerId, adminId) => {
   try {
