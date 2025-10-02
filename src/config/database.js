@@ -5,27 +5,32 @@ const dotenv = require('dotenv');
 // Load environment variables from .env file
 dotenv.config();
 
-// Force local database for development
-const isDevelopment = true;
-const useLocalDB = true;
+// Check if we're in production or development
+const isProduction = process.env.NODE_ENV === 'production';
+const isDevelopment = !isProduction;
 
 let connectionString;
 
-// Use environment variables for database connection
-const dbUser = process.env.DB_USER || 'vistapro_user';
-const dbPassword = process.env.DB_PASSWORD || 'vistapro_password';
-const dbHost = process.env.DB_HOST || 'localhost';
-const dbPort = process.env.DB_PORT || '5433';
-const dbName = process.env.DB_NAME || 'vistapro_dev';
+if (isProduction) {
+  // Production: Use DATABASE_URL from environment
+  connectionString = process.env.DATABASE_URL;
+  console.log('🔧 Using PRODUCTION database');
+} else {
+  // Development: Use individual environment variables or defaults
+  const dbUser = process.env.DB_USER || 'vistapro_user';
+  const dbPassword = process.env.DB_PASSWORD || 'vistapro_password';
+  const dbHost = process.env.DB_HOST || 'localhost';
+  const dbPort = process.env.DB_PORT || '5433';
+  const dbName = process.env.DB_NAME || 'vistapro_dev';
+  
+  connectionString = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+  console.log('🔧 Using LOCAL database for development');
+}
 
-connectionString = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
-console.log('🔧 Using LOCAL database for development');
-
-// Create a new PostgreSQL pool using the connection string from the environment.
-// SSL disabled for local development
+// Create a new PostgreSQL pool using the connection string from the environment
 const pool = new Pool({
   connectionString: connectionString,
-  ssl: false, // Disable SSL for local development
+  ssl: isProduction ? { rejectUnauthorized: false } : false, // Enable SSL for production
 });
 
 /**
