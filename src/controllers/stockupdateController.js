@@ -202,40 +202,9 @@ const createStockUpdate = async (req, res, next) => {
       });
     }
 
-    // 2) Determine allowance using new system
-    const { rows: allowanceRows } = await client.query(
-      `SELECT allowance_type, units_allocated, units_completed, status
-         FROM pickup_allowance_history
-        WHERE marketer_id = $1 AND status = 'active'
-        ORDER BY created_at DESC LIMIT 1`,
-      [marketerId]
-    );
-    
-    let allowance = 1;
+    // 2) Determine allowance (simplified - no allowance system)
+    let allowance = 1; // Default to 1 unit per pickup
     let allowanceType = 'default';
-    
-    if (allowanceRows.length > 0) {
-      const allowanceRecord = allowanceRows[0];
-      allowance = allowanceRecord.units_allocated;
-      allowanceType = allowanceRecord.allowance_type;
-      
-      // Check if additional pickup is completed
-      if (allowanceRecord.allowance_type === 'additional' && 
-          allowanceRecord.units_completed >= allowanceRecord.units_allocated) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          message: 'You must complete your current additional pickup before starting a new one.'
-        });
-      }
-    } else {
-      // Create default allowance record
-      await client.query(
-        `INSERT INTO pickup_allowance_history 
-         (marketer_id, allowance_type, units_allocated, order_confirmed)
-         VALUES ($1, 'default', 1, FALSE)`,
-        [marketerId]
-      );
-    }
 
     // 3) Check for active stock (violation check)
     const { rows: activeStockRows } = await client.query(
@@ -488,13 +457,8 @@ async function placeOrder(req, res, next) {
       }
     }
 
-    // 6) Update pickup allowance history to mark order as confirmed
-    await client.query(`
-      UPDATE pickup_allowance_history 
-      SET order_confirmed = TRUE
-      WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
-        AND status = 'active'
-    `, [marketerUID]);
+    // 6) Order confirmed (simplified - no allowance tracking)
+    console.log(`Order confirmed for marketer ${marketerUID}`);
 
     await client.query("COMMIT");
     return res.status(201).json({
@@ -1551,49 +1515,8 @@ async function confirmReturnTransfer(req, res, next) {
     const { pickup_id, completion_type } = result.rows[0];
     
     if (action === 'confirm') {
-      // Update pickup allowance history
-      await pool.query(`
-        UPDATE pickup_allowance_history 
-        SET units_completed = units_completed + 1
-        WHERE marketer_id = (
-          SELECT marketer_id FROM stock_updates WHERE id = $1
-        ) AND status = 'active'
-      `, [pickup_id]);
-      
-      // Check if all units are completed
-      const completionCheck = await pool.query(`
-        SELECT pah.units_completed, pah.units_allocated, pah.marketer_id
-        FROM pickup_allowance_history pah
-        JOIN stock_updates su ON su.marketer_id = pah.marketer_id
-        WHERE su.id = $1 AND pah.status = 'active'
-      `, [pickup_id]);
-      
-      if (completionCheck.rows.length > 0) {
-        const { units_completed, units_allocated, marketer_id } = completionCheck.rows[0];
-        
-        if (units_completed >= units_allocated) {
-          // Mark allowance as completed
-          await pool.query(`
-            UPDATE pickup_allowance_history 
-            SET status = 'completed', completed_at = NOW()
-            WHERE marketer_id = $1 AND status = 'active'
-          `, [marketer_id]);
-          
-          // Reset to default allowance for next cycle
-          await pool.query(`
-            INSERT INTO pickup_allowance_history 
-            (marketer_id, allowance_type, units_allocated, order_confirmed)
-            VALUES ($1, 'default', 1, FALSE)
-          `, [marketer_id]);
-          
-          // Notify marketer that they can request additional pickup again
-          await pool.query(`
-            INSERT INTO notifications (user_unique_id, message, created_at)
-            SELECT unique_id, 'Your pickup cycle is complete. You can now request additional pickup.', NOW()
-            FROM users WHERE id = $1
-          `, [marketer_id]);
-        }
-      }
+      // Return/transfer confirmed (simplified - no allowance tracking)
+      console.log(`Return/transfer confirmed for pickup ${pickup_id}`);
     }
     
     // Notify marketer about confirmation
