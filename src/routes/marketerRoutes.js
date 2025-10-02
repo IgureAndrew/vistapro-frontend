@@ -21,6 +21,11 @@ const {
   submitCommitmentForm,
   listDealersByState,
   listDealerProducts,
+  // New stock pickup functions
+  getPickupDealers,
+  checkPickupEligibility,
+  createStockPickup,
+  getStockPickups,
 } = require('../controllers/marketerController');
 
 // ensure upload dirs exist
@@ -119,6 +124,35 @@ router.get(
   '/dealers/:dealerUniqueId/products',
   verifyToken, verifyRole(['Marketer']),
   listDealerProducts
+);
+
+// ─ Stock Pickup Routes ───────────────────────────────────────────────────────
+// GET /api/marketer/stock/pickup/dealers - Get dealers for stock pickup
+router.get(
+  '/stock/pickup/dealers',
+  verifyToken, verifyRole(['Marketer']),
+  getPickupDealers
+);
+
+// GET /api/marketer/stock/pickup/eligibility - Check pickup eligibility
+router.get(
+  '/stock/pickup/eligibility',
+  verifyToken, verifyRole(['Marketer']),
+  checkPickupEligibility
+);
+
+// POST /api/marketer/stock - Create stock pickup
+router.post(
+  '/stock',
+  verifyToken, verifyRole(['Marketer']),
+  createStockPickup
+);
+
+// GET /api/marketer/stock - Get marketer's stock pickups
+router.get(
+  '/stock',
+  verifyToken, verifyRole(['Marketer']),
+  getStockPickups
 );
 
 module.exports = router;
