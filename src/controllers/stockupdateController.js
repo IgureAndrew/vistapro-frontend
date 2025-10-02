@@ -1458,26 +1458,40 @@ async function checkAdditionalPickupEligibility(req, res, next) {
     
     const hasConfirmedOrder = parseInt(orderCheck.rows[0].confirmed_orders) > 0;
     
-    // Check if previous additional pickup is completed
-    const completionCheck = await pool.query(`
-      SELECT COUNT(*) as pending_completions
-      FROM pickup_allowance_history pah
-      WHERE pah.marketer_id = $1 
-        AND pah.allowance_type = 'additional'
-        AND pah.status = 'active'
-        AND pah.units_completed < pah.units_allocated
-    `, [marketerId]);
+    // Initialize defaults for tables that might not exist
+    let hasPendingCompletion = false;
+    let hasPendingRequest = false;
     
-    const hasPendingCompletion = parseInt(completionCheck.rows[0].pending_completions) > 0;
+    // Check if previous additional pickup is completed (with error handling)
+    try {
+      const completionCheck = await pool.query(`
+        SELECT COUNT(*) as pending_completions
+        FROM pickup_allowance_history pah
+        WHERE pah.marketer_id = $1 
+          AND pah.allowance_type = 'additional'
+          AND pah.status = 'active'
+          AND pah.units_completed < pah.units_allocated
+      `, [marketerId]);
+      
+      hasPendingCompletion = parseInt(completionCheck.rows[0].pending_completions) > 0;
+    } catch (tableError) {
+      console.log('pickup_allowance_history table does not exist, skipping check');
+      hasPendingCompletion = false;
+    }
     
-    // Check if there's already a pending additional pickup request
-    const requestCheck = await pool.query(`
-      SELECT COUNT(*) as pending_requests
-      FROM additional_pickup_requests
-      WHERE marketer_id = $1 AND status = 'pending'
-    `, [marketerId]);
-    
-    const hasPendingRequest = parseInt(requestCheck.rows[0].pending_requests) > 0;
+    // Check if there's already a pending additional pickup request (with error handling)
+    try {
+      const requestCheck = await pool.query(`
+        SELECT COUNT(*) as pending_requests
+        FROM additional_pickup_requests
+        WHERE marketer_id = $1 AND status = 'pending'
+      `, [marketerId]);
+      
+      hasPendingRequest = parseInt(requestCheck.rows[0].pending_requests) > 0;
+    } catch (tableError) {
+      console.log('additional_pickup_requests table does not exist, skipping check');
+      hasPendingRequest = false;
+    }
     
     const isEligible = hasConfirmedOrder && !hasPendingCompletion && !hasPendingRequest;
     
@@ -2315,6 +2329,12 @@ async function listStockPickups(req, res, next) {
 
   } catch (error) {
     console.error('List stock pickups error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to load stock pickups',
