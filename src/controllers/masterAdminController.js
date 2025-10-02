@@ -864,6 +864,7 @@ const getDashboardSummary = async (req, res, next) => {
     // Current period queries
     console.log('🔍 [DEBUG] Starting dashboard summary queries...');
     console.log('🔍 [DEBUG] Database connection string:', process.env.DATABASE_URL ? 'PRODUCTION' : 'LOCAL');
+    console.log('🔍 [DEBUG] Version 2.1 - Email verification fix deployed');
     
     const currentQueries = await Promise.all([
       // Total Users (all time)
