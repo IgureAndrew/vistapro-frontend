@@ -325,6 +325,29 @@ const getUsersWithoutTargets = async (req, res) => {
   }
 };
 
+/**
+ * Get users filtered by role and location for target creation
+ */
+const getUsersForTargetCreation = async (req, res) => {
+  try {
+    const { role, location } = req.query;
+    
+    const users = await targetManagementService.getUsersForTargetCreation(role, location);
+    
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    logger.error('Error getting users for target creation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get users for target creation',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getTargetTypes,
   getUserTargets,
@@ -336,5 +359,6 @@ module.exports = {
   getTargetHistory,
   getTargetsByPeriod,
   getTargetStats,
-  getUsersWithoutTargets
+  getUsersWithoutTargets,
+  getUsersForTargetCreation
 };

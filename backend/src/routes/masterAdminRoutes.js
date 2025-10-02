@@ -81,7 +81,6 @@ router.put(
   '/profile',
   verifyToken,
   verifyRole(['MasterAdmin']),
-  uploadImage.single('profileImage'),
   updateProfile
 );
 router.get(

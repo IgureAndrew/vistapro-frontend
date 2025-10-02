@@ -19,9 +19,9 @@ app.use(rateLimit({
   message: "Too many requests, please try again later."
 }));
 
-// ——— Body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ——— Body parsing with increased limits for Base64 images
+app.use(express.json({ limit: '10mb' })); // Increased from default 100kb to 10mb
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ——— CORS
 const allowedOrigins = [
@@ -47,24 +47,49 @@ app.options('*', (req, res) => {
   }
 });
 
+// Comprehensive CORS configuration
 app.use(cors({
   origin: (origin, cb) => {
-    console.log('CORS request from origin:', origin);
+    console.log('🌐 CORS request from origin:', origin);
+    
+    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) {
-      console.log('No origin header, allowing request');
+      console.log('✅ Allowing request with no origin');
       return cb(null, true);
     }
+    
+    // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
-      console.log('Origin allowed:', origin);
+      console.log('✅ Origin allowed:', origin);
       return cb(null, true);
     }
-    console.log('Origin blocked:', origin);
-    cb(new Error("Not allowed by CORS"));
+    
+    console.log('❌ Origin blocked:', origin);
+    return cb(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  optionsSuccessStatus: 200
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept', 
+    'Origin', 
+    'Referer',
+    'Cache-Control',
+    'Pragma'
+  ],
+  exposedHeaders: [
+    'Content-Length', 
+    'Content-Type', 
+    'Date', 
+    'Server', 
+    'Transfer-Encoding',
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining'
+  ],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 }));
 
 // ——— Security headers
@@ -91,8 +116,49 @@ require('./jobs/expireStockPickups');
 require('./jobs/refreshSummary');
 
 
-// ——— Static file serving for uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// ——— Static file serving for uploads with comprehensive CORS headers
+app.use('/uploads', (req, res, next) => {
+  console.log('🔍 Static file request:', {
+    method: req.method,
+    url: req.url,
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent'],
+    referer: req.headers.referer
+  });
+  
+  // Always set CORS headers for static files
+  const origin = req.headers.origin;
+  
+  // Set CORS headers
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Referer');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Date, Server, Transfer-Encoding');
+  
+  // Additional headers to prevent caching issues
+  res.header('Cache-Control', 'public, max-age=3600');
+  res.header('Vary', 'Origin');
+  
+  console.log('✅ CORS headers set for origin:', origin);
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('🔄 Handling preflight request');
+    return res.status(200).end();
+  }
+  
+  next();
+}, express.static(path.join(__dirname, '../uploads'), {
+  setHeaders: (res, path, stat) => {
+    // Ensure CORS headers are set on the actual file response
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Referer');
+    res.set('Access-Control-Allow-Credentials', 'true');
+    console.log('📁 Static file served with CORS headers:', path);
+  }
+}));
 
 // ——— Health check endpoint
 app.get('/health', (req, res) => {
@@ -110,7 +176,19 @@ app.use('/api', (req, res, next) => {
 
 // ——— Mount your routes
 app.use('/api/auth',           require('./routes/authRoutes'));
-app.use('/api/master-admin',   require('./routes/masterAdminRoutes'));
+// MasterAdmin routes with specific CORS handling
+app.use('/api/master-admin', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Referer');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    console.log('🔧 MasterAdmin CORS headers set for:', origin, req.url);
+  }
+  next();
+}, require('./routes/masterAdminRoutes'));
+app.use('/api/wallets/master-admin', require('./routes/masterAdminWalletRoutes'));
 app.use('/api/super-admin',    require('./routes/superAdminRoutes'));
 app.use('/api/admin',          require('./routes/adminRoutes'));
 app.use('/api/dealer',         require('./routes/dealerRoutes'));
@@ -132,6 +210,17 @@ app.use('/api/wallets',        require('./routes/walletRoutes'));
 app.use('/api/messages',       require('./routes/messageRoutes'));
 app.use('/api/targets',        require('./routes/targetRoutes'));
 app.use('/api/messaging',      require('./routes/messagingRoutes'));
+
+// ——— Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
+  });
+});
 
 // ——— Error handler
 app.use(require('./middlewares/errorHandler'));

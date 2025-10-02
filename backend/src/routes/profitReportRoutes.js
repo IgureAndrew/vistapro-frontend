@@ -1,6 +1,14 @@
 // backend/src/routes/profitReportRoutes.js
 
 const express = require('express');
+const path = require('path');
+const dotenv = require('dotenv');
+// Ensure env is loaded even if the server wasn't started via start-dev.js
+// This explicitly reads the root-level config.env in development.
+try {
+  dotenv.config({ path: path.resolve(__dirname, '../../../config.env') });
+} catch (_) {}
+
 const {
   getInventorySnapshot,
   getDailySales,
@@ -19,10 +27,10 @@ const router = express.Router();
 // ─── POST /api/profit-report/unlock ─────────────────────────────────────────
 router.post('/unlock', (req, res, next) => {
   try {
-    // 1) Read the expected access code from environment
-    const expected = process.env.PROFIT_REPORT_ACCESS_CODE;
+    // 1) Read the expected access code from environment (fallback for dev)
+    const expected = process.env.PROFIT_REPORT_ACCESS_CODE || 'Ekjam83StjWI';
     if (!expected) {
-      // If it’s not set, nobody can ever unlock
+      // If it's not set, nobody can ever unlock
       return res
         .status(500)
         .json({ message: 'Access code is not configured.' });

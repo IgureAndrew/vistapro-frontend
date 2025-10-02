@@ -28,6 +28,9 @@ router.get('/stats', verifyRole(['MasterAdmin']), targetManagementController.get
 // Get users without targets (Master Admin only)
 router.get('/users-without-targets', verifyRole(['MasterAdmin']), targetManagementController.getUsersWithoutTargets);
 
+// Get users filtered by role and location for target creation (Master Admin only)
+router.get('/users-for-target-creation', verifyRole(['MasterAdmin']), targetManagementController.getUsersForTargetCreation);
+
 // Get target history (Master Admin only)
 router.get('/history/:targetId', verifyRole(['MasterAdmin']), targetManagementController.getTargetHistory);
 

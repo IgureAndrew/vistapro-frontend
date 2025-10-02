@@ -1,5 +1,6 @@
 // src/controllers/productController.js
 const { pool } = require('../config/database');
+const logProductActivity = require('../utils/logProductActivity');
 
 /**
  * addProduct
@@ -76,7 +77,30 @@ async function addProduct(req, res, next) {
     // 6) Commit transaction
     await client.query('COMMIT');
 
-    // 7) Compute quantity_available
+    // 7) Log product activity
+    const actorName = `${req.user.first_name} ${req.user.last_name}`;
+    const actorRole = req.user.role;
+    
+    await logProductActivity(
+      product.id,
+      'created',
+      req.user.id,
+      actorName,
+      actorRole,
+      null,
+      {
+        device_name: product.device_name,
+        device_model: product.device_model,
+        device_type: product.device_type,
+        cost_price: product.cost_price,
+        selling_price: product.selling_price,
+        dealer_id: product.dealer_id
+      },
+      toAdd,
+      `Created product "${product.device_name} ${product.device_model}"${toAdd > 0 ? ` with ${toAdd} initial stock` : ''}`
+    );
+
+    // 8) Compute quantity_available
     const { rows: countRows } = await client.query(`
       SELECT COUNT(*)::int AS quantity_available
         FROM inventory_items
@@ -84,7 +108,7 @@ async function addProduct(req, res, next) {
          AND status     = 'available'
     `, [product.id]);
 
-    // 8) Return success
+    // 9) Return success
     res.status(201).json({
       message: `Product added successfully.${toAdd > 0 ? ` Added ${toAdd} unit${toAdd !== 1 ? 's' : ''} to stock.` : ''}`,
       product: {
@@ -192,7 +216,18 @@ async function updateProduct(req, res, next) {
 
     await client.query("BEGIN");
 
-    // 1) Update product metadata
+    // 1) Get current product data for logging
+    const { rows: currentProduct } = await client.query(`
+      SELECT device_type, device_name, device_model, cost_price, selling_price
+      FROM products WHERE id = $1
+    `, [productId]);
+
+    if (!currentProduct.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Product not found." });
+    }
+
+    // 2) Update product metadata
     const { rows: prodRows } = await client.query(`
       UPDATE products
          SET device_type   = COALESCE($1, device_type),
@@ -250,7 +285,40 @@ async function updateProduct(req, res, next) {
 
     await client.query("COMMIT");
 
-    // 3) Recompute available quantity
+    // 3) Log product activity
+    const actorName = `${req.user.first_name} ${req.user.last_name}`;
+    const actorRole = req.user.role;
+    const oldValues = currentProduct[0];
+    const newValues = prodRows[0];
+    
+    // Determine what changed
+    const changes = [];
+    if (device_type && oldValues.device_type !== device_type) changes.push(`device type: ${oldValues.device_type} → ${device_type}`);
+    if (device_name && oldValues.device_name !== device_name) changes.push(`device name: ${oldValues.device_name} → ${device_name}`);
+    if (device_model && oldValues.device_model !== device_model) changes.push(`device model: ${oldValues.device_model} → ${device_model}`);
+    if (cost_price && oldValues.cost_price != cost_price) changes.push(`cost price: ₦${oldValues.cost_price} → ₦${cost_price}`);
+    if (selling_price && oldValues.selling_price != selling_price) changes.push(`selling price: ₦${oldValues.selling_price} → ₦${selling_price}`);
+    
+    const actionType = toAdd > 0 ? 'quantity_added' : toAdd < 0 ? 'quantity_removed' : 'updated';
+    const description = changes.length > 0 
+      ? `Updated product: ${changes.join(', ')}${toAdd !== 0 ? `, quantity: ${toAdd > 0 ? '+' : ''}${toAdd}` : ''}`
+      : toAdd !== 0 
+        ? `Quantity ${toAdd > 0 ? 'added' : 'removed'}: ${Math.abs(toAdd)} units`
+        : 'Product updated';
+
+    await logProductActivity(
+      productId,
+      actionType,
+      req.user.id,
+      actorName,
+      actorRole,
+      oldValues,
+      newValues,
+      toAdd,
+      description
+    );
+
+    // 4) Recompute available quantity
     const { rows: countRows } = await client.query(`
       SELECT COUNT(*)::int AS quantity_available
         FROM inventory_items
@@ -263,7 +331,7 @@ async function updateProduct(req, res, next) {
       quantity_available: countRows[0].quantity_available
     };
 
-    // 4) Return success
+    // 5) Return success
     res.json({
       message: `Product updated successfully.${toAdd > 0 ? ` Added ${toAdd} unit${toAdd !== 1 ? 's' : ''} to stock.` : toAdd < 0 ? ` Removed ${-toAdd} unit${toAdd !== -1 ? 's' : ''} from stock.` : ''}`,
       product: updatedProduct
@@ -286,6 +354,13 @@ async function deleteProduct(req, res, next) {
 
   try {
     await client.query('BEGIN');
+    
+    // Get product data before deletion for logging
+    const { rows: productData } = await client.query(
+      `SELECT device_name, device_model, device_type FROM products WHERE id = $1`,
+      [productId]
+    );
+    
     const { rows } = await client.query(
       `DELETE FROM products WHERE id = $1 RETURNING *`,
       [productId]
@@ -295,6 +370,23 @@ async function deleteProduct(req, res, next) {
     if (!rows.length) {
       return res.status(404).json({ message: 'Product not found.' });
     }
+
+    // Log product deletion activity
+    const actorName = `${req.user.first_name} ${req.user.last_name}`;
+    const actorRole = req.user.role;
+    
+    await logProductActivity(
+      parseInt(productId),
+      'deleted',
+      req.user.id,
+      actorName,
+      actorRole,
+      productData[0] || {},
+      null,
+      0,
+      `Deleted product "${productData[0]?.device_name} ${productData[0]?.device_model}"`
+    );
+
     res.json({ message: 'Product deleted successfully.', product: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -340,6 +432,96 @@ async function getAllProducts(req, res, next) {
   }
 }
 
+/**
+ * getProductActivityHistory
+ * Get activity history for a specific product or all products
+ */
+async function getProductActivityHistory(req, res, next) {
+  try {
+    const { productId, limit = 50, offset = 0 } = req.query;
+    
+    let query = `
+      SELECT 
+        pal.id,
+        pal.product_id,
+        pal.action_type,
+        pal.actor_name,
+        pal.actor_role,
+        pal.old_values,
+        pal.new_values,
+        pal.quantity_change,
+        pal.description,
+        pal.created_at,
+        p.device_name,
+        p.device_model,
+        p.device_type
+      FROM product_activity_logs pal
+      LEFT JOIN products p ON pal.product_id = p.id
+    `;
+    
+    const params = [];
+    let paramCount = 0;
+    
+    if (productId) {
+      query += ` WHERE pal.product_id = $${++paramCount}`;
+      params.push(productId);
+    }
+    
+    query += ` ORDER BY pal.created_at DESC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const { rows } = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      activities: rows,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: rows.length
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * getRecentProductActivities
+ * Get recent product activities for dashboard
+ */
+async function getRecentProductActivities(req, res, next) {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const { rows } = await pool.query(`
+      SELECT 
+        pal.id,
+        pal.product_id,
+        pal.action_type,
+        pal.actor_name,
+        pal.actor_role,
+        pal.quantity_change,
+        pal.description,
+        pal.created_at,
+        p.device_name,
+        p.device_model,
+        p.device_type
+      FROM product_activity_logs pal
+      LEFT JOIN products p ON pal.product_id = p.id
+      ORDER BY pal.created_at DESC 
+      LIMIT $1
+    `, [parseInt(limit)]);
+    
+    res.json({
+      success: true,
+      activities: rows
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   addProduct,
   getProducts,
@@ -347,4 +529,6 @@ module.exports = {
   updateProduct,
   deleteProduct,
   getAllProducts,
+  getProductActivityHistory,
+  getRecentProductActivities
 };

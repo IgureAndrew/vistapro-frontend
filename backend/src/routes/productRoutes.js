@@ -9,7 +9,9 @@ const {
   updateProduct,
   deleteProduct,
   listProducts,
-  getAllProducts
+  getAllProducts,
+  getProductActivityHistory,
+  getRecentProductActivities
 } = require('../controllers/productController');
 
 // → Allow MasterAdmin **or** Dealer to add
@@ -41,6 +43,22 @@ router.delete(
   verifyToken,
   verifyRole(['MasterAdmin']),
   deleteProduct
+);
+
+// → Get product activity history (MasterAdmin only)
+router.get(
+  '/activity-history',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  getProductActivityHistory
+);
+
+// → Get recent product activities (MasterAdmin only)
+router.get(
+  '/recent-activities',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  getRecentProductActivities
 );
 
 router.get("/", listProducts);

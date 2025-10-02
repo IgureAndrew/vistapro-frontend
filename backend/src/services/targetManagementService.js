@@ -296,6 +296,47 @@ async function getUsersWithoutTargets(role = null) {
   return rows;
 }
 
+/**
+ * Get users filtered by role and location for target creation
+ */
+async function getUsersForTargetCreation(role = null, location = null) {
+  let query = `
+    SELECT 
+      u.unique_id,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.role,
+      u.location,
+      u.created_at,
+      u.locked,
+      u.overall_verification_status
+    FROM users u
+    WHERE u.deleted = FALSE
+      AND u.role IN ('Marketer', 'Admin', 'SuperAdmin', 'Dealer')
+  `;
+  
+  const params = [];
+  let paramCount = 0;
+  
+  if (role) {
+    paramCount++;
+    query += ` AND u.role = $${paramCount}`;
+    params.push(role);
+  }
+  
+  if (location) {
+    paramCount++;
+    query += ` AND u.location = $${paramCount}`;
+    params.push(location);
+  }
+  
+  query += ` ORDER BY u.role, u.location, u.first_name, u.last_name`;
+  
+  const { rows } = await pool.query(query, params);
+  return rows;
+}
+
 module.exports = {
   getTargetTypes,
   getUserTargets,
@@ -307,5 +348,6 @@ module.exports = {
   getTargetHistory,
   getTargetsByPeriod,
   getTargetStats,
-  getUsersWithoutTargets
+  getUsersWithoutTargets,
+  getUsersForTargetCreation
 };

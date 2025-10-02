@@ -497,6 +497,9 @@ async function getOrderHistory(req, res, next) {
     const { rows } = await pool.query(`
       SELECT
         o.id,
+        o.customer_name,
+        o.customer_phone,
+        o.customer_address,
         COALESCE(
           json_agg(ii.imei) FILTER (WHERE ii.imei IS NOT NULL),
           '[]'
@@ -525,6 +528,9 @@ async function getOrderHistory(req, res, next) {
       WHERE o.marketer_id = $1
       GROUP BY
         o.id,
+        o.customer_name,
+        o.customer_phone,
+        o.customer_address,
         p.device_name,
         p.device_model,
         p.device_type,

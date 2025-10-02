@@ -1,4 +1,6 @@
 const bcrypt = require('bcrypt');
+const fs = require('fs');
+const path = require('path');
 const { pool } = require('../config/database');
 const { createUser } = require('../models/userModel');
 const { generateUniqueID } = require('../utils/uniqueId');
@@ -199,15 +201,47 @@ const registerSuperAdmin = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { email, gender, newPassword, phone } = req.body;
+    const { email, gender, newPassword, phone, profileImage } = req.body;
     let hashedPassword = null;
 
     if (newPassword) {
       hashedPassword = await bcrypt.hash(newPassword, 10);
     }
 
-    // Store only the filename, not the full path
-    const profileImage = req.file ? req.file.filename : null;
+    // Handle image data - convert Base64 to file or use existing file
+    let profileImageData = null;
+    if (profileImage && profileImage.startsWith('data:image/')) {
+      try {
+        // Convert Base64 to file
+        const base64Data = profileImage.replace(/^data:image\/[a-z]+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        // Generate unique filename
+        const timestamp = Date.now();
+        const fileExtension = profileImage.split(';')[0].split('/')[1];
+        const filename = `profile_${userId}_${timestamp}.${fileExtension}`;
+        const filepath = path.join(__dirname, '../uploads', filename);
+        
+        // Ensure uploads directory exists
+        const uploadsDir = path.join(__dirname, '../uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        // Write file
+        fs.writeFileSync(filepath, buffer);
+        profileImageData = filename;
+        console.log('🖼️ Converted Base64 to file:', filename);
+      } catch (error) {
+        console.error('❌ Error converting Base64 to file:', error);
+        return res.status(400).json({ message: 'Failed to process image' });
+      }
+    } else if (req.file) {
+      // Legacy file upload handling
+      profileImageData = req.file.filename;
+      console.log('🖼️ Received file upload for user:', userId);
+    }
+
     const query = `
       UPDATE users
       SET email          = COALESCE($1, email),
@@ -219,7 +253,7 @@ const updateProfile = async (req, res, next) => {
       WHERE id = $6
       RETURNING *
     `;
-    const values = [email, gender, phone, profileImage, hashedPassword, userId];
+    const values = [email, gender, phone, profileImageData, hashedPassword, userId];
     const { rows } = await pool.query(query, values);
 
     await logActivity(
