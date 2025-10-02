@@ -182,7 +182,7 @@ const createStockUpdate = async (req, res, next) => {
 
     // 1) Fetch internal user ID & location
     const { rows: userRows } = await client.query(
-      `SELECT id, location, account_blocked, pickup_violation_count FROM users WHERE unique_id = $1`,
+      `SELECT id, location, pickup_violation_count FROM users WHERE unique_id = $1`,
       [marketerUID]
     );
     if (!userRows.length) {
@@ -191,11 +191,10 @@ const createStockUpdate = async (req, res, next) => {
     }
     const marketerId = userRows[0].id;
     const marketerState = userRows[0].location;
-    const isAccountBlocked = userRows[0].account_blocked;
     const violationCount = userRows[0].pickup_violation_count || 0;
 
-    // 1.1) Check if account is blocked
-    if (isAccountBlocked) {
+    // 1.1) Check if account is blocked (using violation count as proxy)
+    if (violationCount >= 4) {
       await client.query('ROLLBACK');
       return res.status(403).json({ 
         message: 'Your account is blocked due to pickup violations. Please contact MasterAdmin to unlock your account.',
@@ -285,15 +284,13 @@ const createStockUpdate = async (req, res, next) => {
         [newViolationCount, marketerId]
       );
 
-      // Block account if this is the 4th violation
+      // Block account if this is the 4th violation (using pickup_violation_count as proxy)
       if (shouldBlockAccount) {
         await client.query(
           `UPDATE users SET 
-           account_blocked = TRUE, 
-           blocking_reason = $1, 
-           blocked_at = NOW() 
+           pickup_violation_count = $1
            WHERE id = $2`,
-          [violationMessage, marketerId]
+          [violationCount, marketerId]
         );
 
         // Notify Admin, SuperAdmin, and MasterAdmin
@@ -1680,9 +1677,9 @@ async function unlockBlockedAccount(req, res, next) {
       return res.status(403).json({ message: 'Only MasterAdmin can unlock accounts' });
     }
     
-    // Check if user exists and is blocked
+    // Check if user exists and is blocked (using pickup_violation_count as proxy)
     const { rows: userRows } = await pool.query(
-      `SELECT id, unique_id, first_name, last_name, account_blocked, blocking_reason 
+      `SELECT id, unique_id, first_name, last_name, pickup_violation_count 
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -1693,22 +1690,16 @@ async function unlockBlockedAccount(req, res, next) {
     
     const user = userRows[0];
     
-    if (!user.account_blocked) {
+    if (user.pickup_violation_count < 4) {
       return res.status(400).json({ message: 'User account is not blocked' });
     }
     
     // Unlock the account
     await pool.query(
       `UPDATE users SET 
-       account_blocked = FALSE, 
-       blocking_reason = NULL, 
-       blocked_at = NULL, 
-       blocked_by = NULL,
-       pickup_violation_count = 0,
-       unlocked_at = NOW(),
-       unlocked_by = $1
-       WHERE id = $2`,
-      [masterAdminId, userId]
+       pickup_violation_count = 0
+       WHERE id = $1`,
+      [userId]
     );
     
     // Log the unlock action
@@ -1780,7 +1771,7 @@ async function getBlockedAccounts(req, res, next) {
     
     const whereClause = existingColumns.includes('account_blocked') 
       ? 'WHERE u.account_blocked = TRUE'
-      : 'WHERE u.account_blocked = true'; // fallback
+      : 'WHERE u.pickup_violation_count >= 4'; // fallback using violation count
     
     const orderClause = existingColumns.includes('blocked_at')
       ? 'ORDER BY u.blocked_at DESC'
