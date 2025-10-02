@@ -1037,10 +1037,43 @@ async function createStockPickup(req, res, next) {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error creating stock pickup:', error);
-    res.status(500).json({
+    
+    // Enhanced error handling with specific messages
+    let errorMessage = 'Failed to create stock pickup';
+    let errorCode = 'PICKUP_ERROR';
+    let statusCode = 500;
+    
+    if (error.code === '23505') { // Unique constraint violation
+      errorMessage = 'This pickup already exists. Please refresh and try again.';
+      errorCode = 'DUPLICATE_PICKUP';
+      statusCode = 409;
+    } else if (error.code === '23503') { // Foreign key constraint violation
+      errorMessage = 'Invalid product or dealer selected. Please refresh and try again.';
+      errorCode = 'INVALID_REFERENCE';
+      statusCode = 400;
+    } else if (error.code === '23514') { // Check constraint violation
+      errorMessage = 'Invalid data provided. Please check your input and try again.';
+      errorCode = 'INVALID_DATA';
+      statusCode = 400;
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      errorMessage = 'Database connection failed. Please try again in a moment.';
+      errorCode = 'DATABASE_ERROR';
+      statusCode = 503;
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Request timed out. Please try again.';
+      errorCode = 'TIMEOUT';
+      statusCode = 408;
+    } else if (error.message.includes('permission')) {
+      errorMessage = 'You do not have permission to perform this action.';
+      errorCode = 'PERMISSION_DENIED';
+      statusCode = 403;
+    }
+    
+    res.status(statusCode).json({
       success: false,
-      message: 'Failed to create stock pickup',
-      error: error.message
+      message: errorMessage,
+      errorCode: errorCode,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   } finally {
     client.release();
