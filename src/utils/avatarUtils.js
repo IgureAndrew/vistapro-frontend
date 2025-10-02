@@ -33,7 +33,7 @@ export const getAvatarUrl = (profileImage, fallback = null) => {
     fullUrl = `/api/uploads/${imageName}`;
   } else {
     // In production, use the full API URL
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5007';
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com';
     fullUrl = `${baseUrl}/uploads/${imageName}`;
   }
   

@@ -17,7 +17,7 @@ const Messaging = ({ onNavigate }) => {
 
   // Initialize socket connection
   useEffect(() => {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5007';
+    const API_URL = import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com';
     const newSocket = io(API_URL);
     setSocket(newSocket);
 
