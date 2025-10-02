@@ -1494,7 +1494,11 @@ async function checkAdditionalPickupEligibility(req, res, next) {
     
   } catch (error) {
     console.error('Check eligibility error:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check eligibility',
+      error: error.message
+    });
   }
 }
 
@@ -2224,7 +2228,103 @@ async function notifyInventoryUpdate(stockUpdateId, updateType) {
   }
 }
 
+/**
+ * GET /api/stock
+ * List stock pickups for current user based on role
+ */
+async function listStockPickups(req, res, next) {
+  try {
+    const userRole = req.user.role;
+    const userId = req.user.id;
+    const userUniqueId = req.user.unique_id;
+
+    let query;
+    let params;
+
+    if (userRole === 'MasterAdmin') {
+      // MasterAdmin sees all pickups
+      query = `
+        SELECT 
+          su.*,
+          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
+          p.name as product_name, p.model, p.brand,
+          d.business_name as dealer_name, d.unique_id as dealer_unique_id
+        FROM stock_updates su
+        JOIN users u ON su.marketer_id = u.id
+        JOIN products p ON su.product_id = p.id
+        JOIN dealers d ON su.dealer_id = d.id
+        ORDER BY su.created_at DESC
+      `;
+      params = [];
+    } else if (userRole === 'SuperAdmin') {
+      // SuperAdmin sees pickups from their hierarchy
+      query = `
+        SELECT 
+          su.*,
+          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
+          p.name as product_name, p.model, p.brand,
+          d.business_name as dealer_name, d.unique_id as dealer_unique_id
+        FROM stock_updates su
+        JOIN users u ON su.marketer_id = u.id
+        JOIN products p ON su.product_id = p.id
+        JOIN dealers d ON su.dealer_id = d.id
+        WHERE u.super_admin_id = $1
+        ORDER BY su.created_at DESC
+      `;
+      params = [userId];
+    } else if (userRole === 'Admin') {
+      // Admin sees pickups from their assigned marketers
+      query = `
+        SELECT 
+          su.*,
+          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
+          p.name as product_name, p.model, p.brand,
+          d.business_name as dealer_name, d.unique_id as dealer_unique_id
+        FROM stock_updates su
+        JOIN users u ON su.marketer_id = u.id
+        JOIN products p ON su.product_id = p.id
+        JOIN dealers d ON su.dealer_id = d.id
+        WHERE u.admin_id = $1
+        ORDER BY su.created_at DESC
+      `;
+      params = [userId];
+    } else {
+      // Marketer sees only their own pickups
+      query = `
+        SELECT 
+          su.*,
+          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
+          p.name as product_name, p.model, p.brand,
+          d.business_name as dealer_name, d.unique_id as dealer_unique_id
+        FROM stock_updates su
+        JOIN users u ON su.marketer_id = u.id
+        JOIN products p ON su.product_id = p.id
+        JOIN dealers d ON su.dealer_id = d.id
+        WHERE su.marketer_id = $1
+        ORDER BY su.created_at DESC
+      `;
+      params = [userId];
+    }
+
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('List stock pickups error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load stock pickups',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
+  listStockPickups,
   listStockPickupDealers,
   listStockProductsByDealer,
   createStockUpdate,

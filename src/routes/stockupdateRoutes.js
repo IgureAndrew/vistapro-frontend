@@ -6,6 +6,14 @@ const { verifyRole }   = require('../middlewares/roleMiddleware');
 const ctrl             = require('../controllers/stockupdateController');
 
 /** MARKETER, SUPERADMIN, ADMIN **/
+// 0) List stock pickups for current user
+router.get(
+  '/',
+  verifyToken,
+  verifyRole(['Marketer', 'SuperAdmin', 'Admin', 'MasterAdmin']),
+  ctrl.listStockPickups
+);
+
 // 1) List dealers in your state
 router.get(
   '/pickup/dealers',
