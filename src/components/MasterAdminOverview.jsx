@@ -136,8 +136,15 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         
         const { data } = await api.get("/master-admin/dashboard-summary", {
           headers: { Authorization: `Bearer ${token}` },
-          params: { period: periodParam }
+          params: { 
+            period: periodParam,
+            _t: Date.now() // Cache busting
+          }
         });
+        
+        console.log('🔍 Dashboard API Response:', data);
+        console.log('📊 Total Users from API:', data.totalUsers);
+        
         setStats(data);
         setLastUpdated(new Date());
       } catch (err) {
