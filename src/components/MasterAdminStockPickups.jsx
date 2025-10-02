@@ -120,7 +120,7 @@ const MasterAdminStockPickups = () => {
       'Returned': { color: 'bg-orange-100 text-orange-800', icon: XCircle },
       'Transferred': { color: 'bg-blue-100 text-blue-800', icon: Package },
       'Expired': { color: 'bg-red-100 text-red-800', icon: XCircle },
-      'Pending Return': { color: 'bg-orange-100 text-orange-800', icon: Clock },
+      'return_pending': { color: 'bg-orange-100 text-orange-800', icon: Clock },
       'Pending Transfer': { color: 'bg-blue-100 text-blue-800', icon: Clock },
       'Transfer Approved': { color: 'bg-green-100 text-green-800', icon: CheckCircle },
       'Transfer Rejected': { color: 'bg-red-100 text-red-800', icon: XCircle }
@@ -146,6 +146,22 @@ const MasterAdminStockPickups = () => {
     if (uniqueId?.startsWith('ASM')) return 'Admin'
     if (uniqueId?.startsWith('RSM')) return 'SuperAdmin'
     return 'Unknown'
+  }
+
+  const handleConfirmReturn = async (pickupId) => {
+    try {
+      setProcessing(pickupId)
+      await api.patch(`/stock/${pickupId}/return`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      showSuccess('Return confirmed successfully! Product has been restocked.', 'Return Confirmed')
+      loadStockPickups() // Refresh the list
+    } catch (error) {
+      console.error('Error confirming return:', error)
+      showError(error.response?.data?.message || 'Failed to confirm return', 'Error')
+    } finally {
+      setProcessing(null)
+    }
   }
 
   if (loading) {
@@ -257,6 +273,14 @@ const MasterAdminStockPickups = () => {
         </Card>
         <Card>
           <CardContent className="p-4">
+            <div className="text-2xl font-bold text-orange-600">
+              {stockPickups.filter(p => p.status === 'return_pending').length}
+            </div>
+            <div className="text-sm text-gray-600">Pending Return</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
             <div className="text-2xl font-bold text-red-600">
               {stockPickups.filter(p => p.status === 'Expired').length}
             </div>
@@ -338,6 +362,24 @@ const MasterAdminStockPickups = () => {
                       <p className="text-sm text-blue-700">
                         <strong>Transfer to:</strong> {pickup.transfer_to_name} ({pickup.transfer_to_uid})
                       </p>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  {pickup.status === 'return_pending' && (
+                    <div className="mt-4 flex justify-end space-x-2">
+                      <Button
+                        onClick={() => handleConfirmReturn(pickup.id)}
+                        disabled={processing === pickup.id}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {processing === pickup.id ? (
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                        )}
+                        Confirm Return
+                      </Button>
                     </div>
                   )}
                 </CardContent>

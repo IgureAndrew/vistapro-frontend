@@ -354,11 +354,15 @@ export default function MarketerStockPickup() {
   }
   async function submitReturn(id) {
     try {
-      // Use the new completion tracking system
-      await trackPickupCompletion(id, 'returned')
+      // Request return - requires MasterAdmin confirmation
+      await api.patch(`/stock/${id}/return-request`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      showSuccess('Return requested successfully! Awaiting MasterAdmin confirmation.', 'Return Requested')
+      loadPickups() // Refresh the pickups list
     } catch (err) {
       console.error(err)
-      showError(err.response?.data?.message || 'Return failed', 'Return Failed')
+      showError(err.response?.data?.message || 'Return request failed', 'Return Request Failed')
     }
   }
 
@@ -685,7 +689,19 @@ export default function MarketerStockPickup() {
                         <td className="px-4 py-2">
                           <span className={remaining.className}>{remaining.text}</span>
                         </td>
-                        <td className="px-4 py-2">{s.status}</td>
+                        <td className="px-4 py-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            s.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            s.status === 'return_pending' ? 'bg-orange-100 text-orange-800' :
+                            s.status === 'expired' ? 'bg-red-100 text-red-800' :
+                            s.status === 'sold' ? 'bg-green-100 text-green-800' :
+                            s.status === 'returned' ? 'bg-blue-100 text-blue-800' :
+                            s.status === 'transferred' ? 'bg-purple-100 text-purple-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {s.status === 'return_pending' ? 'Pending Return' : s.status}
+                          </span>
+                        </td>
                         <td className="px-4 py-2">
                           {s.status === 'pending' && (
                             <div className="flex items-center space-x-2 whitespace-nowrap">

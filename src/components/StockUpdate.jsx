@@ -429,7 +429,7 @@ export default function StockUpdates() {
                         </button>
                       </div>
                     )}
-                    {u.status === "Pending Return" && isMasterAdmin && (
+                    {u.status === "return_pending" && isMasterAdmin && (
                       <button
                         onClick={() => handleConfirmReturn(u.id)}
                         className="px-2 py-1 bg-blue-600 text-white rounded"
