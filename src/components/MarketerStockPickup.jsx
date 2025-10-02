@@ -59,7 +59,29 @@ export default function MarketerStockPickup() {
   useEffect(() => {
     api.get('/stock/pickup/dealers')
       .then(r => setDealers(r.data.dealers || []))
-      .catch(console.error)
+      .catch(err => {
+        console.error('Error loading dealers:', err)
+        
+        const errorData = err.response?.data
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Failed to load dealers'
+        
+        if (statusCode === 403) {
+          errorMessage = 'Access denied. Please contact your Admin.'
+        } else if (statusCode === 404) {
+          errorMessage = 'No dealers found in your location. Please contact your Admin.'
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = errorData?.message || 'Unable to load dealers. Please try again.'
+        }
+        
+        showError(errorMessage, 'Dealers Loading Failed')
+        setDealers([]) // Set empty array as fallback
+      })
 
     refreshAllowance()
     loadPickups()
@@ -83,6 +105,28 @@ export default function MarketerStockPickup() {
       })
       .catch(err => {
         console.error('Eligibility check failed:', err)
+        
+        const errorData = err.response?.data
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Failed to check eligibility'
+        
+        if (statusCode === 403) {
+          errorMessage = 'Access denied. Please contact your Admin.'
+        } else if (statusCode === 404) {
+          errorMessage = 'Eligibility service not found. Please refresh and try again.'
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = errorData?.message || 'Unable to check eligibility. Please try again.'
+        }
+        
+        // Show error to user
+        showError(errorMessage, 'Eligibility Check Failed')
+        
+        // Set fallback eligibility info
         setEligibilityInfo({
           eligible: false,
           hasConfirmedOrder: false,
@@ -269,7 +313,7 @@ export default function MarketerStockPickup() {
       loadPickups()
       checkAccountStatus() // Refresh account status
     } catch (err) {
-      console.error(err)
+      console.error('Pickup submission error:', err)
       
       // Handle violation responses
       if (err.response?.data?.violationCount) {
@@ -298,7 +342,83 @@ export default function MarketerStockPickup() {
           checkAccountStatus()
         }
       } else {
-        showError(err.response?.data?.message || 'Error recording pickup', 'Pickup Failed')
+        // Enhanced error handling with specific messages
+        const errorData = err.response?.data
+        const errorCode = errorData?.errorCode
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Error recording pickup'
+        let errorTitle = 'Pickup Failed'
+        let showRetry = false
+        
+        // Handle specific error codes
+        if (errorCode === 'DUPLICATE_PICKUP') {
+          errorMessage = 'This pickup already exists. Please refresh the page and try again.'
+          errorTitle = 'Duplicate Pickup'
+          showRetry = true
+        } else if (errorCode === 'INVALID_REFERENCE') {
+          errorMessage = 'Invalid product or dealer selected. Please refresh and select again.'
+          errorTitle = 'Invalid Selection'
+          showRetry = true
+        } else if (errorCode === 'INVALID_DATA') {
+          errorMessage = 'Invalid data provided. Please check your selections and try again.'
+          errorTitle = 'Invalid Data'
+        } else if (errorCode === 'DATABASE_ERROR') {
+          errorMessage = 'Database connection failed. Please try again in a moment.'
+          errorTitle = 'Connection Error'
+          showRetry = true
+        } else if (errorCode === 'TIMEOUT') {
+          errorMessage = 'Request timed out. Please check your connection and try again.'
+          errorTitle = 'Timeout Error'
+          showRetry = true
+        } else if (errorCode === 'PERMISSION_DENIED') {
+          errorMessage = 'You do not have permission to perform this action. Please contact your Admin.'
+          errorTitle = 'Permission Denied'
+        } else if (statusCode === 400) {
+          errorMessage = errorData?.message || 'Invalid request. Please check your selections.'
+          errorTitle = 'Invalid Request'
+        } else if (statusCode === 403) {
+          errorMessage = errorData?.message || 'Access denied. Please contact your Admin.'
+          errorTitle = 'Access Denied'
+        } else if (statusCode === 404) {
+          errorMessage = 'Resource not found. Please refresh and try again.'
+          errorTitle = 'Not Found'
+          showRetry = true
+        } else if (statusCode === 409) {
+          errorMessage = 'Conflict detected. Please refresh and try again.'
+          errorTitle = 'Conflict'
+          showRetry = true
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+          errorTitle = 'Server Error'
+          showRetry = true
+        } else if (statusCode === 503) {
+          errorMessage = 'Service temporarily unavailable. Please try again later.'
+          errorTitle = 'Service Unavailable'
+          showRetry = true
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your internet connection and try again.'
+          errorTitle = 'Network Error'
+          showRetry = true
+        } else {
+          errorMessage = errorData?.message || 'An unexpected error occurred. Please try again.'
+          errorTitle = 'Unexpected Error'
+          showRetry = true
+        }
+        
+        // Show error with retry option if applicable
+        if (showRetry) {
+          showError(
+            `${errorMessage}\n\nClick "Retry" to try again.`,
+            errorTitle,
+            () => {
+              // Retry function
+              handleSubmit(e)
+            }
+          )
+        } else {
+          showError(errorMessage, errorTitle)
+        }
       }
     }
   }
@@ -575,7 +695,7 @@ export default function MarketerStockPickup() {
                     ? formatRemaining(-diff)
                     : s.status === 'sold'
                       ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
-                      : { text: '—', className: 'text-gray-500', status: 'completed' }
+                    : { text: '—', className: 'text-gray-500', status: 'completed' }
                 return (
                   <div key={s.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
                     <div className="flex justify-between items-start mb-3">
@@ -670,7 +790,7 @@ export default function MarketerStockPickup() {
                         ? formatRemaining(-diff)
                         : s.status === 'sold'
                           ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
-                          : { text: '—', className: 'text-gray-500', status: 'completed' }
+                        : { text: '—', className: 'text-gray-500', status: 'completed' }
                     return (
                       <tr key={s.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2">
