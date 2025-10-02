@@ -182,7 +182,7 @@ const createStockUpdate = async (req, res, next) => {
 
     // 1) Fetch internal user ID & location
     const { rows: userRows } = await client.query(
-      `SELECT id, location, pickup_violation_count FROM users WHERE unique_id = $1`,
+      `SELECT id, location, locked FROM users WHERE unique_id = $1`,
       [marketerUID]
     );
     if (!userRows.length) {
@@ -191,15 +191,14 @@ const createStockUpdate = async (req, res, next) => {
     }
     const marketerId = userRows[0].id;
     const marketerState = userRows[0].location;
-    const violationCount = userRows[0].pickup_violation_count || 0;
+    const isLocked = userRows[0].locked;
 
-    // 1.1) Check if account is blocked (using violation count as proxy)
-    if (violationCount >= 4) {
+    // 1.1) Check if account is locked
+    if (isLocked) {
       await client.query('ROLLBACK');
       return res.status(403).json({ 
-        message: 'Your account is blocked due to pickup violations. Please contact MasterAdmin to unlock your account.',
-        accountBlocked: true,
-        violationCount
+        message: 'Your account is locked. Please contact your Admin or MasterAdmin to unlock your account.',
+        accountLocked: true
       });
     }
 
@@ -253,56 +252,12 @@ const createStockUpdate = async (req, res, next) => {
     );
     const activeStockCount = activeStockRows[0].cnt;
 
-    // 3.1) If user has active stock, this is a violation
+    // 3.1) If user has active stock, prevent pickup (simplified - no violation tracking)
     if (activeStockCount > 0) {
-      const newViolationCount = violationCount + 1;
-      const attemptedQuantity = 1; // Always 1 unit
-      
-      let violationMessage;
-      let shouldBlockAccount = false;
-      
-      if (newViolationCount <= 3) {
-        // Warning (strikes 1, 2, 3)
-        violationMessage = `WARNING ${newViolationCount}/3: You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`;
-      } else {
-        // Block account (strike 4)
-        violationMessage = `ACCOUNT BLOCKED: You have attempted to pickup stock ${newViolationCount} times while having active stock. Your account has been blocked. Contact MasterAdmin to unlock.`;
-        shouldBlockAccount = true;
-      }
-
-      // Log the violation
-      await client.query(
-        `INSERT INTO pickup_violation_logs 
-         (user_id, violation_type, violation_count, active_stock_count, attempted_pickup_quantity, violation_message)
-         VALUES ($1, 'attempted_pickup_with_active_stock', $2, $3, $4, $5)`,
-        [marketerId, newViolationCount, activeStockCount, attemptedQuantity, violationMessage]
-      );
-
-      // Update user violation count
-      await client.query(
-        `UPDATE users SET pickup_violation_count = $1 WHERE id = $2`,
-        [newViolationCount, marketerId]
-      );
-
-      // Block account if this is the 4th violation (using pickup_violation_count as proxy)
-      if (shouldBlockAccount) {
-        await client.query(
-          `UPDATE users SET 
-           pickup_violation_count = $1
-           WHERE id = $2`,
-          [violationCount, marketerId]
-        );
-
-        // Notify Admin, SuperAdmin, and MasterAdmin
-        await notifyViolationStakeholders(client, marketerId, violationMessage);
-      }
-
       await client.query('ROLLBACK');
       return res.status(400).json({
-        message: violationMessage,
-        violationCount: newViolationCount,
-        activeStockCount,
-        accountBlocked: shouldBlockAccount
+        message: `You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`,
+        activeStockCount
       });
     }
 
@@ -1677,9 +1632,9 @@ async function unlockBlockedAccount(req, res, next) {
       return res.status(403).json({ message: 'Only MasterAdmin can unlock accounts' });
     }
     
-    // Check if user exists and is blocked (using pickup_violation_count as proxy)
+    // Check if user exists and is locked
     const { rows: userRows } = await pool.query(
-      `SELECT id, unique_id, first_name, last_name, pickup_violation_count 
+      `SELECT id, unique_id, first_name, last_name, locked 
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -1690,25 +1645,20 @@ async function unlockBlockedAccount(req, res, next) {
     
     const user = userRows[0];
     
-    if (user.pickup_violation_count < 4) {
-      return res.status(400).json({ message: 'User account is not blocked' });
+    if (!user.locked) {
+      return res.status(400).json({ message: 'User account is not locked' });
     }
     
     // Unlock the account
     await pool.query(
       `UPDATE users SET 
-       pickup_violation_count = 0
+       locked = false
        WHERE id = $1`,
       [userId]
     );
     
-    // Log the unlock action
-    await pool.query(
-      `INSERT INTO pickup_violation_logs 
-       (user_id, violation_type, violation_count, active_stock_count, attempted_pickup_quantity, violation_message, resolved_at, resolved_by)
-       VALUES ($1, 'account_unlocked', 0, 0, 0, $2, NOW(), $3)`,
-      [userId, `Account unlocked by MasterAdmin. Reason: ${unlockReason}`, masterAdminId]
-    );
+    // Log the unlock action (simplified - no violation logs table)
+    console.log(`Account unlocked by MasterAdmin ${masterAdminId} for user ${userId}. Reason: ${unlockReason}`);
     
     // Notify the user
     await pool.query(
@@ -1771,7 +1721,7 @@ async function getBlockedAccounts(req, res, next) {
     
     const whereClause = existingColumns.includes('account_blocked') 
       ? 'WHERE u.account_blocked = TRUE'
-      : 'WHERE u.pickup_violation_count >= 4'; // fallback using violation count
+      : 'WHERE u.locked = true'; // fallback using locked status
     
     const orderClause = existingColumns.includes('blocked_at')
       ? 'ORDER BY u.blocked_at DESC'
