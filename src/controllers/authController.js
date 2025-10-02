@@ -367,7 +367,7 @@ const getCurrentUser = async (req, res, next) => {
     const { unique_id } = req.user; // injected by your auth middleware
     const query = `
       SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location,
-             u.email_verified, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
+             COALESCE(u.email_verified, true) as email_verified, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
              u.overall_verification_status, u.locked, u.admin_id,
              a.first_name as admin_first_name, a.last_name as admin_last_name
       FROM users u
