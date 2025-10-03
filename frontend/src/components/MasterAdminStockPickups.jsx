@@ -32,6 +32,10 @@ const MasterAdminStockPickups = () => {
   const [userSummary, setUserSummary] = useState(null)
   const [loadingSummary, setLoadingSummary] = useState(false)
   
+  // Additional pickup requests states
+  const [additionalPickupRequests, setAdditionalPickupRequests] = useState([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  
   // WebSocket connection for real-time updates
   const socketRef = useRef(null)
   
@@ -45,6 +49,7 @@ const MasterAdminStockPickups = () => {
 
   useEffect(() => {
     loadStockPickups()
+    loadAdditionalPickupRequests()
   }, [currentPage, searchTerm, statusFilter, locationFilter])
 
   // Reset to first page when filters change
@@ -132,6 +137,19 @@ const MasterAdminStockPickups = () => {
     }
   }
 
+  const loadAdditionalPickupRequests = async () => {
+    try {
+      setLoadingRequests(true)
+      const response = await api.get('/stock-pickup/requests')
+      setAdditionalPickupRequests(response.data.requests || [])
+    } catch (error) {
+      console.error('Error loading additional pickup requests:', error)
+      // Don't show error to user as this is a secondary feature
+    } finally {
+      setLoadingRequests(false)
+    }
+  }
+
   const loadUserSummary = async (userId) => {
     try {
       setLoadingSummary(true)
@@ -176,6 +194,23 @@ const MasterAdminStockPickups = () => {
     a.download = `${userSummary.user.unique_id}_stock_summary.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+  }
+
+  const handleAdditionalPickupAction = async (requestId, action) => {
+    try {
+      setProcessing(requestId)
+      const response = await api.patch(`/stock-pickup/requests/${requestId}`, { action })
+      
+      if (response.data.message) {
+        showSuccess(response.data.message, 'Request Updated')
+        loadAdditionalPickupRequests() // Refresh the list
+      }
+    } catch (error) {
+      console.error('Error updating additional pickup request:', error)
+      showError(error.response?.data?.message || 'Failed to update request', 'Error')
+    } finally {
+      setProcessing(null)
+    }
   }
 
   const handlePageChange = (newPage) => {
@@ -342,7 +377,7 @@ const MasterAdminStockPickups = () => {
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-blue-600">{totalItems}</div>
@@ -373,7 +408,63 @@ const MasterAdminStockPickups = () => {
             <div className="text-sm text-gray-600">Pending Return</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-purple-600">
+              {additionalPickupRequests.length}
+            </div>
+            <div className="text-sm text-gray-600">Additional Requests</div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Additional Pickup Requests */}
+      {additionalPickupRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Package className="h-5 w-5 mr-2" />
+              Additional Pickup Requests ({additionalPickupRequests.length})
+            </CardTitle>
+            <CardDescription>
+              Pending requests for additional pickup allowance (up to 3 units)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {additionalPickupRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <div className="font-medium">{request.marketer_name}</div>
+                    <div className="text-sm text-gray-600">{request.marketer_uid}</div>
+                    <div className="text-xs text-gray-500">
+                      Requested: {formatDate(request.requested_at)}
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleAdditionalPickupAction(request.id, 'approve')}
+                      disabled={processing === request.id}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {processing === request.id ? 'Processing...' : 'Approve'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleAdditionalPickupAction(request.id, 'reject')}
+                      disabled={processing === request.id}
+                    >
+                      {processing === request.id ? 'Processing...' : 'Reject'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stock Pickups Table */}
       {stockPickups.length === 0 ? (
