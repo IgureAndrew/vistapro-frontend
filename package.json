@@ -10,7 +10,7 @@
     "preview": "cd frontend && npm run preview"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "keywords": ["vistapro", "frontend", "react", "vite"],
   "author": "",
