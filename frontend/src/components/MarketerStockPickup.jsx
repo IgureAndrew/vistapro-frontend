@@ -31,6 +31,15 @@ export default function MarketerStockPickup() {
   const [transferringId, setTransferringId] = useState(null)
   const [transferTarget, setTransferTarget] = useState('')
   const [hasConfirmedOrders, setHasConfirmedOrders] = useState(false)
+  const [additionalPickupEligibility, setAdditionalPickupEligibility] = useState({
+    eligible: false,
+    hasConfirmedOrder: false,
+    hasPendingCompletion: false,
+    hasPendingRequest: false,
+    cooldownActive: false,
+    cooldownUntil: null,
+    message: ''
+  })
   const [showTransferPopover, setShowTransferPopover] = useState(false)
   const [currentStockId, setCurrentStockId] = useState(null)
   const [currentUserLocation, setCurrentUserLocation] = useState('')
@@ -91,6 +100,7 @@ export default function MarketerStockPickup() {
     loadCurrentUserLocation()
     checkEligibility()
     checkAccountStatus()
+    checkAdditionalPickupEligibility()
   }, [])
 
   // Load current user location
@@ -150,6 +160,45 @@ export default function MarketerStockPickup() {
     })
   }
 
+  function checkAdditionalPickupEligibility() {
+    api.get('/stock/pickup/eligibility')
+      .then(r => {
+        setAdditionalPickupEligibility(r.data)
+        console.log('Additional pickup eligibility check:', r.data)
+      })
+      .catch(err => {
+        console.error('Additional pickup eligibility check failed:', err)
+        
+        const errorData = err.response?.data
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Failed to check additional pickup eligibility'
+        
+        if (statusCode === 403) {
+          errorMessage = 'Access denied. Please contact your Admin.'
+        } else if (statusCode === 404) {
+          errorMessage = 'Additional pickup eligibility service not found. Please refresh and try again.'
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = errorData?.message || 'Unable to check additional pickup eligibility. Please try again.'
+        }
+        
+        // Set fallback eligibility info
+        setAdditionalPickupEligibility({
+          eligible: false,
+          hasConfirmedOrder: false,
+          hasPendingCompletion: false,
+          hasPendingRequest: false,
+          cooldownActive: false,
+          cooldownUntil: null,
+          message: errorMessage
+        })
+      })
+  }
+
   function getEligibilityMessage() {
     if (eligibilityInfo.isLocked) {
       return 'Your account is locked. Contact your Admin or MasterAdmin.'
@@ -167,10 +216,28 @@ export default function MarketerStockPickup() {
   }
 
   function getAdditionalPickupEligibilityMessage() {
-    if (!hasConfirmedOrders) {
+    if (additionalPickupEligibility.cooldownActive && additionalPickupEligibility.cooldownUntil) {
+      const cooldownMs = new Date(additionalPickupEligibility.cooldownUntil).getTime() - now
+      if (cooldownMs > 0) {
+        const hours = Math.floor(cooldownMs / 3600000)
+        const minutes = Math.floor((cooldownMs % 3600000) / 60000)
+        return `You must wait ${hours}h ${minutes}m before requesting additional pickup again`
+      }
+    }
+    
+    if (!additionalPickupEligibility.hasConfirmedOrder) {
       return 'You must have at least one confirmed order to request additional pickup'
     }
-    return 'You are eligible for additional pickup request'
+    
+    if (additionalPickupEligibility.hasPendingCompletion) {
+      return 'You must complete your current additional pickup before requesting another'
+    }
+    
+    if (additionalPickupEligibility.hasPendingRequest) {
+      return 'You already have a pending additional pickup request'
+    }
+    
+    return additionalPickupEligibility.message || 'You are eligible for additional pickup request'
   }
 
   // Track pickup completion (returned/transferred)
@@ -189,6 +256,7 @@ export default function MarketerStockPickup() {
         )
         loadPickups() // Refresh the pickups list
         checkEligibility() // Refresh eligibility status
+        checkAdditionalPickupEligibility() // Refresh additional pickup eligibility
       }
     } catch (error) {
       console.error('Error tracking completion:', error)
@@ -442,8 +510,9 @@ export default function MarketerStockPickup() {
     try {
       await api.post('/stock/pickup/request-additional')
       showInfo('Additional pickup requested—waiting for approval.', 'Request Submitted')
-      refreshAllowance()
-      checkEligibility() // Refresh eligibility status
+        refreshAllowance()
+        checkEligibility()
+        checkAdditionalPickupEligibility() // Refresh eligibility status
     } catch (err) {
       console.error(err)
       showError(err.response?.data?.message || 'Request failed', 'Request Failed')
@@ -525,7 +594,7 @@ export default function MarketerStockPickup() {
 
   const { allowance, request_status, next_request_at } = allowanceInfo
   const canAddMore = request_status === 'approved' && lines.length < allowance
-  const canRequestAdditional = allowance === 1 && request_status === null && hasConfirmedOrders
+  const canRequestAdditional = allowance === 1 && request_status === null && additionalPickupEligibility.eligible
   const rejectedCd = request_status === 'rejected' && next_request_at
     ? formatRemaining(new Date(next_request_at).getTime() - now).text
     : null
