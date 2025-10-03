@@ -253,30 +253,58 @@ const UserSummaryPopover = ({
               </div>
             </div>
 
-            {/* Activity Stats */}
+            {/* Commission Summary */}
             <div className="p-4 border-b">
               <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />
-                Activity Stats
+                Commission Summary
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center p-2 bg-white border border-gray-200 rounded">
+                  <div className="text-lg font-bold text-gray-900">
+                    {formatAmount(userSummary.stats.total_commission_earned)}
+                  </div>
+                  <div className="text-xs text-gray-600">Total Earned</div>
+                </div>
+                <div className="text-center p-2 bg-white border border-gray-200 rounded">
+                  <div className="text-lg font-bold text-gray-900">
+                    {formatAmount(userSummary.stats.commission_rate)}
+                  </div>
+                  <div className="text-xs text-gray-600">Per Device</div>
+                </div>
+                <div className="text-center p-2 bg-white border border-gray-200 rounded">
+                  <div className="text-sm font-bold text-green-600">
+                    {formatAmount(userSummary.stats.withdrawable_commission)}
+                  </div>
+                  <div className="text-xs text-gray-600">Withdrawable (40%)</div>
+                </div>
+                <div className="text-center p-2 bg-white border border-gray-200 rounded">
+                  <div className="text-sm font-bold text-orange-600">
+                    {formatAmount(userSummary.stats.withheld_commission)}
+                  </div>
+                  <div className="text-xs text-gray-600">Withheld (60%)</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sales Performance */}
+            <div className="p-4 border-b">
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Sales Performance
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="text-center p-2 bg-white border border-gray-200 rounded">
                   <div className="text-lg font-bold text-gray-900">
                     {userSummary.stats.total_orders}
                   </div>
-                  <div className="text-xs text-gray-600">Orders</div>
+                  <div className="text-xs text-gray-600">Devices Sold</div>
                 </div>
                 <div className="text-center p-2 bg-white border border-gray-200 rounded">
                   <div className="text-sm font-bold text-gray-900">
                     {formatAmount(userSummary.stats.total_sales)}
                   </div>
-                  <div className="text-xs text-gray-600">Sales</div>
-                </div>
-                <div className="text-center p-2 bg-white border border-gray-200 rounded">
-                  <div className="text-sm font-bold text-gray-900">
-                    {formatAmount(userSummary.stats.total_commission)}
-                  </div>
-                  <div className="text-xs text-gray-600">Commission</div>
+                  <div className="text-xs text-gray-600">Total Sales</div>
                 </div>
               </div>
             </div>
@@ -288,15 +316,15 @@ const UserSummaryPopover = ({
                 Recent Activity
               </h4>
               
-              {/* Recent Orders */}
+              {/* Recent Device Sales */}
               {userSummary.recent_orders.length > 0 && (
                 <div className="mb-4">
-                  <div className="text-sm font-medium text-gray-700 mb-2">Recent Orders</div>
+                  <div className="text-sm font-medium text-gray-700 mb-2">Recent Device Sales</div>
                   <div className="space-y-2">
-                    {userSummary.recent_orders.slice(0, 3).map((order, index) => (
+                    {userSummary.recent_orders.slice(0, 5).map((order, index) => (
                       <div key={index} className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-gray-600">#{order.id}</span>
+                          <span className="font-mono text-gray-600">Order #{order.id}</span>
                           <Badge className={`text-xs ${getStatusColor(order.status)}`}>
                             {order.status.replace('_', ' ')}
                           </Badge>

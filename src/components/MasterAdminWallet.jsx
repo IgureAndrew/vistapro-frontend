@@ -535,38 +535,38 @@ export default function MasterAdminWallet() {
                       <p className="text-xs text-gray-500">{balanceBreakdown.admins.count} users</p>
                     </div>
                   </div>
-                </div>
-                
+      </div>
+
                 <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-100">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-100 rounded-lg">
                       <Package className="w-5 h-5 text-purple-600" />
                     </div>
-                    <div>
+            <div>
                       <p className="text-xs text-gray-600 mb-0.5">SuperAdmins</p>
                       <p className="text-sm font-bold text-gray-900">₦{(balanceBreakdown.superadmins.total / 1000000).toFixed(1)}M</p>
                       <p className="text-xs text-gray-500">{balanceBreakdown.superadmins.count} users</p>
-                    </div>
-                  </div>
+            </div>
+          </div>
                 </div>
               </div>
             </div>
-          </div>
-
+        </div>
+        
           {/* Available */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-green-100 rounded-full">
                 <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
+          </div>
+          </div>
             <div>
               <p className="text-sm font-medium text-gray-600 mb-1">Available</p>
               <p className="text-2xl font-bold text-gray-900">
                 ₦{available.toLocaleString()}
               </p>
-            </div>
           </div>
+      </div>
 
           {/* Withheld */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -575,13 +575,13 @@ export default function MasterAdminWallet() {
                 <AlertCircle className="w-6 h-6 text-orange-600" />
               </div>
             </div>
-            <div>
+                <div>
               <p className="text-sm font-medium text-gray-600 mb-1">Withheld</p>
               <p className="text-2xl font-bold text-gray-900">
                 ₦{withheld.toLocaleString()}
               </p>
-            </div>
-          </div>
+                </div>
+              </div>
 
           {/* Pending */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -595,7 +595,7 @@ export default function MasterAdminWallet() {
               <p className="text-2xl font-bold text-gray-900">
                 ₦{pendSum.toLocaleString()}
               </p>
-            </div>
+        </div>
           </div>
         </div>
         
@@ -649,23 +649,24 @@ export default function MasterAdminWallet() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
+                    <Table>
+                      <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-semibold">User</TableHead>
+                      <TableHead className="font-semibold">Bank Details</TableHead>
                       <TableHead className="font-semibold">Amount</TableHead>
                       <TableHead className="font-semibold">Date</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                        </TableRow>
+                      </TableHeader>
+                     <TableBody>
                     {pending.filter(p => 
                       p.status === 'pending' &&
                       (p.user_name.toLowerCase().includes(pendingSearchTerm.toLowerCase()) ||
                        p.user_unique_id.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
                     ).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-12 text-gray-500">
+                        <TableCell colSpan={5} className="text-center py-12 text-gray-500">
                           <Clock className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                           <p className="text-lg font-medium text-gray-700">
                             {pendingSearchTerm ? 'No results found' : 'No pending cashout requests'}
@@ -691,15 +692,15 @@ export default function MasterAdminWallet() {
                                   <User className="w-5 h-5 text-blue-600" />
                                 </div>
                                 <div>
-                                  <UserSummaryPopover
+                              <UserSummaryPopover
                                     userUniqueId={item.user_unique_id}
                                     userName={item.user_name}
-                                    onAction={(action, data) => handlePopoverAction(action, data)}
-                                  >
+                                onAction={(action, data) => handlePopoverAction(action, data)}
+                              >
                                     <span className="text-base font-medium text-gray-900 hover:text-blue-600 cursor-pointer hover:underline block">
                                       {item.user_name}
-                                    </span>
-                                  </UserSummaryPopover>
+                                </span>
+                              </UserSummaryPopover>
                                   <span className="text-xs text-gray-500 font-mono block">{item.user_unique_id}</span>
                                   {item.user_location && (
                                     <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
@@ -707,6 +708,19 @@ export default function MasterAdminWallet() {
                                       {item.user_location}
                                     </span>
                                   )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-6">
+                              <div className="space-y-1">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {item.account_name || 'N/A'}
+                                </div>
+                                <div className="text-xs text-gray-600 font-mono">
+                                  {item.account_number || 'N/A'}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {item.bank_name || 'N/A'}
                                 </div>
                               </div>
                             </TableCell>
@@ -725,8 +739,8 @@ export default function MasterAdminWallet() {
                             </TableCell>
                             <TableCell className="py-6 text-right">
                               <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
+                                <Button 
+                                  size="sm" 
                                   variant="outline"
                                   className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                                   onClick={() => {
@@ -741,13 +755,13 @@ export default function MasterAdminWallet() {
                                       onCancel: () => setConfirmDialog({ ...confirmDialog, open: false }),
                                     })
                                   }}
-                                  disabled={actioning}
+                          disabled={actioning}
                                 >
                                   <XCircle className="w-4 h-4 mr-1" />
                                   Reject
                                 </Button>
-                                <Button
-                                  size="sm"
+                                <Button 
+                                  size="sm" 
                                   className="bg-green-600 hover:bg-green-700 text-white"
                                   onClick={() => {
                                     setConfirmDialog({
@@ -771,8 +785,8 @@ export default function MasterAdminWallet() {
                           </TableRow>
                         ))
                     )}
-                  </TableBody>
-                </Table>
+                    </TableBody>
+                  </Table>
               </div>
               {/* Pagination for Pending Cashouts - Simplified */}
               {pending.filter(p => 
@@ -785,8 +799,8 @@ export default function MasterAdminWallet() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setPendingPage(prev => Math.max(1, prev - 1))}
-                      disabled={pendingPage === 1}
+                             onClick={() => setPendingPage(prev => Math.max(1, prev - 1))}
+                             disabled={pendingPage === 1}
                       className="flex items-center gap-2"
                     >
                       <ChevronDown className="w-4 h-4 rotate-90" />
@@ -799,7 +813,7 @@ export default function MasterAdminWallet() {
                         (p.user_name.toLowerCase().includes(pendingSearchTerm.toLowerCase()) ||
                          p.user_unique_id.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
                       ).length / itemsPerPage)}
-                    </span>
+                           </span>
                     
                     <Button
                       variant="outline"
@@ -819,10 +833,10 @@ export default function MasterAdminWallet() {
                       Next
                       <ChevronDown className="w-4 h-4 -rotate-90" />
                     </Button>
-                  </div>
-                </div>
-              )}
-            </div>
+                   </div>
+               </div>
+             )}
+      </div>
 
             {/* Pending Withheld Releases - Enhanced */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -846,15 +860,15 @@ export default function MasterAdminWallet() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
+                    <Table>
+                      <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-semibold">User</TableHead>
                       <TableHead className="font-semibold">Amount</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                        </TableRow>
+                      </TableHeader>
+                     <TableBody>
                     {withheldReqs.filter(item => 
                       item.name.toLowerCase().includes(withheldSearchTerm.toLowerCase()) ||
                       item.userUniqueId.toLowerCase().includes(withheldSearchTerm.toLowerCase())
@@ -885,15 +899,15 @@ export default function MasterAdminWallet() {
                                   <User className="w-5 h-5 text-blue-600" />
                                 </div>
                                 <div>
-                                  <UserSummaryPopover
+                            <UserSummaryPopover
                                     userUniqueId={item.userUniqueId}
                                     userName={item.name}
-                                    onAction={(action, data) => handlePopoverAction(action, data)}
-                                  >
+                              onAction={(action, data) => handlePopoverAction(action, data)}
+                            >
                                     <span className="text-base font-medium text-gray-900 hover:text-blue-600 cursor-pointer hover:underline block">
                                       {item.name}
-                                    </span>
-                                  </UserSummaryPopover>
+                              </span>
+                            </UserSummaryPopover>
                                   <span className="text-xs text-gray-500 font-mono block">{item.userUniqueId}</span>
                                   {item.location && (
                                     <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
@@ -903,17 +917,17 @@ export default function MasterAdminWallet() {
                                   )}
                                 </div>
                               </div>
-                            </TableCell>
+                          </TableCell>
                             <TableCell className="py-6">
                               <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg font-bold text-sm">
                                 <AlertCircle className="w-4 h-4" />
                                 ₦{Number(item.amount).toLocaleString()}
                               </span>
-                            </TableCell>
+                          </TableCell>
                             <TableCell className="py-6 text-right">
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
+                            <div className="flex gap-2 justify-end">
+                              <Button 
+                                size="sm" 
                                   variant="outline"
                                   className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                                   onClick={() => {
@@ -931,9 +945,9 @@ export default function MasterAdminWallet() {
                                 >
                                   <XCircle className="w-4 h-4 mr-1" />
                                   Reject
-                                </Button>
-                                <Button
-                                  size="sm"
+                              </Button>
+                              <Button 
+                                size="sm" 
                                   className="bg-green-600 hover:bg-green-700 text-white"
                                   onClick={() => {
                                     setConfirmDialog({
@@ -950,17 +964,17 @@ export default function MasterAdminWallet() {
                                 >
                                   <CheckCircle className="w-4 h-4 mr-1" />
                                   Approve
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                         ))
                     )}
-                  </TableBody>
-                </Table>
+                    </TableBody>
+                  </Table>
               </div>
-              
-              {/* Pagination */}
+                 
+                 {/* Pagination */}
               {withheldReqs.filter(item => 
                 item.name.toLowerCase().includes(withheldSearchTerm.toLowerCase()) ||
                 item.userUniqueId.toLowerCase().includes(withheldSearchTerm.toLowerCase())
@@ -970,8 +984,8 @@ export default function MasterAdminWallet() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setWithheldPage(prev => Math.max(1, prev - 1))}
-                      disabled={withheldPage === 1}
+                             onClick={() => setWithheldPage(prev => Math.max(1, prev - 1))}
+                             disabled={withheldPage === 1}
                       className="flex items-center gap-2"
                     >
                       <ChevronDown className="w-4 h-4 rotate-90" />
@@ -983,7 +997,7 @@ export default function MasterAdminWallet() {
                         item.name.toLowerCase().includes(withheldSearchTerm.toLowerCase()) ||
                         item.userUniqueId.toLowerCase().includes(withheldSearchTerm.toLowerCase())
                       ).length / withheldItemsPerPage)}
-                    </span>
+                           </span>
                     
                     <Button
                       variant="outline"
@@ -1001,10 +1015,10 @@ export default function MasterAdminWallet() {
                       Next
                       <ChevronDown className="w-4 h-4 -rotate-90" />
                     </Button>
-                  </div>
-                </div>
-              )}
-            </div>
+                   </div>
+               </div>
+             )}
+      </div>
 
             {/* Release History (Approved & Rejected) - Enhanced */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -1025,19 +1039,19 @@ export default function MasterAdminWallet() {
                     }}
                     className="max-w-xs"
                   />
-                </div>
-              </div>
+          </div>
+             </div>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
+                  <Table>
+                    <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-semibold">User</TableHead>
                       <TableHead className="font-semibold">Amount</TableHead>
                       <TableHead className="font-semibold">Status & Reviewer</TableHead>
                       <TableHead className="font-semibold">Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                      </TableRow>
+                    </TableHeader>
+                   <TableBody>
                     {releaseHistory.filter(item =>
                       item.user_name.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
                       item.user_unique_id.toLowerCase().includes(historySearchTerm.toLowerCase())
@@ -1068,15 +1082,15 @@ export default function MasterAdminWallet() {
                                   <User className="w-5 h-5 text-blue-600" />
                                 </div>
                                 <div>
-                                  <UserSummaryPopover
+                          <UserSummaryPopover
                                     userUniqueId={item.user_unique_id}
                                     userName={item.user_name}
-                                    onAction={(action, data) => handlePopoverAction(action, data)}
-                                  >
+                            onAction={(action, data) => handlePopoverAction(action, data)}
+                          >
                                     <span className="text-base font-medium text-gray-900 hover:text-blue-600 cursor-pointer hover:underline block">
                                       {item.user_name}
-                                    </span>
-                                  </UserSummaryPopover>
+                            </span>
+                          </UserSummaryPopover>
                                   <span className="text-xs text-gray-500 font-mono block">{item.user_unique_id}</span>
                                   {item.user_location && (
                                     <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
@@ -1086,7 +1100,7 @@ export default function MasterAdminWallet() {
                                   )}
                                 </div>
                               </div>
-                            </TableCell>
+                        </TableCell>
                             <TableCell className="py-6">
                               <span className="text-base font-bold text-gray-900">
                                 ₦{Number(item.amount).toLocaleString()}
@@ -1109,7 +1123,7 @@ export default function MasterAdminWallet() {
                                       Rejected
                                     </>
                                   )}
-                                </Badge>
+                          </Badge>
                                 {item.reviewed_by_name && (
                                   <p className="text-xs text-gray-500">by {item.reviewed_by_name}</p>
                                 )}
@@ -1121,8 +1135,8 @@ export default function MasterAdminWallet() {
                                 month: 'short', 
                                 year: 'numeric' 
                               }) : '—'}
-                            </TableCell>
-                          </TableRow>
+                        </TableCell>
+                      </TableRow>
                         ))
                     )}
                   </TableBody>
@@ -1138,8 +1152,8 @@ export default function MasterAdminWallet() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
-                      disabled={historyPage === 1}
+                           onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
+                           disabled={historyPage === 1}
                       className="flex items-center gap-2"
                     >
                       <ChevronDown className="w-4 h-4 rotate-90" />
@@ -1151,7 +1165,7 @@ export default function MasterAdminWallet() {
                         item.user_name.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
                         item.user_unique_id.toLowerCase().includes(historySearchTerm.toLowerCase())
                       ).length / 10)}
-                    </span>
+                         </span>
                     
                     <Button
                       variant="outline"
@@ -1169,9 +1183,9 @@ export default function MasterAdminWallet() {
                       Next
                       <ChevronDown className="w-4 h-4 -rotate-90" />
                     </Button>
-                  </div>
-                </div>
-              )}
+                 </div>
+      </div>
+            )}
             </div>
           </TabsContent>
 
@@ -1458,8 +1472,8 @@ export default function MasterAdminWallet() {
             onClose={() => setSuccessAlert(null)}
             className="shadow-lg min-w-[320px]"
           />
-        </div>
-      )}
+                 </div>
+               )}
 
       {/* Error Alert */}
       {errorAlert && (
@@ -1471,8 +1485,8 @@ export default function MasterAdminWallet() {
             onClose={() => setErrorAlert(null)}
             className="shadow-lg min-w-[320px]"
           />
-        </div>
-      )}
-    </div>
+             </div>
+           )}
+         </div>
   );
 }
