@@ -742,7 +742,7 @@ export default function MarketerStockPickup() {
                 const diff      = new Date(s.deadline).getTime() - now
                 const remaining = s.status === 'pending'
                   ? formatRemaining(diff)
-                  : s.status === 'expired'
+                  : s.status === 'expired' || s.status === 'return_pending' || s.status === 'transfer_pending'
                     ? formatRemaining(-diff)
                     : s.status === 'sold'
                       ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
@@ -837,7 +837,7 @@ export default function MarketerStockPickup() {
                     const diff      = new Date(s.deadline).getTime() - now
                     const remaining = s.status === 'pending'
                       ? formatRemaining(diff)
-                      : s.status === 'expired'
+                      : s.status === 'expired' || s.status === 'return_pending' || s.status === 'transfer_pending'
                         ? formatRemaining(-diff)
                         : s.status === 'sold'
                           ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
