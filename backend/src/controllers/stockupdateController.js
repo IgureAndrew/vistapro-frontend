@@ -2255,7 +2255,7 @@ async function listStockPickups(req, res, next) {
         JOIN users u ON su.marketer_id = u.id
         JOIN products p ON su.product_id = p.id
         JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
-        ORDER BY su.created_at DESC
+        ORDER BY su.pickup_date DESC
       `;
       params = [];
     } else if (userRole === 'SuperAdmin') {
@@ -2271,7 +2271,7 @@ async function listStockPickups(req, res, next) {
         JOIN products p ON su.product_id = p.id
         JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         WHERE u.super_admin_id = $1
-        ORDER BY su.created_at DESC
+        ORDER BY su.pickup_date DESC
       `;
       params = [userId];
     } else if (userRole === 'Admin') {
@@ -2287,7 +2287,7 @@ async function listStockPickups(req, res, next) {
         JOIN products p ON su.product_id = p.id
         JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         WHERE u.admin_id = $1
-        ORDER BY su.created_at DESC
+        ORDER BY su.pickup_date DESC
       `;
       params = [userId];
     } else {
@@ -2303,7 +2303,7 @@ async function listStockPickups(req, res, next) {
         JOIN products p ON su.product_id = p.id
         JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         WHERE su.marketer_id = $1
-        ORDER BY su.created_at DESC
+        ORDER BY su.pickup_date DESC
       `;
       params = [userId];
     }
