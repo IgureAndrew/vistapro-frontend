@@ -36,13 +36,11 @@ export default function MarketerStockPickup() {
   const [currentUserLocation, setCurrentUserLocation] = useState('')
   const [eligibilityInfo, setEligibilityInfo] = useState({
     eligible: false,
-    hasConfirmedOrder: false,
-    hasPendingCompletion: false,
-    hasPendingRequest: false,
+    hasActiveStock: false,
     hasPendingReturn: false,
     hasPendingTransfer: false,
-    hasActiveStock: false,
-    isLocked: false
+    isLocked: false,
+    message: ''
   })
   const [accountStatus, setAccountStatus] = useState({
     blocked: false,
@@ -102,7 +100,7 @@ export default function MarketerStockPickup() {
   }
 
   function checkEligibility() {
-    api.get('/stock/pickup/eligibility')
+    api.get('/marketer/stock/pickup/eligibility')
       .then(r => {
         setEligibilityInfo(r.data)
         console.log('Eligibility check:', r.data)
@@ -133,13 +131,11 @@ export default function MarketerStockPickup() {
         // Set fallback eligibility info
         setEligibilityInfo({
           eligible: false,
-          hasConfirmedOrder: false,
-          hasPendingCompletion: false,
-          hasPendingRequest: false,
+          hasActiveStock: false,
           hasPendingReturn: false,
           hasPendingTransfer: false,
-          hasActiveStock: false,
-          isLocked: false
+          isLocked: false,
+          message: 'Failed to check eligibility'
         })
       })
   }
@@ -171,14 +167,8 @@ export default function MarketerStockPickup() {
   }
 
   function getAdditionalPickupEligibilityMessage() {
-    if (!eligibilityInfo.hasConfirmedOrder) {
+    if (!hasConfirmedOrders) {
       return 'You must have at least one confirmed order to request additional pickup'
-    }
-    if (eligibilityInfo.hasPendingCompletion) {
-      return 'You must complete your current additional pickup before requesting another'
-    }
-    if (eligibilityInfo.hasPendingRequest) {
-      return 'You already have a pending additional pickup request'
     }
     return 'You are eligible for additional pickup request'
   }
