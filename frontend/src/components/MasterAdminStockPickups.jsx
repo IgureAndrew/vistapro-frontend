@@ -104,6 +104,22 @@ const MasterAdminStockPickups = () => {
       loadStockPickups()
     })
 
+    // Listen for additional pickup request events
+    socketRef.current.on('additional_pickup_request_created', (data) => {
+      console.log('New additional pickup request:', data)
+      loadAdditionalPickupRequests()
+    })
+
+    socketRef.current.on('additional_pickup_request_approved', (data) => {
+      console.log('Additional pickup request approved:', data)
+      loadAdditionalPickupRequests()
+    })
+
+    socketRef.current.on('additional_pickup_request_rejected', (data) => {
+      console.log('Additional pickup request rejected:', data)
+      loadAdditionalPickupRequests()
+    })
+
     // Cleanup on unmount
     return () => {
       if (socketRef.current) {

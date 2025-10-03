@@ -5,6 +5,7 @@ import AlertDialog from './ui/alert-dialog'
 import { useAlert } from '../hooks/useAlert'
 import { formatCurrency } from '../utils/currency'
 import TransferPopover from './TransferPopover'
+import { io } from 'socket.io-client'
 
 // Import mobile-first components
 import MobileTable from "./MobileTable";
@@ -64,6 +65,33 @@ export default function MarketerStockPickup() {
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(iv)
+  }, [])
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const socket = io(import.meta.env.VITE_API_URL, {
+      auth: { token }
+    })
+
+    // Listen for additional pickup request updates
+    socket.on('additional_pickup_request_approved', (data) => {
+      console.log('Additional pickup request approved:', data)
+      refreshAllowance()
+      checkAdditionalPickupEligibility()
+    })
+
+    socket.on('additional_pickup_request_rejected', (data) => {
+      console.log('Additional pickup request rejected:', data)
+      refreshAllowance()
+      checkAdditionalPickupEligibility()
+    })
+
+    return () => {
+      socket.disconnect()
+    }
   }, [])
 
   // Initial load: dealers, allowance, pickups, confirmed orders
