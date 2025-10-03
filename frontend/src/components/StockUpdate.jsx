@@ -397,6 +397,10 @@ export default function StockUpdates() {
                           {formatCountdown(u.deadline)}
                         </span>
                       </div>
+                    ) : (u.status === 'sold' || u.status === 'returned' || u.status === 'transferred') ? (
+                      <span className="text-green-600 font-semibold capitalize">
+                        {u.status.replace(/_/g, " ")}
+                      </span>
                     ) : (
                       <span className="text-gray-500">—</span>
                     )}
@@ -425,7 +429,7 @@ export default function StockUpdates() {
                         </button>
                       </div>
                     )}
-                    {u.status === "Pending Return" && isMasterAdmin && (
+                    {u.status === "return_pending" && isMasterAdmin && (
                       <button
                         onClick={() => handleConfirmReturn(u.id)}
                         className="px-2 py-1 bg-blue-600 text-white rounded"

@@ -13,7 +13,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-                define: {
-                'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:5007')
-              }
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify('https://vistapro-backend.onrender.com')
+  },
+  server: {
+    proxy: {
+      '/api/uploads': {
+        target: 'https://vistapro-backend.onrender.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/uploads/, '/uploads')
+      }
+    }
+  }
 })

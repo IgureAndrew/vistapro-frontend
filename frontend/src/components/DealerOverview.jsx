@@ -11,6 +11,11 @@ import {
 } from "lucide-react";
 import api from "../api";
 
+// Import reusable components
+import { MetricCard } from "./common/MetricCard";
+import { WelcomeSection } from "./common/WelcomeSection";
+import { SectionHeader } from "./common/SectionHeader";
+
 export default function DealerOverview({ onNavigate, isDarkMode = false }) {
   const navigate   = useNavigate();
   const storedUser = localStorage.getItem("user");
@@ -106,211 +111,150 @@ export default function DealerOverview({ onNavigate, isDarkMode = false }) {
     });
   }, [orders, dateFilter]);
 
+  // Prepare data for MobileDashboard
+  const metrics = {
+    walletBalance: stats.wallet,
+    totalOrders: stats.totalOrders,
+    totalSales: stats.totalSales,
+    stockCount: stats.stockCount || 0
+  };
+
+  const quickActions = [
+    { key: 'new-order', label: 'New Order', icon: ShoppingCart, action: () => onNavigate('orders') },
+    { key: 'stock-mgmt', label: 'Stock Mgmt', icon: MoreVertical, action: () => onNavigate('stock') }
+  ];
+
+  const activityData = [
+    { id: 1, text: 'Order #3456 confirmed', time: '2 hours ago', icon: ShoppingCart },
+    { id: 2, text: 'Stock level updated', time: '4 hours ago', icon: MoreVertical },
+    { id: 3, text: 'Commission earned', time: '6 hours ago', icon: Wallet }
+  ];
+
+  if (isLoading) {
   return (
-    <div className="px-4 py-6 md:px-6 lg:px-12 space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-6 border border-amber-100 dark:border-amber-800">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Welcome back, {dealerName}! 🏪
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Track your orders and manage your commission earnings
-            </p>
-          </div>
-          <div className="hidden md:block">
-            <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-xl font-bold">
-                {dealerName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          </div>
+      <div className="w-full space-y-4 sm:space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
         </div>
       </div>
+    );
+  }
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          {
-            icon: <ShoppingCart className="w-6 h-6" />,
-            label: "Total Orders",
-            value: stats.totalOrders,
-            change: "+5%",
-            changeColor: "text-green-600",
-            bgColor: "bg-green-50",
-            iconBg: "bg-green-100"
-          },
-          {
-            icon: <Clock className="w-6 h-6" />,
-            label: "Pending Orders",
-            value: stats.pendingOrders,
-            change: "+8%",
-            changeColor: "text-red-600",
-            bgColor: "bg-red-50",
-            iconBg: "bg-red-100"
-          },
-          {
-            icon: <BarChart2 className="w-6 h-6" />,
-            label: "Total Sales",
-            value: `₦${stats.totalSales.toLocaleString()}`,
-            change: "+8%",
-            changeColor: "text-blue-600",
-            bgColor: "bg-blue-50",
-            iconBg: "bg-blue-100"
-          },
-          {
-            icon: <Wallet className="w-6 h-6" />,
-            label: "Available Commission",
-            value: `₦${stats.wallet.toLocaleString()}`,
-            change: "+12%",
-            changeColor: "text-purple-600",
-            bgColor: "bg-purple-50",
-            iconBg: "bg-purple-100"
-          },
-        ].map((card, i) => (
-          <div key={i} className={`${card.bgColor} dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className={`${card.iconBg} dark:bg-gray-700 p-3 rounded-lg`}>
-                <div className={`${card.changeColor} dark:text-gray-300`}>{card.icon}</div>
-              </div>
-              <MoreVertical className="text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300" size={20} />
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{card.label}</h3>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{card.value}</p>
-            <div className="flex items-center space-x-2">
-              <span className={`text-sm font-medium ${card.changeColor}`}>{card.change}</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">vs last period</span>
-            </div>
-          </div>
-        ))}
+  return (
+    <div className="w-full space-y-4 sm:space-y-6">
+      {/* Welcome Section */}
+      <WelcomeSection
+        title={`Welcome back, ${dealerName}!`}
+        subtitle={`Dealer ID: ${dealerId}`}
+        gradientFrom="from-orange-50"
+        gradientTo="to-amber-50"
+      />
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+        <MetricCard
+          label="Total Orders"
+          value={stats.totalOrders}
+          description="All time orders"
+          icon={ShoppingCart}
+          iconColor="text-blue-600"
+          iconBgColor="bg-blue-100"
+        />
+
+        <MetricCard
+          label="Total Sales"
+          value={`₦${stats.totalSales.toLocaleString()}`}
+          description="Revenue generated"
+          icon={BarChart2}
+          iconColor="text-green-600"
+          iconBgColor="bg-green-100"
+        />
+
+        <MetricCard
+          label="Pending Orders"
+          value={stats.pendingOrders}
+          description="Awaiting action"
+          icon={Clock}
+          iconColor="text-orange-600"
+          iconBgColor="bg-orange-100"
+        />
+
+        <MetricCard
+          label="Wallet Balance"
+          value={`₦${stats.wallet.toLocaleString()}`}
+          description="Available funds"
+          icon={Wallet}
+          iconColor="text-purple-600"
+          iconBgColor="bg-purple-100"
+        />
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { icon: <ShoppingCart className="w-5 h-5" />, label: "View Orders", action: () => onNavigate('manage-orders') },
-            { icon: <BarChart2 className="w-5 h-5" />, label: "Sales Report", action: () => onNavigate('performance') },
-            { icon: <Wallet className="w-5 h-5" />, label: "Check Commission", action: () => onNavigate('wallet') },
-            { icon: <Clock className="w-5 h-5" />, label: "Pending Orders", action: () => onNavigate('manage-orders') },
-          ].map(({ icon, label, action }, idx) => (
+      {/* Recent Orders by Date Filter */}
+      <div>
+        <SectionHeader 
+          title="Recent Orders"
+          action={
+          <div className="flex space-x-2">
+            {["Today", "This Week", "This Month", "All Time"].map((filter) => (
             <button
-              key={idx}
-              onClick={action}
-              className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-3 rounded-lg flex items-center space-x-2 transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-black dark:text-white cursor-pointer"
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#f59e0b';
-                e.target.style.color = 'white';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '';
-                e.target.style.color = '';
-              }}
-            >
-              {icon}
-              <span className="font-medium">{label}</span>
+                key={filter}
+                onClick={() => setDateFilter(filter)}
+                className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition-colors ${
+                  dateFilter === filter
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                }`}
+              >
+                {filter}
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Recent Activity Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-            <BarChart2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Your latest orders and commissions</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <select
-            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-          >
-            {["All Time", "Last 7 Days", "Last 30 Days"].map(opt => (
-              <option key={opt}>{opt}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => navigate("/manage-orders/orders")}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-          >
-            New Order
-          </button>
-        </div>
-      </div>
+          }
+        />
 
-      {/* Recent Activity Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {filteredOrders.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm sm:text-base">No orders found for this period</p>
+          </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              {[
-                "Dealer Name",
-                "Unique ID",
-                "Device Name",
-                "Model",
-                "Type",
-                "Price",
-                "Platform",
-                "Status"
-              ].map(hdr => (
-                <th
-                  key={hdr}
-                  className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                >
-                  {hdr}
-                </th>
-              ))}
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Order ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:table-cell">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden lg:table-cell">Date</th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredOrders.length > 0 ? (
-              filteredOrders.map(o => (
-                <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{dealerName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{dealerId}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{o.device_name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{o.device_model}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{o.device_type}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">₦{Number(o.sold_amount).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{o.bnpl_platform || "N/A"}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span
-                      className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                        o.status === "completed"
-                          ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                          : o.status === "pending"
-                          ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
-                      }`}
-                    >
-                      {o.status.charAt(0).toUpperCase() + o.status.slice(1)}
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredOrders.slice(0, 10).map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">#{order.id}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 hidden sm:table-cell">{order.customer_name}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">₦{order.sold_amount?.toLocaleString() || 0}</td>
+                      <td className="px-4 py-3 text-sm hidden md:table-cell">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          order.status === 'confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                          'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {order.status}
                     </span>
                   </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center">
-                  <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                      <ShoppingCart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No orders found</h3>
-                    <p className="text-gray-500 dark:text-gray-400">Start by creating your first order</p>
-                  </div>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                        {new Date(order.created_at).toLocaleDateString()}
                 </td>
               </tr>
-            )}
+                  ))}
           </tbody>
         </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

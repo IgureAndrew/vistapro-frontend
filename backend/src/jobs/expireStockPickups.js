@@ -32,51 +32,69 @@ cron.schedule('* * * * *', async () => {
        WHERE id = ANY($1)
     `, [expiredIds]);
 
-    // 3) Notify MasterAdmin, Admin, SuperAdmin for each
+    // 3) Notify all parties involved for each expired pickup
     for (const { id: suId, marketer_id } of expired) {
-      // a) MasterAdmin
-      await client.query(`
-        INSERT INTO notifications (user_unique_id, message, created_at)
-        SELECT unique_id, $1::text, NOW()
+      // Get marketer details
+      const { rows: [marketer] } = await client.query(`
+        SELECT unique_id, admin_id
           FROM users
-         WHERE role = 'MasterAdmin'
-      `, [
-        `Stock‐pickup #${suId} has expired (48 h lapsed without sale/transfer/return).`
-      ]);
-
-      // b) The Admin of that marketer
-      const { rows: adminRows } = await client.query(`
-        SELECT u2.unique_id
-          FROM users u1
-          JOIN users u2 ON u1.admin_id = u2.id
-         WHERE u1.id = $1
+         WHERE id = $1
       `, [marketer_id]);
-      if (adminRows[0]) {
+      
+      if (marketer?.unique_id) {
+        // a) Notify marketer
         await client.query(`
           INSERT INTO notifications (user_unique_id, message, created_at)
-          VALUES ($1::text, $2::text, NOW())
+          VALUES ($1, $2, NOW())
         `, [
-          adminRows[0].unique_id,
-          `Your marketer's stock‐pickup #${suId} has expired.`
+          marketer.unique_id,
+          `⚠️ URGENT: Your stock pickup #${suId} has expired! You must return or transfer it immediately.`
         ]);
-      }
 
-      // c) That Admin’s SuperAdmin
-      const { rows: superRows } = await client.query(`
-        SELECT u3.unique_id
-          FROM users u2
-          JOIN users u3 ON u2.super_admin_id = u3.id
-         WHERE u2.id = (
-           SELECT admin_id FROM users WHERE id = $1
-         )
-      `, [marketer_id]);
-      if (superRows[0]) {
+        // b) Notify marketer's admin
+        if (marketer.admin_id) {
+          const { rows: [admin] } = await client.query(`
+            SELECT unique_id, super_admin_id
+              FROM users
+             WHERE id = $1
+          `, [marketer.admin_id]);
+          
+          if (admin?.unique_id) {
+            await client.query(`
+              INSERT INTO notifications (user_unique_id, message, created_at)
+              VALUES ($1, $2, NOW())
+            `, [
+              admin.unique_id,
+              `⚠️ URGENT: Marketer ${marketer.unique_id}'s stock pickup #${suId} has expired!`
+            ]);
+            
+            // c) Notify admin's superadmin
+            if (admin.super_admin_id) {
+              const { rows: [superadmin] } = await client.query(`
+                SELECT unique_id FROM users WHERE id = $1
+              `, [admin.super_admin_id]);
+              
+              if (superadmin?.unique_id) {
+                await client.query(`
+                  INSERT INTO notifications (user_unique_id, message, created_at)
+                  VALUES ($1, $2, NOW())
+                `, [
+                  superadmin.unique_id,
+                  `⚠️ URGENT: Stock pickup #${suId} in your chain has expired!`
+                ]);
+              }
+            }
+          }
+        }
+
+        // d) Notify all MasterAdmins
         await client.query(`
           INSERT INTO notifications (user_unique_id, message, created_at)
-          VALUES ($1::text, $2::text, NOW())
+          SELECT unique_id, $1, NOW()
+            FROM users
+           WHERE role = 'MasterAdmin'
         `, [
-          superRows[0].unique_id,
-          `A stock‐pickup in your chain (#${suId}) has expired.`
+          `⚠️ URGENT: Stock pickup #${suId} has expired (48h lapsed without sale/transfer/return).`
         ]);
       }
     }

@@ -109,10 +109,10 @@ export default function VerificationMarketer({ onComplete }) {
   // All done?
   if (doneCount === FORM_KEYS.length) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="max-w-sm w-full bg-white p-6 rounded-lg shadow text-center">
-          <h2 className="text-2xl font-bold mb-2">All Steps Completed</h2>
-          <p>Your verification is now pending admin approval. Thank you!</p>
+      <div className="w-full flex items-center justify-center p-4">
+        <div className="w-full bg-white dark:bg-gray-800 p-6 rounded-lg shadow text-center">
+          <h2 className="text-2xl font-bold mb-2 dark:text-white">All Steps Completed</h2>
+          <p className="dark:text-gray-300">Your verification is now pending admin approval. Thank you!</p>
         </div>
       </div>
     );
@@ -139,9 +139,9 @@ export default function VerificationMarketer({ onComplete }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="w-full space-y-6">
       {/* Mobile-First Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-lg">
         <div className="px-4 py-4">
           <h1 className="text-xl font-bold text-gray-900 text-center">
             Marketer Verification

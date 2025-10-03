@@ -38,7 +38,7 @@ export default function ProfitReport() {
     setUnlockError(null)
     setUnlockLoading(true)
     try {
-      //  – Make a POST to your new “/api/profit-report/unlock” endpoint:
+      //  – Make a POST to your new "/api/profit-report/unlock" endpoint:
       //    e.g. server will verify `{ code: accessCode }` and return 200 if valid,
       //    or 401/403 if not.
       await profitReportApi.post('/unlock', { code: accessCode })

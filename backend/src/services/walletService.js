@@ -655,7 +655,15 @@ async function getWalletsForAdmin(adminUid) {
 async function createWithdrawalRequest(userId, amount, { account_name, account_number, bank_name }) {
   await ensureWallet(userId);
 
-  // ─── 0) Enforce one‐per‐month for Admins & SuperAdmins ─────────────────────────
+  // ─── 0) Validate minimum withdrawal amount ───────────────────────────────────
+  const MIN_WITHDRAWAL = 1100; // ₦1,100 minimum
+  if (amount < MIN_WITHDRAWAL) {
+    const err = new Error(`Minimum withdrawal amount is ₦${MIN_WITHDRAWAL.toLocaleString()}. You requested ₦${amount.toLocaleString()}.`);
+    err.status = 400;
+    throw err;
+  }
+
+  // ─── 1) Enforce one‐per‐month for Admins & SuperAdmins ─────────────────────────
   const { rows: [userRow] } = await pool.query(
     `SELECT role FROM users WHERE unique_id = $1`,
     [userId]
@@ -676,7 +684,7 @@ async function createWithdrawalRequest(userId, amount, { account_name, account_n
     }
   }
 
-  // ─── 1) Proceed with normal withdrawal flow ───────────────────────────────────
+  // ─── 2) Proceed with normal withdrawal flow ───────────────────────────────────
   const fee       = WITHDRAWAL_FEE;
   const totalCost = amount + fee;
   const client    = await pool.connect();
@@ -691,9 +699,10 @@ async function createWithdrawalRequest(userId, amount, { account_name, account_n
     );
     const avail = Number(w?.available_balance || 0);
     if (avail < totalCost) {
-      const insuff = new Error(`Insufficient funds: ₦${avail.toLocaleString()}`);
-      insuff.status = 400;
-      throw insuff;
+      const shortfall = totalCost - avail;
+      const err = new Error(`Insufficient available balance. You have ₦${avail.toLocaleString()} available, but need ₦${totalCost.toLocaleString()} (₦${amount.toLocaleString()} + ₦${fee} withdrawal fee). You need ₦${shortfall.toLocaleString()} more.`);
+      err.status = 400;
+      throw err;
     }
 
     // b) insert the withdrawal request
@@ -1020,7 +1029,7 @@ async function getUserSummary(userUniqueId) {
     LIMIT 5
   `, [userUniqueId]);
 
-  // 4) Get total order count and commission earned
+  // 4) Get total order count, sales, and commission breakdown
   const { rows: stats } = await pool.query(`
     SELECT
       COUNT(*) as total_orders,
@@ -1029,9 +1038,23 @@ async function getUserSummary(userUniqueId) {
         (SELECT SUM(amount)
          FROM wallet_transactions
          WHERE user_unique_id = $1
-           AND transaction_type LIKE '%commission%'
+           AND transaction_type = 'marketer_commission'
         ), 0
-      ) as total_commission
+      ) as total_commission_earned,
+      COALESCE(
+        (SELECT SUM(amount)
+         FROM wallet_transactions
+         WHERE user_unique_id = $1
+           AND transaction_type = 'marketer_commission_available'
+        ), 0
+      ) as withdrawable_commission,
+      COALESCE(
+        (SELECT SUM(amount)
+         FROM wallet_transactions
+         WHERE user_unique_id = $1
+           AND transaction_type = 'marketer_commission_withheld'
+        ), 0
+      ) as withheld_commission
     FROM orders
     WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
   `, [userUniqueId]);
@@ -1068,7 +1091,10 @@ async function getUserSummary(userUniqueId) {
     stats: {
       total_orders: Number(stats[0]?.total_orders || 0),
       total_sales: Number(stats[0]?.total_sales || 0),
-      total_commission: Number(stats[0]?.total_commission || 0),
+      total_commission_earned: Number(stats[0]?.total_commission_earned || 0),
+      withdrawable_commission: Number(stats[0]?.withdrawable_commission || 0),
+      withheld_commission: Number(stats[0]?.withheld_commission || 0),
+      commission_rate: 10000, // ₦10,000 per Android device
     },
     recent_transactions: transactions.map(t => ({
       type: t.transaction_type,

@@ -5,6 +5,14 @@ import api from "../api"; // axios instance with baseURL = '/api'
 import MarketerStockPickup from "./MarketerStockPickup";
 import { ArrowLeft } from "lucide-react";
 
+// Import mobile-first components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileSearch from "./MobileSearch";
+
+// Import mobile design system
+// // import "../styles/mobile-design-system.css"; // Removed - file doesn't exist // Removed - file doesn't exist
+
 export default function AdminStockPickups({ onNavigate }) {
   // Tab state - switch between "My Actions" and "Team Monitoring"
   const [activeTab, setActiveTab] = useState("my-actions");
@@ -25,10 +33,13 @@ export default function AdminStockPickups({ onNavigate }) {
     async function fetchPickups() {
       try {
         const token = localStorage.getItem("token");
-        const res   = await api.get("/stock/admin/stock-pickup", {
+        // Add cache-busting parameter
+        const res   = await api.get(`/stock/admin/stock-pickup?t=${Date.now()}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setPickups(res.data.data || []);
+        const data = res.data.data || [];
+        console.log('AdminStockPickups - Raw API data:', data);
+        setPickups(data);
       } catch (err) {
         console.error(err);
         setError(err.response?.data?.message || "Failed to load pickups.");
@@ -127,7 +138,15 @@ export default function AdminStockPickups({ onNavigate }) {
         <MarketerStockPickup />
       ) : (
         <>
-          <h3 className="text-lg font-semibold mb-4">Marketers' Stock Pickups</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Marketers' Stock Pickups</h3>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Force Refresh
+            </button>
+          </div>
       {pickups.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -158,15 +177,22 @@ export default function AdminStockPickups({ onNavigate }) {
 
                 // Show countdown/count-up based on status and time
                 let countdown;
-                console.log(`Debug: Pickup ID ${s.id}, Status: "${s.status}", Type: ${typeof s.status}, === 'sold': ${s.status === 'sold'}`);
                 
-                if (s.status === 'sold') {
-                  // If sold, show "Sold" instead of countdown
-                  console.log(`Debug: Showing "Sold" for pickup ID ${s.id}`);
-                  countdown = <span className="text-green-600 font-semibold">Sold</span>;
+                // Debug logging
+                console.log(`AdminStockPickups - ID: ${s.id}, Status: "${s.status}", Type: ${typeof s.status}, StatusLabel: "${statusLabel}"`);
+                
+                // Check for completed statuses (case-insensitive)
+                const isCompleted = ['sold', 'returned', 'transferred'].includes(s.status?.toLowerCase());
+                console.log(`AdminStockPickups - ID ${s.id} isCompleted: ${isCompleted}`);
+                
+                // Stop countdown for completed statuses
+                if (isCompleted) {
+                  // Show status instead of countdown for completed items
+                  console.log(`AdminStockPickups - Showing status for ID ${s.id}: ${statusLabel}`);
+                  countdown = <span className="text-green-600 font-semibold">{statusLabel}</span>;
                 } else {
-                  // For other statuses, show countdown/count-up based on time
-                  console.log(`Debug: Showing countdown for pickup ID ${s.id} with status "${s.status}"`);
+                  // For pending/expired statuses, show countdown/count-up based on time
+                  console.log(`AdminStockPickups - Showing countdown for ID ${s.id} with status: ${s.status}`);
                   const isExpired = new Date(s.deadline).getTime() < now;
                   countdown = isExpired ? (
                     <span className="text-red-600">

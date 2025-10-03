@@ -4,14 +4,14 @@ import App from './App'
 import './index.css'              // ← must include: @tailwind base; @tailwind components; @tailwind utilities;
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from "./contexts/AuthContext"
-import { ThemeProvider } from "./components/theme-provider"
+import { ThemeProvider } from "./contexts/ThemeContext"
 import { ToastProvider } from "./components/ui/use-toast"
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <ThemeProvider>    {/* ← wrap here */}
+        <ThemeProvider>    {/* ← Custom Vite-optimized ThemeProvider */}
           <ToastProvider>
             <App />
           </ToastProvider>

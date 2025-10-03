@@ -21,6 +21,12 @@ import {
 } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 
+// Import mobile components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileGrid from "./MobileGrid";
+import MobileSearch from "./MobileSearch";
+
 // BNPL Analytics Component
 const BnplAnalytics = () => {
   const [analytics, setAnalytics] = useState(null);

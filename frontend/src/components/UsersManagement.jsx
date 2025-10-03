@@ -9,6 +9,14 @@ import { UserIcon } from "@heroicons/react/24/outline";
 import { useToast } from "./ui/use-toast";
 import UserSummaryPopover from "./UserSummaryPopover";
 
+// Import mobile-first components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileSearch from "./MobileSearch";
+
+// Import mobile design system
+// // import "../styles/mobile-design-system.css"; // Removed - file doesn't exist // Removed - file doesn't exist
+
 // List of Nigerian states for location selection.
 const NIGERIAN_STATES = [
   "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue",
@@ -619,30 +627,65 @@ export default function UsersManagement() {
               </div>
             </CardHeader>
             <CardContent className="px-0 md:px-4">
-            {/* Mobile list view */}
+            {/* Mobile list view - Mobile-First Design */}
             <div className="md:hidden space-y-3 px-2">
               {users.length>0 ? users.map(u => (
-                <div key={u.id} className="bg-card rounded-xl p-4 shadow-sm border border-border">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <UserIcon className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <UserSummaryPopover
-                          userUniqueId={u.unique_id}
-                          userName={u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
-                          userRole={u.role}
-                          onAction={(action, data) => handlePopoverAction(action, data)}
+                <MobileCard
+                  key={u.id}
+                  type="Action"
+                  title={u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
+                  description={u.email}
+                  value={`#${u.id}`}
+                  icon={UserIcon}
+                  actionButton={
+                    <div className="grid grid-cols-3 gap-2">
+                      {u.deleted ? (
+                        <button 
+                          onClick={()=>handleRestoreUser(u.id)} 
+                          className="mobile-button text-xs px-2 py-1"
+                          style={{ backgroundColor: '#10b981', color: 'white' }}
                         >
-                          <div className="font-semibold text-base truncate text-blue-600 hover:text-blue-800 cursor-pointer hover:underline">
-                            {u.role === 'Dealer' ? (u.business_name || `${u.first_name} ${u.last_name}`) : `${u.first_name} ${u.last_name}`}
+                          Restore
+                        </button>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={()=>openEditUserModal(u)} 
+                            className="mobile-button-secondary text-xs px-2 py-1"
+                          >
+                            Edit
+                          </button>
+                          {u.locked ? (
+                            <button 
+                              onClick={()=>openLockConfirm(u.id, "unlock")} 
+                              className="mobile-button text-xs px-2 py-1"
+                              style={{ backgroundColor: '#10b981', color: 'white' }}
+                            >
+                              Unlock
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={()=>openLockConfirm(u.id, "lock")} 
+                              className="mobile-button text-xs px-2 py-1"
+                              style={{ backgroundColor: '#f59e0b', color: 'white' }}
+                            >
+                              Lock
+                            </button>
+                          )}
+                          <button 
+                            onClick={()=>openDeleteConfirm(u.id)} 
+                            className="mobile-button text-xs px-2 py-1"
+                            style={{ backgroundColor: '#ef4444', color: 'white' }}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                           </div>
-                        </UserSummaryPopover>
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">#{u.id}</span>
-                      </div>
-                      <div className="text-sm text-muted-foreground break-all mb-2">{u.email}</div>
-                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                  }
+                >
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">{u.role}</span>
                         {u.location && <span className="text-xs bg-muted px-2 py-1 rounded">{u.location}</span>}
                         <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -652,27 +695,14 @@ export default function UsersManagement() {
                           {u.deleted ? 'Deleted' : u.locked ? 'Locked' : 'Active'}
                         </span>
       </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        {u.deleted ? (
-                          <button onClick={()=>handleRestoreUser(u.id)} className="btn-soft h-10 text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200">Restore</button>
-                        ) : (
-                          <>
-                            <button onClick={()=>openEditUserModal(u)} className="btn-soft h-10 text-xs font-medium">Edit</button>
-                            {u.locked ? (
-                              <button onClick={()=>openLockConfirm(u.id, "unlock")} className="btn-soft h-10 text-xs font-medium">Unlock</button>
-                            ) : (
-                              <button onClick={()=>openLockConfirm(u.id, "lock")} className="btn-soft h-10 text-xs font-medium">Lock</button>
-                            )}
-                            <button onClick={()=>openDeleteConfirm(u.id)} className="btn-soft h-10 text-xs font-medium">Delete</button>
-                          </>
-                        )}
+                    <div className="text-sm text-muted-foreground">
+                      <p><strong>Email:</strong> {u.email}</p>
+                      <p><strong>ID:</strong> #{u.id}</p>
                       </div>
                     </div>
-                  </div>
-                </div>
+                </MobileCard>
               )) : (
-                <div className="text-center text-muted-foreground py-8">
+                <div className="mobile-card text-center py-8 text-muted-foreground">
                   <UserIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
                   <p className="text-lg font-medium">No users found</p>
                   <p className="text-sm">Try adjusting your search or filters</p>

@@ -2,8 +2,7 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
-import ModernUnifiedDashboard from "./components/ModernUnifiedDashboard";
-import MarketerDashboard from "./components/MarketerDashboard";
+import UnifiedDashboard from "./components/UnifiedDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 import SubmissionUnderReview from "./components/SubmissionUnderReview";
 import EmailVerification from "./components/EmailVerification";
@@ -23,7 +22,7 @@ function App() {
           path="/dashboard/masteradmin" 
           element={
             <PrivateRoute allowedRoles={["MasterAdmin"]}>
-              <ModernUnifiedDashboard userRole="masteradmin" />
+              <UnifiedDashboard userRole="masteradmin" />
             </PrivateRoute>
           }
         />
@@ -31,7 +30,7 @@ function App() {
           path="/dashboard/superadmin" 
           element={
             <PrivateRoute allowedRoles={["SuperAdmin"]}>
-              <ModernUnifiedDashboard userRole="superadmin" />
+              <UnifiedDashboard userRole="superadmin" />
             </PrivateRoute>
           }
         />
@@ -39,7 +38,7 @@ function App() {
           path="/dashboard/admin" 
           element={
             <PrivateRoute allowedRoles={["Admin"]}>
-              <ModernUnifiedDashboard userRole="admin" />
+              <UnifiedDashboard userRole="admin" />
             </PrivateRoute>
           }
         />
@@ -47,7 +46,7 @@ function App() {
           path="/dashboard/dealer"
           element={
             <PrivateRoute allowedRoles={["Dealer"]}>
-              <ModernUnifiedDashboard userRole="dealer" />
+              <UnifiedDashboard userRole="dealer" />
             </PrivateRoute>
           }
         />
@@ -55,7 +54,7 @@ function App() {
           path="/dashboard/marketer"
           element={
             <PrivateRoute allowedRoles={["Marketer"]}>
-              <MarketerDashboard />
+              <UnifiedDashboard userRole="marketer" />
             </PrivateRoute>
           }
         />

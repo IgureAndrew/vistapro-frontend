@@ -1,8 +1,16 @@
 // src/components/Product.jsx
 import React, { useState, useEffect } from "react";
-import { Trash2, Edit, Plus, Search, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react";
+import { Trash2, Edit, Plus, Search, AlertTriangle, CheckCircle, XCircle, Info, Clock, User, Activity } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 import AlertDialog from "./ui/alert-dialog";
+
+// Import mobile-first components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileSearch from "./MobileSearch";
+
+// Import mobile design system
+// import "../styles/mobile-design-system.css"; // Removed - file doesn't exist
 
 export default function Product() {
   // get current user & role
@@ -27,6 +35,9 @@ export default function Product() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [deletedProducts, setDeletedProducts] = useState([]);
   const [showDeletedTab, setShowDeletedTab] = useState(false);
+  const [productActivities, setProductActivities] = useState([]);
+  const [showActivityHistory, setShowActivityHistory] = useState(false);
+  const [masterAdminName, setMasterAdminName] = useState('');
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -67,8 +78,21 @@ export default function Product() {
   const [formData, setFormData] = useState(initialFormData);
 
   useEffect(() => {
+    console.log("🔍 Product component useEffect triggered");
+    console.log("Current user:", currentUser);
+    console.log("User role:", role);
+    console.log("MasterAdmin name:", `${currentUser.first_name} ${currentUser.last_name}`);
+    
     fetchDealers();
     fetchProducts();
+    setMasterAdminName(`${currentUser.first_name} ${currentUser.last_name}`);
+    
+    if (role === 'MasterAdmin') {
+      console.log("✅ User is MasterAdmin, fetching product activities");
+      fetchProductActivities();
+    } else {
+      console.log("❌ User is not MasterAdmin, skipping product activities fetch");
+    }
   }, []);
 
   useEffect(() => {
@@ -95,6 +119,62 @@ export default function Product() {
       setProducts(data.products);
     } catch (e) {
       console.error("Could not load products", e);
+    }
+  }
+
+  async function fetchProductActivities() {
+    try {
+      console.log("🔍 Fetching product activities...");
+      console.log("API URL:", `${PRODUCTS_URL}/recent-activities?limit=20`);
+      console.log("Token:", token ? "Present" : "Missing");
+      
+      const res = await fetch(`${PRODUCTS_URL}/recent-activities?limit=20`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      
+      console.log("Response status:", res.status);
+      const data = await res.json();
+      console.log("Response data:", data);
+      
+      if (!res.ok) throw new Error(data.message);
+      setProductActivities(data.activities || []);
+      console.log("✅ Product activities loaded:", data.activities?.length || 0, "activities");
+    } catch (e) {
+      console.error("❌ Could not load product activities", e);
+    }
+  }
+
+  function formatTimeAgo(dateString) {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return date.toLocaleDateString();
+  }
+
+  function getActivityIcon(actionType) {
+    switch (actionType) {
+      case 'created': return <Plus className="h-4 w-4 text-green-600" />;
+      case 'updated': return <Edit className="h-4 w-4 text-blue-600" />;
+      case 'deleted': return <Trash2 className="h-4 w-4 text-red-600" />;
+      case 'quantity_added': return <Plus className="h-4 w-4 text-green-600" />;
+      case 'quantity_removed': return <XCircle className="h-4 w-4 text-orange-600" />;
+      default: return <Activity className="h-4 w-4 text-gray-600" />;
+    }
+  }
+
+  function getActivityColor(actionType) {
+    switch (actionType) {
+      case 'created': return 'bg-green-100 text-green-800';
+      case 'updated': return 'bg-blue-100 text-blue-800';
+      case 'deleted': return 'bg-red-100 text-red-800';
+      case 'quantity_added': return 'bg-green-100 text-green-800';
+      case 'quantity_removed': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   }
 
@@ -201,6 +281,9 @@ export default function Product() {
       setEditing(null);
       setShowForm(false);
       fetchProducts();
+      if (role === 'MasterAdmin') {
+        fetchProductActivities();
+      }
     } catch (err) {
       showError(err.message || "Failed to save product");
     }
@@ -468,7 +551,15 @@ export default function Product() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Product Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-semibold">Product Management</h1>
+        {role === 'MasterAdmin' && masterAdminName && (
+          <div className="flex items-center space-x-2 text-sm text-gray-600 mt-2 sm:mt-0">
+            <User className="h-4 w-4" />
+            <span>Managing as: <span className="font-medium text-gray-800">{masterAdminName}</span></span>
+          </div>
+        )}
+      </div>
 
       {/* Duplicates Alert */}
       {duplicates.length > 0 && (
@@ -921,27 +1012,49 @@ export default function Product() {
         </table>
       </div>
 
-      {/* Mobile Card View */}
+      {/* Mobile Card View - Mobile-First Design */}
       <div className="lg:hidden space-y-4">
         {displayed.length ? displayed.map(p => {
           const profit = (p.selling_price - p.cost_price).toFixed(2);
           const expectedProfit = ((p.selling_price - p.cost_price) * p.quantity_available).toFixed(2);
           const expectedSelling = (p.selling_price * p.quantity_available).toFixed(2);
+          
           return (
-            <div key={p.id} className={`bg-white rounded-lg shadow p-4 ${!p.is_available ? "opacity-50" : ""}`}>
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-sm font-medium text-gray-500">ID: {p.id}</span>
+            <MobileCard
+              key={p.id}
+              type="Action"
+              title={p.device_name}
+              description={`${p.device_model} • ${p.dealer_name}`}
+              value={`₦${p.selling_price}`}
+              icon={CheckCircle}
+              actionButton={
+                role === "MasterAdmin" ? (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="mobile-button-secondary text-sm px-3 py-1"
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => confirmDelete(p)}
+                      className="mobile-button text-sm px-3 py-1"
+                      style={{ backgroundColor: '#ef4444', color: 'white' }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete
+                    </button>
+                  </div>
+                ) : null
+              }
+            >
+              <div className="space-y-3">
+                {/* Status Badges */}
+                <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {p.device_type}
                     </span>
-                  </div>
-                  <h3 className="font-medium text-gray-900">{p.device_name}</h3>
-                  <p className="text-sm text-gray-600">{p.device_model}</p>
-                </div>
-                <div className="flex flex-col items-end space-y-1">
                   {p.is_low_stock && (
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                       ⚠️ Low Stock
@@ -958,17 +1071,16 @@ export default function Product() {
                       Unavailable
                     </span>
                   )}
-                </div>
               </div>
 
               {/* Dealer Info */}
-              <div className="mb-3">
-                <p className="text-sm text-gray-900 font-medium">{p.dealer_name}</p>
-                <p className="text-sm text-gray-600">{p.dealer_location}</p>
+                <div className="text-sm text-gray-600">
+                  <p className="font-medium">{p.dealer_name}</p>
+                  <p>{p.dealer_location}</p>
               </div>
 
-              {/* Pricing */}
-              <div className="grid grid-cols-2 gap-4 mb-3">
+                {/* Pricing Grid */}
+                <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-500">Cost Price</p>
                   <p className="text-sm font-medium">₦{p.cost_price}</p>
@@ -980,7 +1092,6 @@ export default function Product() {
               </div>
 
               {/* Quantity Control */}
-              <div className="mb-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">Quantity</span>
                   {role === "MasterAdmin" ? (
@@ -1001,11 +1112,10 @@ export default function Product() {
                   ) : (
                     <span className="font-medium">{p.quantity_available}</span>
                   )}
-                </div>
               </div>
 
               {/* Profit Info */}
-              <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-gray-50 rounded p-2">
                   <p className="text-xs text-gray-500">Profit</p>
                   <p className={`text-sm font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1025,30 +1135,11 @@ export default function Product() {
                   </p>
                 </div>
               </div>
-
-              {/* Actions */}
-              {role === "MasterAdmin" && (
-                <div className="flex space-x-2 pt-3 border-t border-gray-200">
-                  <button
-                    onClick={() => startEdit(p)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 text-sm text-indigo-600 hover:text-indigo-900 border border-indigo-300 rounded hover:bg-indigo-50"
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span>Edit</span>
-                  </button>
-                  <button
-                    onClick={() => confirmDelete(p)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 text-sm text-red-600 hover:text-red-900 border border-red-300 rounded hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Delete</span>
-                  </button>
                 </div>
-              )}
-            </div>
+            </MobileCard>
           );
         }) : (
-          <div className="text-center py-8 text-gray-500">
+          <div className="mobile-card text-center py-8 text-gray-500">
             <p>No products found.</p>
           </div>
         )}
@@ -1262,6 +1353,88 @@ export default function Product() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Recent Product Activities - MasterAdmin Only */}
+      {(() => {
+        console.log("🔍 Checking activity section conditions:");
+        console.log("Role === 'MasterAdmin':", role === 'MasterAdmin');
+        console.log("Product activities length:", productActivities.length);
+        console.log("Product activities data:", productActivities);
+        console.log("Should show section:", role === 'MasterAdmin' && productActivities.length > 0);
+        return null;
+      })()}
+      {role === 'MasterAdmin' && (
+        <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
+              <Activity className="h-5 w-5 text-[#f59e0b]" />
+              <span>Recent Product Activities</span>
+            </h2>
+            <button
+              onClick={() => setShowActivityHistory(!showActivityHistory)}
+              className="text-sm text-[#f59e0b] hover:text-[#d97706] font-medium"
+            >
+              {showActivityHistory ? 'Hide' : 'View All'}
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {productActivities.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium mb-2">No Product Activities Yet</p>
+                <p className="text-sm">Product activities will appear here when you add, update, or modify products.</p>
+              </div>
+            ) : (
+              productActivities.slice(0, showActivityHistory ? productActivities.length : 5).map((activity, index) => (
+              <div key={activity.id || index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div className="flex-shrink-0 mt-1">
+                  {getActivityIcon(activity.action_type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getActivityColor(activity.action_type)}`}>
+                      {activity.action_type.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <span className="text-sm text-gray-500 flex items-center space-x-1">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatTimeAgo(activity.created_at)}</span>
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {activity.actor_name} ({activity.actor_role})
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {activity.description}
+                  </p>
+                  {activity.device_name && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Product: {activity.device_name} {activity.device_model} ({activity.device_type})
+                    </p>
+                  )}
+                  {activity.quantity_change !== 0 && (
+                    <p className="text-xs text-gray-500">
+                      Quantity: {activity.quantity_change > 0 ? '+' : ''}{activity.quantity_change}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))
+            )}
+          </div>
+          
+          {!showActivityHistory && productActivities.length > 5 && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setShowActivityHistory(true)}
+                className="text-sm text-[#f59e0b] hover:text-[#d97706] font-medium"
+              >
+                Show {productActivities.length - 5} more activities
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

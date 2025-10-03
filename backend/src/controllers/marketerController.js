@@ -812,6 +812,395 @@ async function getMarketerOrders(req, res, next) {
   }
 }
 
+/**
+ * getPickupDealers - GET /api/stock/pickup/dealers
+ * Returns dealers available for stock pickup in marketer's location
+ */
+async function getPickupDealers(req, res, next) {
+  try {
+    const marketerId = req.user.id;
+    
+    // Get marketer's location
+    const { rows: marketerRows } = await pool.query(
+      `SELECT location FROM users WHERE id = $1 AND role = 'Marketer'`,
+      [marketerId]
+    );
+    
+    if (!marketerRows.length) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Marketer not found' 
+      });
+    }
+    
+    const marketerLocation = marketerRows[0].location;
+    
+    // Get dealers in the same location
+    const { rows: dealers } = await pool.query(`
+      SELECT 
+        id, unique_id, business_name, location, phone
+      FROM users 
+      WHERE role = 'Dealer' AND location = $1
+      ORDER BY business_name
+    `, [marketerLocation]);
+    
+    res.json({ 
+      success: true, 
+      dealers: dealers 
+    });
+    
+  } catch (error) {
+    console.error('Error fetching pickup dealers:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch dealers',
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * checkPickupEligibility - GET /api/stock/pickup/eligibility
+ * Checks if marketer is eligible for stock pickup
+ */
+async function checkPickupEligibility(req, res, next) {
+  try {
+    const marketerId = req.user.id;
+    
+    // Check if marketer has any active stock (including pending returns/transfers)
+    const { rows: activeStockRows } = await pool.query(`
+      SELECT COUNT(*) as active_count
+      FROM stock_updates 
+      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')
+    `, [marketerId]);
+    
+    const activeStockCount = parseInt(activeStockRows[0].active_count);
+    
+    // Check for specific pending statuses
+    const { rows: pendingStatusRows } = await pool.query(`
+      SELECT status, COUNT(*) as count
+      FROM stock_updates 
+      WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending')
+      GROUP BY status
+    `, [marketerId]);
+    
+    const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
+    const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
+    
+    // Check if marketer is locked
+    const { rows: userRows } = await pool.query(`
+      SELECT locked FROM users WHERE id = $1
+    `, [marketerId]);
+    
+    const isLocked = userRows[0]?.locked || false;
+    
+    const isEligible = !isLocked && activeStockCount === 0;
+    
+    // Generate appropriate message
+    let message = 'You are eligible for stock pickup';
+    if (isLocked) {
+      message = 'Your account is locked. Contact your Admin or MasterAdmin.';
+    } else if (hasPendingReturn) {
+      message = 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.';
+    } else if (hasPendingTransfer) {
+      message = 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.';
+    } else if (activeStockCount > 0) {
+      message = 'You have active stock. Complete or return existing stock before picking up new stock.';
+    }
+    
+    res.json({ 
+      success: true, 
+      eligible: isEligible,
+      hasActiveStock: activeStockCount > 0,
+      hasPendingReturn: hasPendingReturn,
+      hasPendingTransfer: hasPendingTransfer,
+      isLocked: isLocked,
+      message: message
+    });
+    
+  } catch (error) {
+    console.error('Error checking pickup eligibility:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to check eligibility',
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * createStockPickup - POST /api/stock
+ * Creates a new stock pickup request
+ */
+async function createStockPickup(req, res, next) {
+  const client = await pool.connect();
+  
+  try {
+    const marketerId = req.user.id;
+    const marketerUID = req.user.unique_id;
+    const { dealer_id, product_id, quantity, deadline_days = 7 } = req.body;
+    
+    // Force quantity to 1 (always 1 pickup per request)
+    const pickupQuantity = 1;
+    
+    // Basic validation
+    if (!dealer_id || !product_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'dealer_id and product_id are required'
+      });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Check if marketer exists and is not locked
+    const { rows: marketerRows } = await client.query(
+      `SELECT id, location, locked FROM users WHERE id = $1 AND role = 'Marketer'`,
+      [marketerId]
+    );
+    
+    if (!marketerRows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Marketer not found' 
+      });
+    }
+    
+    const marketer = marketerRows[0];
+    
+    if (marketer.locked) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Your account is locked. Contact your Admin or MasterAdmin to unlock your account.'
+      });
+    }
+    
+    // Check if marketer has active stock (including pending returns/transfers)
+    const { rows: activeStockRows } = await client.query(`
+      SELECT COUNT(*) as active_count
+      FROM stock_updates 
+      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')
+    `, [marketerId]);
+    
+    const activeStockCount = parseInt(activeStockRows[0].active_count);
+    
+    if (activeStockCount > 0) {
+      // Check for specific pending statuses to provide better error message
+      const { rows: pendingStatusRows } = await client.query(`
+        SELECT status, COUNT(*) as count
+        FROM stock_updates 
+        WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending')
+        GROUP BY status
+      `, [marketerId]);
+      
+      const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
+      const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
+      
+      let errorMessage = `You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`;
+      
+      if (hasPendingReturn) {
+        errorMessage = 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.';
+      } else if (hasPendingTransfer) {
+        errorMessage = 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.';
+      }
+      
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: errorMessage
+      });
+    }
+    
+    // Verify dealer exists and is in same location
+    const { rows: dealerRows } = await client.query(`
+      SELECT id, location FROM users 
+      WHERE id = $1 AND role = 'Dealer' AND location = $2
+    `, [dealer_id, marketer.location]);
+    
+    if (!dealerRows.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Dealer not found or not in your location'
+      });
+    }
+    
+    // Verify product exists and belongs to dealer
+    const { rows: productRows } = await client.query(`
+      SELECT id, name, model, brand, cost_price, selling_price
+      FROM products 
+      WHERE id = $1 AND dealer_id = $2
+    `, [product_id, dealer_id]);
+    
+    if (!productRows.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Product not found or does not belong to this dealer'
+      });
+    }
+    
+    const product = productRows[0];
+    
+    // Create stock pickup
+    const deadline = new Date();
+    deadline.setHours(deadline.getHours() + 48); // 48 hours
+    
+    const { rows: stockUpdateRows } = await client.query(`
+      INSERT INTO stock_updates (
+        marketer_id, dealer_id, product_id, quantity, 
+        status, deadline, created_at
+      ) VALUES ($1, $2, $3, $4, 'pending', $5, NOW())
+      RETURNING id, status, deadline
+    `, [marketerId, dealer_id, product_id, pickupQuantity, deadline]);
+    
+    const stockUpdate = stockUpdateRows[0];
+    
+    // Reserve inventory items
+    const { rows: itemsToReserve } = await client.query(`
+      SELECT id FROM inventory_items
+      WHERE product_id = $1 AND status = 'available'
+      LIMIT $2 FOR UPDATE SKIP LOCKED
+    `, [product_id, pickupQuantity]);
+
+    if (itemsToReserve.length < pickupQuantity) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient inventory available for this product.'
+      });
+    }
+
+    const itemIds = itemsToReserve.map(r => r.id);
+    await client.query(`
+      UPDATE inventory_items
+      SET status = 'reserved', stock_update_id = $1
+      WHERE id = ANY($2::int[])
+    `, [stockUpdate.id, itemIds]);
+    
+    // Notify marketer's admin
+    const { rows: adminRows } = await client.query(`
+      SELECT u2.unique_id FROM users u
+      JOIN users u2 ON u.admin_id = u2.id
+      WHERE u.unique_id = $1
+    `, [marketerUID]);
+
+    if (adminRows[0]?.unique_id) {
+      await client.query(`
+        INSERT INTO notifications (user_unique_id, message, created_at)
+        VALUES ($1, $2, NOW())
+      `, [adminRows[0].unique_id, `Marketer ${marketerUID} picked up 1 unit of product ${product_id}.`]);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.status(201).json({
+      success: true,
+      message: 'Stock pickup request created successfully',
+      stockUpdate: {
+        id: stockUpdate.id,
+        status: stockUpdate.status,
+        deadline: stockUpdate.deadline,
+        product: {
+          id: product.id,
+          name: product.name,
+          model: product.model,
+          brand: product.brand
+        },
+        quantity: pickupQuantity
+      }
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating stock pickup:', error);
+    
+    // Enhanced error handling with specific messages
+    let errorMessage = 'Failed to create stock pickup';
+    let errorCode = 'PICKUP_ERROR';
+    let statusCode = 500;
+    
+    if (error.code === '23505') { // Unique constraint violation
+      errorMessage = 'This pickup already exists. Please refresh and try again.';
+      errorCode = 'DUPLICATE_PICKUP';
+      statusCode = 409;
+    } else if (error.code === '23503') { // Foreign key constraint violation
+      errorMessage = 'Invalid product or dealer selected. Please refresh and try again.';
+      errorCode = 'INVALID_REFERENCE';
+      statusCode = 400;
+    } else if (error.code === '23514') { // Check constraint violation
+      errorMessage = 'Invalid data provided. Please check your input and try again.';
+      errorCode = 'INVALID_DATA';
+      statusCode = 400;
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      errorMessage = 'Database connection failed. Please try again in a moment.';
+      errorCode = 'DATABASE_ERROR';
+      statusCode = 503;
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Request timed out. Please try again.';
+      errorCode = 'TIMEOUT';
+      statusCode = 408;
+    } else if (error.message.includes('permission')) {
+      errorMessage = 'You do not have permission to perform this action.';
+      errorCode = 'PERMISSION_DENIED';
+      statusCode = 403;
+    }
+    
+    res.status(statusCode).json({
+      success: false,
+      message: errorMessage,
+      errorCode: errorCode,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * getStockPickups - GET /api/stock/marketer
+ * Returns marketer's stock pickups
+ */
+async function getStockPickups(req, res, next) {
+  try {
+    const marketerId = req.user.id;
+    
+    const { rows: stockPickups } = await pool.query(`
+      SELECT 
+        su.id,
+        su.quantity,
+        su.status,
+        su.deadline,
+        su.created_at,
+        p.name as product_name,
+        p.model,
+        p.brand,
+        u.business_name as dealer_name,
+        u.unique_id as dealer_unique_id
+      FROM stock_updates su
+      JOIN products p ON su.product_id = p.id
+      JOIN users u ON su.dealer_id = u.id
+      WHERE su.marketer_id = $1
+      ORDER BY su.created_at DESC
+    `, [marketerId]);
+    
+    res.json({ 
+      success: true, 
+      stockPickups: stockPickups 
+    });
+    
+  } catch (error) {
+    console.error('Error fetching stock pickups:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch stock pickups',
+      error: error.message 
+    });
+  }
+}
+
 module.exports = {
   getAccount,
   updateAccount,
@@ -826,4 +1215,9 @@ module.exports = {
   listDealersByState,
   listDealerProducts,
   getMarketerOrders,
+  // New stock pickup functions
+  getPickupDealers,
+  checkPickupEligibility,
+  createStockPickup,
+  getStockPickups,
 };

@@ -6,6 +6,9 @@ const { createUser } = require('../models/userModel');
 const { generateUniqueID } = require('../utils/uniqueId');
 const logActivity = require('../utils/logActivity');
 
+// Version marker for deployment - enum values fixed
+console.log('🚀 Backend Version 2.2 - Stock pickup enum values fixed');
+
 // Notification function for marketer assignment
 const notifyMarketerAssignment = async (marketerId, adminId) => {
   try {
@@ -862,9 +865,16 @@ const getDashboardSummary = async (req, res, next) => {
     const previousPeriodEnd = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
 
     // Current period queries
+    console.log('🔍 [DEBUG] Starting dashboard summary queries...');
+    console.log('🔍 [DEBUG] Database connection string:', process.env.DATABASE_URL ? 'PRODUCTION' : 'LOCAL');
+    console.log('🔍 [DEBUG] Version 2.1 - Email verification fix deployed');
+    
     const currentQueries = await Promise.all([
       // Total Users (all time)
-      pool.query('SELECT COUNT(*) AS total FROM users'),
+      pool.query('SELECT COUNT(*) AS total FROM users').then(result => {
+        console.log('🔍 [DEBUG] Total users query result:', result.rows[0]);
+        return result;
+      }),
       
       // Total Users in current period
       pool.query('SELECT COUNT(*) AS total FROM users WHERE created_at >= $1', [currentPeriodStart]),
@@ -968,9 +978,14 @@ const getDashboardSummary = async (req, res, next) => {
       pickupStocksPrevious
     ] = previousQueries;
 
+    // Debug logging for response
+    const totalUsersValue = parseInt(totalUsersAll.rows[0].total, 10);
+    console.log('🔍 [DEBUG] Final totalUsers value being sent to frontend:', totalUsersValue);
+    console.log('🔍 [DEBUG] Raw totalUsersAll.rows[0]:', totalUsersAll.rows[0]);
+    
     return res.status(200).json({
       // Current totals (all time)
-      totalUsers: parseInt(totalUsersAll.rows[0].total, 10),
+      totalUsers: totalUsersValue,
       totalOrders: parseInt(totalOrdersAll.rows[0].total, 10),
       totalPendingOrders: parseInt(pendingOrdersAll.rows[0].total, 10),
       totalConfirmedOrders: parseInt(confirmedOrdersAll.rows[0].total, 10),

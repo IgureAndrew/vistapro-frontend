@@ -2,6 +2,14 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
+// Import mobile-first components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileSearch from "./MobileSearch";
+
+// Import mobile design system
+// // import "../styles/mobile-design-system.css"; // Removed - file doesn't exist // Removed - file doesn't exist
+
 export default function Verification({ onNavigate }) {
   const API_ROOT = import.meta.env.VITE_API_URL;
   const token    = localStorage.getItem("token");
@@ -105,39 +113,68 @@ export default function Verification({ onNavigate }) {
       )}
 
       {loading ? (
-        <p className="text-center">Loading…</p>
+        <div className="mobile-card text-center py-8">
+          <p>Loading…</p>
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="text-center text-gray-500">No verified marketers found.</p>
+        <div className="mobile-card text-center py-8 text-gray-500">
+          <p>No verified marketers found.</p>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white rounded-lg shadow">
-            <thead>
-              <tr className="bg-indigo-600 text-white">
-                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">ID</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Phone</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Location</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filtered.map((m) => (
-                <tr key={m.unique_id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.first_name} {m.last_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.unique_id}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.phone || "—"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{m.location || "—"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                      Verified
-                    </span>
-                  </td>
+        <div className="space-y-4">
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="min-w-full bg-white rounded-lg shadow">
+              <thead>
+                <tr className="bg-indigo-600 text-white">
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Name</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase">ID</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Email</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Phone</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Location</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filtered.map((m) => (
+                  <tr key={m.unique_id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{m.first_name} {m.last_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{m.unique_id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{m.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{m.phone || "—"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{m.location || "—"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        Verified
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View - Mobile-First Design */}
+          <div className="lg:hidden space-y-4">
+            {filtered.map((m) => (
+              <MobileCard
+                key={m.unique_id}
+                type="Status"
+                title={`${m.first_name} ${m.last_name}`}
+                description={m.email}
+                value={m.unique_id}
+                status="verified"
+              >
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">
+                    <p><strong>Phone:</strong> {m.phone || "—"}</p>
+                    <p><strong>Location:</strong> {m.location || "—"}</p>
+                    <p><strong>ID:</strong> {m.unique_id}</p>
+                  </div>
+                </div>
+              </MobileCard>
+            ))}
+          </div>
         </div>
       )}
     </div>

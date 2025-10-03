@@ -1,31 +1,31 @@
 import * as React from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "../../lib/utils"
 
-const buttonVariants = {
-  variant: {
-    default: "bg-primary text-primary-foreground hover:brightness-95 shadow-sm",
-    destructive: "bg-destructive text-destructive-foreground hover:brightness-95 shadow-sm",
-    outline: "border border-border bg-background hover:bg-muted hover:text-foreground shadow-sm",
-    secondary: "bg-secondary text-secondary-foreground hover:brightness-95 shadow-sm",
-    ghost: "hover:bg-muted hover:text-foreground",
-    link: "text-primary underline-offset-4 hover:underline",
-    gradient: "bg-primary text-primary-foreground shadow-lg",
-  },
-  size: {
+const Button = React.forwardRef(({ className, variant = "default", size = "default", ...props }, ref) => {
+  const baseClasses = "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+  
+  const variantClasses = {
+    default: "bg-blue-600 text-white hover:bg-blue-700",
+    destructive: "bg-red-600 text-white hover:bg-red-700",
+    outline: "border border-gray-300 bg-white hover:bg-gray-50 hover:text-gray-900",
+    secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
+    ghost: "hover:bg-gray-100 hover:text-gray-900",
+    link: "text-blue-600 underline-offset-4 hover:underline",
+  }
+  
+  const sizeClasses = {
     default: "h-10 px-4 py-2",
     sm: "h-9 rounded-md px-3",
     lg: "h-11 rounded-md px-8",
     icon: "h-10 w-10",
-  },
-}
+  }
 
-const Button = React.forwardRef(({ className, variant = "default", size = "default", ...props }, ref) => {
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        buttonVariants.variant[variant],
-        buttonVariants.size[size],
+        baseClasses,
+        variantClasses[variant],
+        sizeClasses[size],
         className
       )}
       ref={ref}
@@ -35,4 +35,4 @@ const Button = React.forwardRef(({ className, variant = "default", size = "defau
 })
 Button.displayName = "Button"
 
-export { Button, buttonVariants }
+export { Button }

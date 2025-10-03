@@ -459,11 +459,14 @@ export default function SuperAdminStockPickups() {
               paginatedPickups.map((p) => {
                 // Show countdown/count-up based on status and time
                 let countdown;
-                if (p.status === 'sold') {
-                  // If sold, show "Sold" instead of countdown
-                  countdown = <span className="text-green-600 font-semibold">Sold</span>;
+                
+                // Stop countdown for completed statuses
+                if (p.status === 'sold' || p.status === 'returned' || p.status === 'transferred') {
+                  // Show status instead of countdown for completed items
+                  const statusLabel = p.status.charAt(0).toUpperCase() + p.status.slice(1).replace(/_/g, " ");
+                  countdown = <span className="text-green-600 font-semibold">{statusLabel}</span>;
                 } else {
-                  // For other statuses, show countdown/count-up based on time
+                  // For pending/expired statuses, show countdown/count-up based on time
                   const isExpired = new Date(p.deadline).getTime() < now;
                   countdown = isExpired ? (
                     <span className="text-red-600">

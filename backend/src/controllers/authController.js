@@ -365,15 +365,31 @@ const resetPassword = async (req, res, next) => {
 const getCurrentUser = async (req, res, next) => {
   try {
     const { unique_id } = req.user; // injected by your auth middleware
+    
+    // First check if email_verified column exists
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'email_verified'
+    `);
+    
+    const hasEmailVerified = columnCheck.rows.length > 0;
+    
+    // Build query based on available columns
+    let emailVerifiedSelect = hasEmailVerified 
+      ? 'COALESCE(u.email_verified, true) as email_verified'
+      : 'true as email_verified';
+    
     const query = `
       SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location,
-             u.email_verified, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
+             ${emailVerifiedSelect}, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
              u.overall_verification_status, u.locked, u.admin_id,
              a.first_name as admin_first_name, a.last_name as admin_last_name
       FROM users u
       LEFT JOIN users a ON u.admin_id = a.id
       WHERE u.unique_id = $1
     `;
+    
     const { rows } = await pool.query(query, [unique_id]);
     if (!rows.length) {
       return res.status(404).json({ message: 'User not found.' });

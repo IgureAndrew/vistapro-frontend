@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { updateUserWithAvatar } from "../utils/avatarUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,7 +80,9 @@ function LandingPage() {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        // Update user data with avatar URL if profile_image exists
+        const updatedUserData = updateUserWithAvatar(data.user);
+        localStorage.setItem("user", JSON.stringify(updatedUserData));
         // Redirect based on the user's role.
         switch (data.user.role) {
           case "SuperAdmin":

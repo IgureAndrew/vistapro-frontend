@@ -7,6 +7,8 @@ import { Input } from './ui/input'
 import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
+import { MetricCard } from './common/MetricCard'
+import { SectionHeader } from './common/SectionHeader'
 import { 
   Wallet as WalletIcon, 
   TrendingUp, 
@@ -103,11 +105,31 @@ export default function Wallet() {
     loadAll()
   }, [])
 
-  const maxWithdraw = Math.max(wallet.available_balance - 100, 0)
+  const WITHDRAWAL_FEE = 100;
+  const MIN_WITHDRAWAL = 1100;
+  const maxWithdraw = Math.max(wallet.available_balance - WITHDRAWAL_FEE, 0);
+  const canWithdraw = wallet.available_balance >= MIN_WITHDRAWAL;
 
   const handleChange = e => {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
+  }
+
+  const calculateNetAmount = (amount) => {
+    return Math.max(Number(amount) - WITHDRAWAL_FEE, 0);
+  }
+
+  const getValidationError = () => {
+    if (!canWithdraw) {
+      return `Insufficient balance. You need at least ₦${MIN_WITHDRAWAL.toLocaleString()} to withdraw (₦${(MIN_WITHDRAWAL - WITHDRAWAL_FEE).toLocaleString()} + ₦${WITHDRAWAL_FEE} fee).`;
+    }
+    if (form.amount && Number(form.amount) < MIN_WITHDRAWAL) {
+      return `Minimum withdrawal amount is ₦${MIN_WITHDRAWAL.toLocaleString()}.`;
+    }
+    if (form.amount && Number(form.amount) > maxWithdraw) {
+      return `Insufficient balance. You can withdraw up to ₦${maxWithdraw.toLocaleString()}.`;
+    }
+    return null;
   }
 
   const handleSubmit = async e => {
@@ -174,56 +196,41 @@ export default function Wallet() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Wallet Dashboard</h1>
-          <p className="text-gray-600 mt-2">Manage your funds and track transactions</p>
-        </div>
-
-        {/* Quick Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Balance</p>
-                <p className="text-2xl font-bold text-gray-900">₦{wallet.total_balance.toLocaleString()}</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <WalletIcon className="w-6 h-6 text-blue-600" />
-              </div>
+    <div className="w-full space-y-4 sm:space-y-6">
+      {/* Account Summary */}
+          <div>
+        <SectionHeader title="Account Summary" subtitle="Your wallet balance and available funds" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+          <MetricCard
+            label="Total Balance"
+            value={`₦${wallet.total_balance.toLocaleString()}`}
+            description="Your complete wallet balance"
+            icon={WalletIcon}
+            iconColor="text-blue-600"
+            iconBgColor="bg-blue-100"
+          />
+          <MetricCard
+            label="Available Now"
+            value={`₦${wallet.available_balance.toLocaleString()}`}
+            description="Ready for withdrawal"
+            icon={TrendingUp}
+            iconColor="text-green-600"
+            iconBgColor="bg-green-100"
+          />
+          <MetricCard
+            label="Withheld Balance"
+            value={`₦${wallet.withheld_balance.toLocaleString()}`}
+            description="Pending clearance"
+            icon={Clock}
+            iconColor="text-orange-600"
+            iconBgColor="bg-orange-100"
+          />
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Available Now</p>
-                <p className="text-2xl font-bold text-gray-900">₦{wallet.available_balance.toLocaleString()}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Withheld</p>
-                <p className="text-2xl font-bold text-gray-900">₦{wallet.withheld_balance.toLocaleString()}</p>
-              </div>
-              <div className="p-3 bg-orange-100 rounded-full">
-                <Clock className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Modern Tabbed Interface */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+      {/* Wallet Actions */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <WalletIcon className="w-4 h-4" />
               Overview
@@ -238,8 +245,8 @@ export default function Wallet() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
             {/* Recent Activity */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
               <div className="px-6 py-4 border-b border-gray-200">
@@ -253,7 +260,7 @@ export default function Wallet() {
                         <div className="p-2 bg-blue-100 rounded-full">
                           <ArrowUpCircle className="w-4 h-4 text-blue-600" />
                         </div>
-                        <div>
+          <div>
                           <p className="text-sm font-medium text-gray-900">Withdrawal Request</p>
                           <p className="text-xs text-gray-500">{new Date(withdrawal.requested_at).toLocaleDateString()}</p>
                         </div>
@@ -268,11 +275,11 @@ export default function Wallet() {
                     <div className="text-center py-8 text-gray-500">
                       <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                       <p>No recent activity</p>
-                    </div>
-                  )}
+        </div>
+      )}
                 </div>
-              </div>
             </div>
+          </div>
 
             {/* Wallet Summary */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -289,13 +296,13 @@ export default function Wallet() {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Withheld</span>
                   <span className="font-medium text-orange-600">₦{wallet.withheld_balance.toLocaleString()}</span>
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
           </TabsContent>
 
           {/* Transactions Tab */}
-          <TabsContent value="transactions" className="space-y-6">
+        <TabsContent value="transactions" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
@@ -305,7 +312,7 @@ export default function Wallet() {
                   <div className="text-center py-8 text-gray-500">
                     <History className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p>No transactions found</p>
-                  </div>
+        </div>
                 ) : (
                   <div className="space-y-4">
                     {transactions.slice(0, 10).map((transaction, index) => (
@@ -323,8 +330,8 @@ export default function Wallet() {
                           <div>
                             <p className="text-sm font-medium text-gray-900">{transaction.description || 'Transaction'}</p>
                             <p className="text-xs text-gray-500">{new Date(transaction.created_at).toLocaleDateString()}</p>
-                          </div>
-                        </div>
+                </div>
+                </div>
                         <div className="text-right">
                           <p className={`text-sm font-medium ${
                             transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
@@ -332,17 +339,17 @@ export default function Wallet() {
                             {transaction.type === 'credit' ? '+' : '-'}₦{Number(transaction.amount).toLocaleString()}
                           </p>
                           {getStatusBadge(transaction.status)}
-                        </div>
+                </div>
                       </div>
                     ))}
-                  </div>
-                )}
+              </div>
+            )}
               </div>
             </div>
           </TabsContent>
 
           {/* Withdrawals Tab */}
-          <TabsContent value="withdraw" className="space-y-6">
+        <TabsContent value="withdraw" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
             {/* Withdrawal Form */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Withdraw Funds</h3>
@@ -351,74 +358,100 @@ export default function Wallet() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
                     <input
-                      type="number"
-                      name="amount"
-                      value={form.amount}
-                      onChange={handleChange}
+                  type="number"
+                  name="amount"
+                  value={form.amount}
+                  onChange={handleChange}
                       placeholder="₦ Amount"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="1"
-                      max={maxWithdraw}
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Available: ₦{maxWithdraw.toLocaleString()}
-                    </p>
-                  </div>
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        !canWithdraw ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      }`}
+                  min={MIN_WITHDRAWAL}
+                  max={maxWithdraw}
+                  disabled={!canWithdraw}
+                  required
+                />
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-gray-500">
+                        Available: ₦{wallet.available_balance.toLocaleString()}
+                      </p>
+                      {form.amount && Number(form.amount) >= MIN_WITHDRAWAL && (
+                        <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                          <div className="flex justify-between">
+                            <span>Requested:</span>
+                            <span>₦{Number(form.amount).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Withdrawal Fee:</span>
+                            <span>₦{WITHDRAWAL_FEE}</span>
+                          </div>
+                          <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                            <span>You will receive:</span>
+                            <span>₦{calculateNetAmount(form.amount).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+                      {getValidationError() && (
+                        <p className="text-xs text-red-600">{getValidationError()}</p>
+                      )}
+                    </div>
+              </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Account Name</label>
                     <input
-                      type="text"
-                      name="account_name"
-                      value={form.account_name}
-                      onChange={handleChange}
-                      placeholder="Account Name"
+                type="text"
+                name="account_name"
+                value={form.account_name}
+                onChange={handleChange}
+                placeholder="Account Name"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
+                required
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Account Number</label>
                     <input
-                      type="text"
-                      name="account_number"
-                      value={form.account_number}
-                      onChange={handleChange}
-                      placeholder="Account Number"
+                type="text"
+                name="account_number"
+                value={form.account_number}
+                onChange={handleChange}
+                placeholder="Account Number"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
+                required
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Bank Name</label>
                     <input
-                      type="text"
-                      name="bank_name"
-                      value={form.bank_name}
-                      onChange={handleChange}
-                      placeholder="Bank Name"
+                  type="text"
+                  name="bank_name"
+                  value={form.bank_name}
+                  onChange={handleChange}
+                  placeholder="Bank Name"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
-                  </div>
-                </div>
-                {error && (
+                  required
+                />
+              </div>
+            </div>
+            {error && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm text-red-600">{error}</p>
-                  </div>
-                )}
+              </div>
+            )}
                 <button
-                  type="submit"
-                  disabled={submitting}
+              type="submit"
+                  disabled={submitting || !canWithdraw || getValidationError()}
                   className={`w-full py-3 px-4 rounded-lg font-medium ${
-                    submitting
+                    submitting || !canWithdraw || getValidationError()
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
                   }`}
                 >
-                  {submitting ? 'Submitting...' : 'Request Withdrawal'}
+                  {submitting ? 'Submitting...' : 
+                   !canWithdraw ? 'Insufficient Balance' : 
+                   'Request Withdrawal'}
                 </button>
-              </form>
+          </form>
             </div>
 
             {/* Withdrawal History */}
@@ -426,7 +459,7 @@ export default function Wallet() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">Withdrawal History</h3>
-                </div>
+              </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -456,68 +489,67 @@ export default function Wallet() {
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
+                          </div>
+                        </div>
             )}
           </TabsContent>
         </Tabs>
 
-        {/* Detailed Breakdown - Collapsible (for SuperAdmin/Admin) */}
-        {breakdown && (
-          <div className="mt-8 space-y-6">
-            <div className="border-t border-gray-200 pt-8">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Detailed Breakdown</h3>
-                <button
-                  onClick={() => setShowDetailedBreakdown(!showDetailedBreakdown)}
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  {showDetailedBreakdown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  {showDetailedBreakdown ? 'Hide Details' : 'Show Details'}
-                </button>
-              </div>
-              
-              {showDetailedBreakdown && (
-                <div className="space-y-6">
-                  {/* Personal Earnings */}
-                  <div>
-                    <h4 className="text-md font-medium text-gray-700 mb-3">Personal Earnings (Marketer Protocol)</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-600">Total Personal</p>
-                        <p className="text-xl font-semibold">₦{(breakdown.personal.total || 0).toLocaleString()}</p>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-600">Available</p>
-                        <p className="text-xl font-semibold">₦{(breakdown.personal.available || 0).toLocaleString()}</p>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-600">Withheld</p>
-                        <p className="text-xl font-semibold">₦{(breakdown.personal.withheld || 0).toLocaleString()}</p>
+      {/* Detailed Breakdown - Collapsible (for SuperAdmin/Admin) */}
+      {breakdown && (
+        <div className="space-y-4 sm:space-y-6">
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 sm:pt-6">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Detailed Breakdown</h3>
+              <button
+                onClick={() => setShowDetailedBreakdown(!showDetailedBreakdown)}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+              >
+                {showDetailedBreakdown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showDetailedBreakdown ? 'Hide Details' : 'Show Details'}
+              </button>
+                          </div>
+            
+            {showDetailedBreakdown && (
+              <div className="space-y-4 sm:space-y-6">
+                {/* Personal Earnings */}
+                          <div>
+                  <h4 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">Personal Earnings (Marketer Protocol)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Total Personal</p>
+                      <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.personal.total || 0).toLocaleString()}</p>
+                          </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Available</p>
+                      <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.personal.available || 0).toLocaleString()}</p>
+                        </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Withheld</p>
+                      <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.personal.withheld || 0).toLocaleString()}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Team Management Earnings */}
-                  <div>
-                    <h4 className="text-md font-medium text-gray-700 mb-3">Team Management Earnings</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-600">Total Team</p>
-                        <p className="text-xl font-semibold">₦{(breakdown.team.total || 0).toLocaleString()}</p>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-600">Available</p>
-                        <p className="text-xl font-semibold">₦{(breakdown.team.available || 0).toLocaleString()}</p>
+                {/* Team Management Earnings */}
+                <div>
+                  <h4 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">Team Management Earnings</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Total Team</p>
+                      <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.team.total || 0).toLocaleString()}</p>
+            </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Available</p>
+                      <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.team.available || 0).toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+              </div>
+            )}
+                      </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,682 +1,455 @@
 // src/components/ModernAccountSettings.jsx
-import React, { useState, useEffect, useRef } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card";
-import { Eye, EyeOff, Camera, Save, Edit3, X, Check, AlertCircle, Upload, User, ArrowLeft } from "lucide-react";
-import api from "../api";
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Alert, AlertDescription } from './ui/alert';
+import { 
+  Eye, 
+  EyeOff, 
+  Save, 
+  Edit3, 
+  X, 
+  Check, 
+  AlertCircle, 
+  User, 
+  ArrowLeft,
+  Loader2
+} from 'lucide-react';
+import ImageUpload from './ImageUpload';
+import profileService from '../services/profileService';
+import { updateUserWithAvatar } from '../utils/avatarUtils';
 
+/**
+ * Modern Account Settings Component
+ * Clean, maintainable, and user-friendly profile management
+ */
 const ModernAccountSettings = ({ userRole, roleDisplayName, onNavigate }) => {
-  // State management
+  // UI State
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showOldPassword, setShowOldPassword] = useState(false);
   
-  // Profile data
+  // Profile Data
   const [profileData, setProfileData] = useState({
-    displayName: "",
-    email: "",
-    phone: "",
-    gender: "",
-    profile_image: "",
-    avatarPreview: ""
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    location: '',
+    profile_image: '',
+    avatarPreview: ''
   });
-  
-  // Form data (for editing)
-  const [formData, setFormData] = useState({
-    displayName: "",
-    email: "",
-    phone: "",
-    gender: "",
-    newPassword: "",
-    oldPassword: ""
-  });
-  
-  // UI states
-  const [message, setMessage] = useState({ type: "", text: "" });
-  const [avatarFile, setAvatarFile] = useState(null);
-  const fileInputRef = useRef(null);
-  
-  const token = localStorage.getItem("token");
-  
-  // Determine API endpoint based on role
-  const getApiEndpoint = () => {
-    switch (userRole) {
-      case "MasterAdmin":
-        return "/master-admin/profile";
-      case "SuperAdmin":
-        return "/super-admin/account";
-      case "Admin":
-        return "/admin/account";
-      case "Dealer":
-        return "/dealer/account";
-      case "Marketer":
-        return "/marketer/account";
-      default:
-        return "/auth/me";
-    }
-  };
 
-  // Load profile data
-  const loadProfileData = async () => {
+  // Form Data (for editing)
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    location: '',
+    profileImage: null,
+    newPassword: '',
+    oldPassword: ''
+  });
+
+  // Messages and Errors
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [formErrors, setFormErrors] = useState({});
+
+  // Load profile data on component mount
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
     setIsLoading(true);
     try {
-      const endpoint = getApiEndpoint();
-      console.log(`🔍 Loading profile data for ${userRole} from endpoint: ${endpoint}`);
+      const account = JSON.parse(localStorage.getItem('user') || '{}');
       
-      const response = await api.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      console.log(`✅ Profile data response:`, response.data);
-      
-      let account = null;
-      
-      // Handle different response formats based on role
-      if (userRole === "MasterAdmin") {
-        // MasterAdmin uses /profile endpoint with different format
-        account = response.data.user;
-        console.log("🔍 MasterAdmin response data:", response.data);
-      } else if (response.data.success && response.data.account) {
-        // Other roles use standardized account format
-        account = response.data.account;
-        console.log("🔍 Other role response data:", response.data);
-      } else if (response.data.user) {
-        // Fallback for auth/me endpoint
-        account = response.data.user;
-        console.log("🔍 Auth/me response data:", response.data);
-      }
-      
-      console.log("🔍 Extracted account data:", account);
-      
-      if (account) {
-        // Construct display name from first_name and last_name
-        const displayName = account.displayName || 
-          (account.first_name && account.last_name ? 
-            `${account.first_name} ${account.last_name}` : 
-            account.first_name || account.last_name || "");
-        
-        // Capitalize gender for display
-        const displayGender = account.gender ? 
-          account.gender.charAt(0).toUpperCase() + account.gender.slice(1).toLowerCase() : "";
-        
-        // Construct proper image URL
-        let avatarPreview = "";
-        if (account.profile_image) {
-          // Remove any existing path prefixes if they exist
-          const imageName = account.profile_image.replace(/^uploads\//, '');
-          avatarPreview = `${import.meta.env.VITE_API_URL || 'http://localhost:5007'}/uploads/${imageName}`;
-        }
-        
-        const data = {
-          displayName: displayName,
-          email: account.email || "",
-          phone: account.phone || "",
-          gender: displayGender,
-          profile_image: account.profile_image || "",
-          avatarPreview: avatarPreview
-        };
-        
-        console.log(`📊 Setting profile data:`, data);
-        console.log(`🖼️ Avatar preview URL:`, avatarPreview);
-        
-        setProfileData(data);
-        setFormData({
-          displayName: data.displayName,
-          email: data.email,
-          phone: data.phone,
-          gender: data.gender,
-          newPassword: "",
-          oldPassword: ""
-        });
-      } else {
-        console.error("❌ No account data found in response");
-        setMessage({ type: "error", text: "No profile data found" });
-      }
+      const profile = {
+        first_name: account.first_name || '',
+        last_name: account.last_name || '',
+        email: account.email || '',
+        phone: account.phone || '',
+        location: account.location || '',
+        profile_image: account.profile_image || '',
+        avatarPreview: account.profile_image || ''
+      };
+
+      setProfileData(profile);
+      setFormData(profile);
     } catch (error) {
-      console.error("Failed to load profile:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
-      // Show specific error message
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          "Failed to load profile data";
-      setMessage({ type: "error", text: errorMessage });
-      
-      // Set empty data to prevent "Not set" display
-      setProfileData({
-        displayName: "",
-        email: "",
-        phone: "",
-        gender: "",
-        profile_image: "",
-        avatarPreview: ""
-      });
+      console.error('Failed to load profile:', error);
+      setMessage({ type: 'error', text: 'Failed to load profile data' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle form input changes
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setHasChanges(true);
-  };
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
 
-  // Handle avatar file selection
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setMessage({ type: "error", text: "Please select an image file" });
-        return;
-      }
-      
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        setMessage({ type: "error", text: "File size must be less than 5MB" });
-        return;
-      }
-      
-      setAvatarFile(file);
-      const previewUrl = URL.createObjectURL(file);
-      setProfileData(prev => ({ ...prev, avatarPreview: previewUrl }));
-      setHasChanges(true);
+    // Clear error for this field
+    if (formErrors[field]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
     }
   };
 
-  // Save profile changes
-  const saveProfile = async () => {
-    setIsSaving(true);
-    setMessage({ type: "", text: "" });
+  const handleImageChange = (base64Data) => {
+    setFormData(prev => ({
+      ...prev,
+      profileImage: base64Data
+    }));
+  };
+
+  const handleImageError = (error) => {
+    setMessage({ type: 'error', text: error });
+  };
+
+  const validateForm = () => {
+    const validation = profileService.validateProfileData(formData);
     
+    if (!validation.isValid) {
+      setFormErrors(validation.errors);
+      return false;
+    }
+
+    setFormErrors({});
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!validateForm()) {
+      setMessage({ type: 'error', text: 'Please fix the errors below' });
+        return;
+      }
+      
+    setIsSaving(true);
+    setMessage({ type: '', text: '' });
+
     try {
-      const endpoint = getApiEndpoint();
-      console.log(`💾 Saving profile data for ${userRole} to endpoint: ${endpoint}`);
-      console.log(`📝 Form data:`, {
-        displayName: formData.displayName,
+      // Prepare request data
+      const requestData = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
         email: formData.email,
         phone: formData.phone,
-        gender: formData.gender,
-        hasAvatar: !!avatarFile,
-        hasNewPassword: !!formData.newPassword
-      });
-      
-      const formDataToSend = new FormData();
-      
-      // Handle different field names for MasterAdmin
-      if (userRole === "MasterAdmin") {
-        // MasterAdmin uses different field names
-        formDataToSend.append("email", formData.email || "");
-        formDataToSend.append("phone", formData.phone || "");
-        // Send gender as-is (database now accepts both cases)
-        formDataToSend.append("gender", formData.gender || "");
-        
-        if (avatarFile) {
-          formDataToSend.append("profileImage", avatarFile);
-        }
-        
-        if (formData.newPassword) {
-          formDataToSend.append("newPassword", formData.newPassword);
-        }
-      } else {
-        // Other roles use standardized field names
-        formDataToSend.append("displayName", formData.displayName || "");
-        formDataToSend.append("email", formData.email || "");
-        formDataToSend.append("phone", formData.phone || "");
-        // Send gender as-is (database now accepts both cases)
-        formDataToSend.append("gender", formData.gender || "");
-        
-        if (avatarFile) {
-          formDataToSend.append("profile_image", avatarFile);
-        }
-        
-        if (formData.newPassword) {
-          formDataToSend.append("newPassword", formData.newPassword);
-          formDataToSend.append("oldPassword", formData.oldPassword);
-        }
+        location: formData.location
+      };
+
+      // Add image if provided
+      if (formData.profileImage) {
+        requestData.profileImage = formData.profileImage;
       }
+
+      // Add password if provided
+        if (formData.newPassword) {
+        requestData.newPassword = formData.newPassword;
+        requestData.oldPassword = formData.oldPassword;
+      }
+
+
+      // Update profile
+      const response = await profileService.updateProfile(requestData);
       
-      // Use PUT for MasterAdmin, PATCH for others
-      const method = userRole === "MasterAdmin" ? "put" : "patch";
-      const response = await api[method](getApiEndpoint(), formDataToSend, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data"
-        }
-      });
-      
-      // Handle different success responses
-      const isSuccess = response.data.success || response.data.message?.includes('successfully');
-      
-      if (isSuccess) {
-        setMessage({ type: "success", text: "Profile updated successfully!" });
+      // Update local state with the response from backend
+      const updatedProfile = {
+        ...profileData,
+        ...formData,
+        profile_image: response.user.profile_image, // Backend returns filename
+        avatarPreview: response.user.profile_image // Use filename for preview too
+      };
+
+      setProfileData(updatedProfile);
         setIsEditing(false);
-        setHasChanges(false);
-        setAvatarFile(null);
-        setFormData(prev => ({ ...prev, newPassword: "", oldPassword: "" }));
-        
-        // Update profile data with response
-        let updatedAccount = null;
-        if (response.data.account) {
-          updatedAccount = response.data.account;
-        } else if (response.data.user) {
-          updatedAccount = response.data.user;
-        }
-        
-        if (updatedAccount) {
-          const displayName = updatedAccount.displayName || 
-            (updatedAccount.first_name && updatedAccount.last_name ? 
-              `${updatedAccount.first_name} ${updatedAccount.last_name}` : 
-              updatedAccount.first_name || updatedAccount.last_name || "");
-          
-          // Capitalize gender for display
-          const displayGender = updatedAccount.gender ? 
-            updatedAccount.gender.charAt(0).toUpperCase() + updatedAccount.gender.slice(1).toLowerCase() : 
-            "";
-          
-          // Construct proper image URL
-          let avatarPreview = "";
-          if (updatedAccount.profile_image) {
-            // Remove any existing path prefixes if they exist
-            const imageName = updatedAccount.profile_image.replace(/^uploads\//, '');
-            avatarPreview = `${import.meta.env.VITE_API_URL || 'http://localhost:5007'}/uploads/${imageName}`;
-          }
-          
-          const updatedData = {
-            displayName: displayName,
-            email: updatedAccount.email || "",
-            phone: updatedAccount.phone || "",
-            gender: displayGender,
-            profile_image: updatedAccount.profile_image || "",
-            avatarPreview: avatarPreview
-          };
-          
-          console.log(`✅ Updated profile data:`, updatedData);
-          
-          setProfileData(updatedData);
-          setFormData(prev => ({
-            ...prev,
-            displayName: updatedData.displayName,
-            email: updatedData.email,
-            phone: updatedData.phone,
-            gender: updatedData.gender
-          }));
-        }
-      } else {
-        throw new Error(response.data.message || "Update failed");
-      }
-    } catch (error) {
-      console.error("Save error:", error);
-      console.error("Save error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
+
+      // Update global user context and localStorage
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const updatedUser = updateUserWithAvatar({
+        ...currentUser,
+        ...response.user, // Use the complete user object from backend
+        profile_image: response.user.profile_image // Ensure profile_image is set
       });
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
       
-      // Show specific error message
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          "Failed to update profile";
+      // Update the global user context by dispatching a custom event
+      window.dispatchEvent(new CustomEvent('userUpdated', { 
+        detail: { user: updatedUser } 
+      }));
+
       setMessage({ 
-        type: "error", 
-        text: errorMessage 
+        type: 'success', 
+        text: 'Profile updated successfully!' 
+      });
+
+
+    } catch (error) {
+      console.error('❌ Save failed:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error.message || 'Failed to update profile. Please try again.' 
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Cancel editing
-  const cancelEdit = () => {
-    setFormData({
-      displayName: profileData.displayName,
-      email: profileData.email,
-      phone: profileData.phone,
-      gender: profileData.gender,
-      newPassword: "",
-      oldPassword: ""
-    });
-    setAvatarFile(null);
-    setHasChanges(false);
+  const handleCancel = () => {
+    setFormData(profileData);
+    setFormErrors({});
+    setMessage({ type: '', text: '' });
     setIsEditing(false);
-    setMessage({ type: "", text: "" });
   };
 
-  // Load data on component mount
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
-  // Auto-hide success messages
-  useEffect(() => {
-    if (message.type === "success") {
-      const timer = setTimeout(() => setMessage({ type: "", text: "" }), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
+  const hasChanges = () => {
+    return JSON.stringify(formData) !== JSON.stringify(profileData);
+  };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading profile...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* Back to Overview Navigation */}
-      {onNavigate && (
-        <div className="mb-6">
-          <button
-            onClick={() => onNavigate('overview')}
-            className="flex items-center space-x-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onNavigate}
+            className="flex items-center space-x-2"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Overview</span>
-          </button>
-        </div>
-      )}
-
-        {/* Message Display */}
-        {message.text && (
-          <div className={`mb-6 p-4 rounded-lg flex items-center ${
-            message.type === "success" 
-              ? "bg-green-50 text-green-800 border border-green-200" 
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}>
-            {message.type === "success" ? (
-              <Check className="h-5 w-5 mr-2" />
-            ) : (
-              <AlertCircle className="h-5 w-5 mr-2" />
-            )}
-            {message.text}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Overview Card */}
-          <div className="lg:col-span-1">
-            <Card className="h-fit">
-              <CardHeader className="text-center pb-4">
-                <CardTitle className="text-xl">Profile Overview</CardTitle>
-                <CardDescription>Your public information</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                {/* Avatar */}
-                <div className="relative inline-block mb-6">
-                  <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 border-4 border-white shadow-lg">
-                    {profileData.avatarPreview ? (
-                      <img
-                        src={profileData.avatarPreview}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        <User className="w-16 h-16 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                  {isEditing && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 shadow-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <Camera className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Profile Info */}
-                <div className="space-y-3 text-left">
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
                   <div>
-                    <span className="text-sm font-medium text-gray-500">Display Name</span>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {profileData.displayName || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-500">Email</span>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {profileData.email || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-500">Phone</span>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {profileData.phone || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-500">Gender</span>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {profileData.gender || "Not set"}
-                    </p>
+            <h1 className="text-2xl font-bold">Account Settings</h1>
+            <p className="text-gray-600">Manage your profile and preferences</p>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="mt-6 space-y-2">
                   {!isEditing ? (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-                    >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Edit Profile
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <button
-                        onClick={saveProfile}
-                        disabled={isSaving || !hasChanges}
-                        className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+          <Button onClick={() => setIsEditing(true)} className="flex items-center space-x-2">
+            <Edit3 className="h-4 w-4" />
+            <span>Edit Profile</span>
+          </Button>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              onClick={handleCancel}
+              disabled={isSaving}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || !hasChanges()}
+              className="flex items-center space-x-2"
                       >
                         {isSaving ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-4 h-4 mr-2" />
-                            Save Changes
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancel
-                      </button>
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
+            </Button>
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
 
-          {/* Edit Form */}
-          <div className="lg:col-span-2">
+      {/* Message Alert */}
+      {message.text && (
+        <Alert className={message.type === 'error' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className={message.type === 'error' ? 'text-red-800' : 'text-green-800'}>
+            {message.text}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile Image */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Profile Information</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="h-5 w-5" />
+              <span>Profile Picture</span>
+            </CardTitle>
                 <CardDescription>
-                  {isEditing ? "Update your personal details" : "View your personal details"}
+              Upload a profile picture to personalize your account
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {/* Display Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Display Name
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="displayName"
-                        value={formData.displayName}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter your display name"
-                      />
-                    ) : (
-                      <p className="text-lg text-gray-900">{profileData.displayName || "Not set"}</p>
+            <ImageUpload
+              value={formData.profileImage || formData.avatarPreview}
+              onChange={handleImageChange}
+              onError={handleImageError}
+              disabled={!isEditing}
+              className="w-full"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Personal Information */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Personal Information</CardTitle>
+            <CardDescription>
+              Update your personal details and contact information
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">First Name *</Label>
+                <Input
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) => handleInputChange('first_name', e.target.value)}
+                  disabled={!isEditing}
+                  className={formErrors.first_name ? 'border-red-300' : ''}
+                />
+                {formErrors.first_name && (
+                  <p className="text-sm text-red-600">{formErrors.first_name}</p>
                     )}
                   </div>
 
-                  {/* Email */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
-                    {isEditing ? (
-                      <input
+              <div className="space-y-2">
+                <Label htmlFor="last_name">Last Name *</Label>
+                <Input
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) => handleInputChange('last_name', e.target.value)}
+                  disabled={!isEditing}
+                  className={formErrors.last_name ? 'border-red-300' : ''}
+                />
+                {formErrors.last_name && (
+                  <p className="text-sm text-red-600">{formErrors.last_name}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address *</Label>
+              <Input
+                id="email"
                         type="email"
-                        name="email"
                         value={formData.email}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter your email"
-                      />
-                    ) : (
-                      <p className="text-lg text-gray-900">{profileData.email || "Not set"}</p>
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                disabled={!isEditing}
+                className={formErrors.email ? 'border-red-300' : ''}
+              />
+              {formErrors.email && (
+                <p className="text-sm text-red-600">{formErrors.email}</p>
                     )}
                   </div>
 
-                  {/* Phone */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
-                    </label>
-                    {isEditing ? (
-                      <input
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input
+                id="phone"
                         type="tel"
-                        name="phone"
                         value={formData.phone}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter your phone number"
-                      />
-                    ) : (
-                      <p className="text-lg text-gray-900">{profileData.phone || "Not set"}</p>
+                onChange={(e) => handleInputChange('phone', e.target.value)}
+                disabled={!isEditing}
+                className={formErrors.phone ? 'border-red-300' : ''}
+              />
+              {formErrors.phone && (
+                <p className="text-sm text-red-600">{formErrors.phone}</p>
                     )}
                   </div>
 
-                  {/* Gender */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Gender
-                    </label>
-                    {isEditing ? (
-                      <select
-                        name="gender"
-                        value={formData.gender}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    ) : (
-                      <p className="text-lg text-gray-900">{profileData.gender || "Not set"}</p>
-                    )}
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => handleInputChange('location', e.target.value)}
+                disabled={!isEditing}
+                placeholder="Enter your location"
+              />
+            </div>
+          </CardContent>
+        </Card>
                   </div>
 
-                  {/* Password Section - Only show when editing */}
+      {/* Password Section */}
                   {isEditing && (
-                    <div className="border-t pt-6">
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Change Password</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Current Password
-                          </label>
+        <Card>
+          <CardHeader>
+            <CardTitle>Change Password</CardTitle>
+            <CardDescription>
+              Leave blank to keep your current password
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="oldPassword">Current Password</Label>
                           <div className="relative">
-                            <input
-                              type={showOldPassword ? "text" : "password"}
-                              name="oldPassword"
+                <Input
+                  id="oldPassword"
+                  type={showOldPassword ? 'text' : 'password'}
                               value={formData.oldPassword}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(e) => handleInputChange('oldPassword', e.target.value)}
                               placeholder="Enter current password"
                             />
-                            <button
+                <Button
                               type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                               onClick={() => setShowOldPassword(!showOldPassword)}
-                              className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                            >
-                              {showOldPassword ? (
-                                <EyeOff className="h-4 w-4 text-gray-400" />
-                              ) : (
-                                <Eye className="h-4 w-4 text-gray-400" />
-                              )}
-                            </button>
+                >
+                  {showOldPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
                           </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            New Password
-                          </label>
+
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
                           <div className="relative">
-                            <input
-                              type={showPassword ? "text" : "password"}
-                              name="newPassword"
+                <Input
+                  id="newPassword"
+                  type={showPassword ? 'text' : 'password'}
                               value={formData.newPassword}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(e) => handleInputChange('newPassword', e.target.value)}
                               placeholder="Enter new password"
                             />
-                            <button
+                <Button
                               type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                               onClick={() => setShowPassword(!showPassword)}
-                              className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                            >
-                              {showPassword ? (
-                                <EyeOff className="h-4 w-4 text-gray-400" />
-                              ) : (
-                                <Eye className="h-4 w-4 text-gray-400" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-500">
-                          Leave password fields empty to keep current password
-                        </p>
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
                       </div>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
-
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleAvatarChange}
-          className="hidden"
-        />
+      )}
     </div>
   );
 };

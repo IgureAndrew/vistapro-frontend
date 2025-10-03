@@ -6,6 +6,14 @@ import { useAlert } from '../hooks/useAlert'
 import { formatCurrency } from '../utils/currency'
 import TransferPopover from './TransferPopover'
 
+// Import mobile-first components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileSearch from "./MobileSearch";
+
+// Import mobile design system
+// // import "../styles/mobile-design-system.css"; // Removed - file doesn't exist // Removed - file doesn't exist
+
 export default function MarketerStockPickup() {
   const [dealers, setDealers]               = useState([])
   const [products, setProducts]             = useState([])
@@ -30,7 +38,11 @@ export default function MarketerStockPickup() {
     eligible: false,
     hasConfirmedOrder: false,
     hasPendingCompletion: false,
-    hasPendingRequest: false
+    hasPendingRequest: false,
+    hasPendingReturn: false,
+    hasPendingTransfer: false,
+    hasActiveStock: false,
+    isLocked: false
   })
   const [accountStatus, setAccountStatus] = useState({
     blocked: false,
@@ -51,7 +63,29 @@ export default function MarketerStockPickup() {
   useEffect(() => {
     api.get('/stock/pickup/dealers')
       .then(r => setDealers(r.data.dealers || []))
-      .catch(console.error)
+      .catch(err => {
+        console.error('Error loading dealers:', err)
+        
+        const errorData = err.response?.data
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Failed to load dealers'
+        
+        if (statusCode === 403) {
+          errorMessage = 'Access denied. Please contact your Admin.'
+        } else if (statusCode === 404) {
+          errorMessage = 'No dealers found in your location. Please contact your Admin.'
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = errorData?.message || 'Unable to load dealers. Please try again.'
+        }
+        
+        showError(errorMessage, 'Dealers Loading Failed')
+        setDealers([]) // Set empty array as fallback
+      })
 
     refreshAllowance()
     loadPickups()
@@ -75,11 +109,37 @@ export default function MarketerStockPickup() {
       })
       .catch(err => {
         console.error('Eligibility check failed:', err)
+        
+        const errorData = err.response?.data
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Failed to check eligibility'
+        
+        if (statusCode === 403) {
+          errorMessage = 'Access denied. Please contact your Admin.'
+        } else if (statusCode === 404) {
+          errorMessage = 'Eligibility service not found. Please refresh and try again.'
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = errorData?.message || 'Unable to check eligibility. Please try again.'
+        }
+        
+        // Show error to user
+        showError(errorMessage, 'Eligibility Check Failed')
+        
+        // Set fallback eligibility info
         setEligibilityInfo({
           eligible: false,
           hasConfirmedOrder: false,
           hasPendingCompletion: false,
-          hasPendingRequest: false
+          hasPendingRequest: false,
+          hasPendingReturn: false,
+          hasPendingTransfer: false,
+          hasActiveStock: false,
+          isLocked: false
         })
       })
   }
@@ -95,6 +155,18 @@ export default function MarketerStockPickup() {
   }
 
   function getEligibilityMessage() {
+    if (eligibilityInfo.isLocked) {
+      return 'Your account is locked. Contact your Admin or MasterAdmin.'
+    }
+    if (eligibilityInfo.hasPendingReturn) {
+      return 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.'
+    }
+    if (eligibilityInfo.hasPendingTransfer) {
+      return 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.'
+    }
+    if (eligibilityInfo.hasActiveStock) {
+      return 'You have active stock. Complete or return existing stock before picking up new stock.'
+    }
     if (!eligibilityInfo.hasConfirmedOrder) {
       return 'You must have at least one confirmed order to request additional pickup'
     }
@@ -261,7 +333,7 @@ export default function MarketerStockPickup() {
       loadPickups()
       checkAccountStatus() // Refresh account status
     } catch (err) {
-      console.error(err)
+      console.error('Pickup submission error:', err)
       
       // Handle violation responses
       if (err.response?.data?.violationCount) {
@@ -290,7 +362,83 @@ export default function MarketerStockPickup() {
           checkAccountStatus()
         }
       } else {
-        showError(err.response?.data?.message || 'Error recording pickup', 'Pickup Failed')
+        // Enhanced error handling with specific messages
+        const errorData = err.response?.data
+        const errorCode = errorData?.errorCode
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Error recording pickup'
+        let errorTitle = 'Pickup Failed'
+        let showRetry = false
+        
+        // Handle specific error codes
+        if (errorCode === 'DUPLICATE_PICKUP') {
+          errorMessage = 'This pickup already exists. Please refresh the page and try again.'
+          errorTitle = 'Duplicate Pickup'
+          showRetry = true
+        } else if (errorCode === 'INVALID_REFERENCE') {
+          errorMessage = 'Invalid product or dealer selected. Please refresh and select again.'
+          errorTitle = 'Invalid Selection'
+          showRetry = true
+        } else if (errorCode === 'INVALID_DATA') {
+          errorMessage = 'Invalid data provided. Please check your selections and try again.'
+          errorTitle = 'Invalid Data'
+        } else if (errorCode === 'DATABASE_ERROR') {
+          errorMessage = 'Database connection failed. Please try again in a moment.'
+          errorTitle = 'Connection Error'
+          showRetry = true
+        } else if (errorCode === 'TIMEOUT') {
+          errorMessage = 'Request timed out. Please check your connection and try again.'
+          errorTitle = 'Timeout Error'
+          showRetry = true
+        } else if (errorCode === 'PERMISSION_DENIED') {
+          errorMessage = 'You do not have permission to perform this action. Please contact your Admin.'
+          errorTitle = 'Permission Denied'
+        } else if (statusCode === 400) {
+          errorMessage = errorData?.message || 'Invalid request. Please check your selections.'
+          errorTitle = 'Invalid Request'
+        } else if (statusCode === 403) {
+          errorMessage = errorData?.message || 'Access denied. Please contact your Admin.'
+          errorTitle = 'Access Denied'
+        } else if (statusCode === 404) {
+          errorMessage = 'Resource not found. Please refresh and try again.'
+          errorTitle = 'Not Found'
+          showRetry = true
+        } else if (statusCode === 409) {
+          errorMessage = 'Conflict detected. Please refresh and try again.'
+          errorTitle = 'Conflict'
+          showRetry = true
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+          errorTitle = 'Server Error'
+          showRetry = true
+        } else if (statusCode === 503) {
+          errorMessage = 'Service temporarily unavailable. Please try again later.'
+          errorTitle = 'Service Unavailable'
+          showRetry = true
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your internet connection and try again.'
+          errorTitle = 'Network Error'
+          showRetry = true
+        } else {
+          errorMessage = errorData?.message || 'An unexpected error occurred. Please try again.'
+          errorTitle = 'Unexpected Error'
+          showRetry = true
+        }
+        
+        // Show error with retry option if applicable
+        if (showRetry) {
+          showError(
+            `${errorMessage}\n\nClick "Retry" to try again.`,
+            errorTitle,
+            () => {
+              // Retry function
+              handleSubmit(e)
+            }
+          )
+        } else {
+          showError(errorMessage, errorTitle)
+        }
       }
     }
   }
@@ -346,11 +494,15 @@ export default function MarketerStockPickup() {
   }
   async function submitReturn(id) {
     try {
-      // Use the new completion tracking system
-      await trackPickupCompletion(id, 'returned')
+      // Request return - requires MasterAdmin confirmation
+      await api.patch(`/stock/${id}/return-request`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      showSuccess('Return requested successfully! Awaiting MasterAdmin confirmation.', 'Return Requested')
+      loadPickups() // Refresh the pickups list
     } catch (err) {
       console.error(err)
-      showError(err.response?.data?.message || 'Return failed', 'Return Failed')
+      showError(err.response?.data?.message || 'Return request failed', 'Return Request Failed')
     }
   }
 
@@ -447,7 +599,7 @@ export default function MarketerStockPickup() {
         variant={alert.variant}
       />
 
-      <form onSubmit={handleSubmit} className={`bg-white p-4 sm:p-6 rounded-lg shadow space-y-4 sm:space-y-6 ${accountStatus.blocked ? 'opacity-50 pointer-events-none' : ''}`}>
+      <form onSubmit={handleSubmit} className={`bg-white p-4 sm:p-6 rounded-lg shadow space-y-4 sm:space-y-6 ${accountStatus.blocked || !eligibilityInfo.eligible ? 'opacity-50 pointer-events-none' : ''}`}>
         {/* Dealer selector */}
         <div>
           <label className="block mb-2 font-medium text-sm sm:text-base">Dealer</label>
@@ -533,17 +685,48 @@ export default function MarketerStockPickup() {
             Your request was rejected. Try again in {rejectedCd}.
           </p>
         )}
-        {allowance === 1 && request_status === null && !eligibilityInfo.eligible && (
-          <p className="text-amber-700 text-sm">
-            💡 {getEligibilityMessage()}
-          </p>
+        {!eligibilityInfo.eligible && (
+          <div className={`p-3 rounded-lg text-sm ${
+            eligibilityInfo.isLocked 
+              ? 'bg-red-50 border border-red-200 text-red-700'
+              : eligibilityInfo.hasPendingReturn || eligibilityInfo.hasPendingTransfer
+              ? 'bg-orange-50 border border-orange-200 text-orange-700'
+              : 'bg-amber-50 border border-amber-200 text-amber-700'
+          }`}>
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                {eligibilityInfo.isLocked ? (
+                  <svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                ) : eligibilityInfo.hasPendingReturn || eligibilityInfo.hasPendingTransfer ? (
+                  <svg className="h-4 w-4 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="ml-2">
+                <p className="font-medium">{getEligibilityMessage()}</p>
+              </div>
+            </div>
+          </div>
         )}
 
         <button
           type="submit"
-          className="w-full bg-white text-black py-3 px-4 rounded-lg text-sm sm:text-base font-medium hover:bg-[#f59e0b] hover:text-white transition-colors focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-2 border-2 border-[#f59e0b]"
+          disabled={!eligibilityInfo.eligible || accountStatus.blocked}
+          className={`w-full py-3 px-4 rounded-lg text-sm sm:text-base font-medium transition-colors focus:ring-2 focus:ring-offset-2 border-2 ${
+            eligibilityInfo.eligible && !accountStatus.blocked
+              ? 'bg-white text-black hover:bg-[#f59e0b] hover:text-white border-[#f59e0b] focus:ring-[#f59e0b]'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+          }`}
+          title={!eligibilityInfo.eligible ? getEligibilityMessage() : ''}
         >
-          Pick up
+          {!eligibilityInfo.eligible ? 'Cannot Pick Up' : 'Pick up'}
         </button>
       </form>
 
@@ -560,10 +743,12 @@ export default function MarketerStockPickup() {
                 const remaining = s.status === 'pending'
                   ? formatRemaining(diff)
                   : s.status === 'expired'
-                    ? formatRemaining(-diff)
-                    : s.status === 'sold'
-                      ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
-                      : { text: '—', className: 'text-gray-500', status: 'completed' }
+                    ? formatRemaining(-diff)        // Always count-up (red)
+                  : s.status === 'return_pending' || s.status === 'transfer_pending'
+                    ? formatRemaining(diff)         // Countdown if before deadline, count-up if after
+                  : s.status === 'sold'
+                    ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
+                    : { text: '—', className: 'text-gray-500', status: 'completed' }
                 return (
                   <div key={s.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
                     <div className="flex justify-between items-start mb-3">
@@ -655,10 +840,12 @@ export default function MarketerStockPickup() {
                     const remaining = s.status === 'pending'
                       ? formatRemaining(diff)
                       : s.status === 'expired'
-                        ? formatRemaining(-diff)
-                        : s.status === 'sold'
-                          ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
-                          : { text: '—', className: 'text-gray-500', status: 'completed' }
+                        ? formatRemaining(-diff)        // Always count-up (red)
+                      : s.status === 'return_pending' || s.status === 'transfer_pending'
+                        ? formatRemaining(diff)         // Countdown if before deadline, count-up if after
+                      : s.status === 'sold'
+                        ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
+                        : { text: '—', className: 'text-gray-500', status: 'completed' }
                     return (
                       <tr key={s.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2">
@@ -677,7 +864,19 @@ export default function MarketerStockPickup() {
                         <td className="px-4 py-2">
                           <span className={remaining.className}>{remaining.text}</span>
                         </td>
-                        <td className="px-4 py-2">{s.status}</td>
+                        <td className="px-4 py-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            s.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            s.status === 'return_pending' ? 'bg-orange-100 text-orange-800' :
+                            s.status === 'expired' ? 'bg-red-100 text-red-800' :
+                            s.status === 'sold' ? 'bg-green-100 text-green-800' :
+                            s.status === 'returned' ? 'bg-blue-100 text-blue-800' :
+                            s.status === 'transferred' ? 'bg-purple-100 text-purple-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {s.status === 'return_pending' ? 'Pending Return' : s.status}
+                          </span>
+                        </td>
                         <td className="px-4 py-2">
                           {s.status === 'pending' && (
                             <div className="flex items-center space-x-2 whitespace-nowrap">

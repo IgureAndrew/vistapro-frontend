@@ -32,4 +32,11 @@ export function SheetContent({ side = "right", className = "", children }) {
   );
 }
 
+export function SheetTrigger({ asChild, children, ...props }) {
+  if (asChild) {
+    return React.cloneElement(children, props);
+  }
+  return <button {...props}>{children}</button>;
+}
+
 

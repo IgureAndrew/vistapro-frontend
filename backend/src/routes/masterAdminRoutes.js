@@ -141,7 +141,34 @@ router.get('/users/location/:location', verifyToken, verifyRole(['Marketer', 'Ad
     res.json({ users: rows });
   } catch (error) {
     console.error('Error fetching users by location:', error);
-    res.status(500).json({ message: 'Failed to fetch users' });
+    
+    let errorMessage = 'Failed to fetch users';
+    let errorCode = 'USERS_FETCH_ERROR';
+    let statusCode = 500;
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      errorMessage = 'Database connection failed. Please try again in a moment.';
+      errorCode = 'DATABASE_ERROR';
+      statusCode = 503;
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Request timed out. Please try again.';
+      errorCode = 'TIMEOUT';
+      statusCode = 408;
+    } else if (error.message.includes('permission')) {
+      errorMessage = 'You do not have permission to view users.';
+      errorCode = 'PERMISSION_DENIED';
+      statusCode = 403;
+    } else if (error.message.includes('invalid input syntax')) {
+      errorMessage = 'Invalid location provided. Please check your location.';
+      errorCode = 'INVALID_LOCATION';
+      statusCode = 400;
+    }
+    
+    res.status(statusCode).json({ 
+      message: errorMessage,
+      errorCode: errorCode,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

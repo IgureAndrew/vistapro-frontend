@@ -3,6 +3,14 @@ import React, { useState, useEffect } from "react";
 import ConfirmDialog from "./ui/confirm-dialog";
 import { ChevronDownIcon, EyeIcon, TrashIcon, ArrowPathIcon, CheckIcon } from "@heroicons/react/24/outline";
 
+// Import mobile-first components
+import MobileTable from "./MobileTable";
+import MobileCard from "./MobileCard";
+import MobileSearch from "./MobileSearch";
+
+// Import mobile design system
+// // import "../styles/mobile-design-system.css"; // Removed - file doesn't exist // Removed - file doesn't exist
+
 // ActionDropdown Component: Dropdown menu for submission actions
 function ActionDropdown({ group, onViewDetails, onDelete, onReset, onApprove, user }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -640,46 +648,17 @@ export default function Submissions() {
         </table>
       </div>
 
-      {/* Mobile Card View */}
+      {/* Mobile Card View - Mobile-First Design */}
       <div className="lg:hidden space-y-4">
         {filteredSubmissions.map((group) => (
-          <div key={group.marketer_unique_id} className="bg-white shadow rounded-lg border border-gray-200 p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-medium text-gray-900 truncate">
-                  {group.name || "N/A"}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {group.location || "N/A"}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {group.marketer_unique_id || "N/A"}
-                </p>
-              </div>
-              <StatusBadge group={group} />
-            </div>
-            
-            <div className="flex items-center justify-between mb-3">
-              <button
-                className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
-                onClick={() => openModal(group.details)}
-              >
-                {group.types.join(", ")}
-              </button>
-              <span className="text-xs text-gray-500">
-                {group.latest_submission_date 
-                  ? new Date(group.latest_submission_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
-                  : "N/A"
-                }
-              </span>
-            </div>
-            
-            <div className="flex justify-end">
+          <MobileCard
+            key={group.marketer_unique_id}
+            type="Action"
+            title={group.name || "N/A"}
+            description={`${group.location || "N/A"} • ${group.marketer_unique_id || "N/A"}`}
+            value={group.types.join(", ")}
+            status={group.overall_verification_status || 'pending'}
+            actionButton={
               <ActionDropdown
                 group={group}
                 onViewDetails={openModal}
@@ -688,8 +667,29 @@ export default function Submissions() {
                 onApprove={(group) => confirm(() => handleApprove(group))}
                 user={user}
               />
+            }
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Submission Types</span>
+                <span className="text-xs text-gray-500">
+                  {group.latest_submission_date 
+                    ? new Date(group.latest_submission_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : "N/A"
+                  }
+                </span>
+              </div>
+              <div className="text-sm text-gray-600">
+                <p><strong>Location:</strong> {group.location || "N/A"}</p>
+                <p><strong>ID:</strong> {group.marketer_unique_id || "N/A"}</p>
+              </div>
             </div>
-          </div>
+          </MobileCard>
         ))}
       </div>
 

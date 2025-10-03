@@ -10,16 +10,18 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Modal from "./Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar } from 'lucide-react';
+import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square } from 'lucide-react';
 import { targetManagementApiService } from '@/api/targetManagementApi';
 import { assignmentApiService } from '@/api/assignmentApi';
 import { useToast } from "./ui/use-toast";
 
 const TargetManagement = () => {
-  const { toast } = useToast();
+  const { showSuccess, showError } = useToast();
   const [targets, setTargets] = useState([]);
   const [targetTypes, setTargetTypes] = useState([]);
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [availableLocations, setAvailableLocations] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -30,6 +32,14 @@ const TargetManagement = () => {
     periodType: '',
     targetType: ''
   });
+  
+  // Enhanced target creation state
+  const [creationMode, setCreationMode] = useState('single'); // 'single' or 'bulk'
+  const [userFilters, setUserFilters] = useState({
+    role: '',
+    location: ''
+  });
+  const [selectedUsers, setSelectedUsers] = useState([]);
 
   // Form state for creating/editing targets
   const [formData, setFormData] = useState({
@@ -46,6 +56,10 @@ const TargetManagement = () => {
     loadData();
   }, [filters]);
 
+  useEffect(() => {
+    loadFilteredUsers();
+  }, [userFilters]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -55,43 +69,62 @@ const TargetManagement = () => {
         targetManagementApiService.getTargetStats()
       ]);
 
-      setTargets(targetsRes.data.data);
-      setTargetTypes(targetTypesRes.data.data);
-      setStats(statsRes.data.data);
+      setTargets(targetsRes.data.data || []);
+      setTargetTypes(targetTypesRes.data.data || []);
+      setStats(statsRes.data.data || {});
 
-      // Load users for the form
-      const usersRes = await assignmentApiService.getAvailableAssignees();
-      setUsers(usersRes.data.data);
+      // Load all users for location extraction
+      const usersRes = await targetManagementApiService.getUsersForTargetCreation();
+      setUsers(usersRes.data.data || []);
+      
+      // Extract unique locations for filtering
+      const locations = [...new Set(usersRes.data.data?.map(user => user.location).filter(Boolean) || [])];
+      setAvailableLocations(locations);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load target data',
-        variant: 'destructive'
-      });
+      showError('Failed to load target data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load filtered users based on role and location
+  const loadFilteredUsers = async () => {
+    try {
+      const response = await targetManagementApiService.getUsersForTargetCreation(
+        userFilters.role || null,
+        userFilters.location || null
+      );
+      setFilteredUsers(response.data.data || []);
+    } catch (error) {
+      console.error('Error loading filtered users:', error);
+      showError('Failed to load users');
     }
   };
 
   const handleCreateTarget = async (e) => {
     e.preventDefault();
     try {
+      if (creationMode === 'single') {
       await targetManagementApiService.createTarget(formData);
-      toast({
-        title: 'Success',
-        description: 'Target created successfully'
-      });
+        showSuccess('Target created successfully');
+      } else {
+        // Bulk creation
+        const targetsToCreate = selectedUsers.map(userId => ({
+          ...formData,
+          userId: userId
+        }));
+        
+        await targetManagementApiService.bulkCreateTargets({ targets: targetsToCreate });
+        showSuccess(`${targetsToCreate.length} targets created successfully`);
+      }
+      
       setCreateDialogOpen(false);
       resetForm();
       loadData();
     } catch (error) {
       console.error('Error creating target:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create target',
-        variant: 'destructive'
-      });
+      showError('Failed to create target');
     }
   };
 
@@ -99,20 +132,13 @@ const TargetManagement = () => {
     e.preventDefault();
     try {
       await targetManagementApiService.updateTarget(selectedTarget.id, formData);
-      toast({
-        title: 'Success',
-        description: 'Target updated successfully'
-      });
+      showSuccess('Target updated successfully');
       setEditDialogOpen(false);
       resetForm();
       loadData();
     } catch (error) {
       console.error('Error updating target:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update target',
-        variant: 'destructive'
-      });
+      showError('Failed to update target');
     }
   };
 
@@ -120,18 +146,11 @@ const TargetManagement = () => {
     if (window.confirm('Are you sure you want to deactivate this target?')) {
       try {
         await targetManagementApiService.deactivateTarget(targetId);
-        toast({
-          title: 'Success',
-          description: 'Target deactivated successfully'
-        });
+        showSuccess('Target deactivated successfully');
         loadData();
       } catch (error) {
         console.error('Error deactivating target:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to deactivate target',
-          variant: 'destructive'
-        });
+        showError('Failed to deactivate target');
       }
     }
   };
@@ -147,6 +166,9 @@ const TargetManagement = () => {
       notes: ''
     });
     setSelectedTarget(null);
+    setSelectedUsers([]);
+    setUserFilters({ role: '', location: '' });
+    setCreationMode('single');
   };
 
   const openEditDialog = (target) => {
@@ -178,6 +200,29 @@ const TargetManagement = () => {
     return colors[periodType] || 'bg-gray-100 text-gray-800';
   };
 
+  // Helper functions for user selection
+  const handleUserSelect = (userId) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const currentUsers = filteredUsers.length > 0 ? filteredUsers : users;
+    if (selectedUsers.length === currentUsers.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(currentUsers.map(user => user.unique_id));
+    }
+  };
+
+  // Handle user filter changes
+  const handleUserFilterChange = (field, value) => {
+    setUserFilters(prev => ({ ...prev, [field]: value }));
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -204,42 +249,157 @@ const TargetManagement = () => {
           Create Target
         </Button>
         <Modal isOpen={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
-          <div className="max-w-2xl">
+          <div className="max-w-4xl">
             <h2 className="text-xl font-semibold mb-4">Create New Target</h2>
+            
+            {/* Mode Selection */}
+            <div className="mb-6">
+              <Label className="text-base font-medium">Creation Mode</Label>
+              <div className="flex space-x-4 mt-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="single"
+                    checked={creationMode === 'single'}
+                    onChange={(e) => setCreationMode(e.target.value)}
+                    className="mr-2"
+                  />
+                  Single Target
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="bulk"
+                    checked={creationMode === 'bulk'}
+                    onChange={(e) => setCreationMode(e.target.value)}
+                    className="mr-2"
+                  />
+                  Bulk Targets
+                </label>
+              </div>
+            </div>
+
             <form onSubmit={handleCreateTarget} className="space-y-4">
+              {/* User Selection */}
+              <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="userId">User</Label>
+                    <Label htmlFor="roleFilter">Filter by Role</Label>
+                    <select 
+                      value={userFilters.role} 
+                      onChange={(e) => handleUserFilterChange('role', e.target.value)}
+                      className="select-soft h-11 w-full"
+                    >
+                      <option value="">All Roles</option>
+                      <option value="Marketer">Marketer</option>
+                      <option value="Admin">Admin</option>
+                      <option value="SuperAdmin">SuperAdmin</option>
+                      <option value="Dealer">Dealer</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="locationFilter">Filter by Location</Label>
+                    <select 
+                      value={userFilters.location} 
+                      onChange={(e) => handleUserFilterChange('location', e.target.value)}
+                      className="select-soft h-11 w-full"
+                    >
+                      <option value="">All Locations</option>
+                      {availableLocations.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* User Selection */}
+                {creationMode === 'single' ? (
+                  <div>
+                    <Label htmlFor="userId">Select User</Label>
                   <select 
                     value={formData.userId} 
                     onChange={(e) => setFormData({...formData, userId: e.target.value})}
                     className="select-soft h-11 w-full"
+                      required
                   >
                     <option value="">Select user</option>
-                    {users.map((user) => (
+                      {filteredUsers.length > 0 ? filteredUsers.map((user) => (
+                        <option key={user.unique_id} value={user.unique_id}>
+                          {user.first_name} {user.last_name} ({user.role} - {user.location})
+                        </option>
+                      )) : users.map((user) => (
                       <option key={user.unique_id} value={user.unique_id}>
-                        {user.first_name} {user.last_name} ({user.role})
+                          {user.first_name} {user.last_name} ({user.role} - {user.location})
                       </option>
                     ))}
                   </select>
                 </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-base font-medium">Select Users</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAll}
+                      >
+                        {selectedUsers.length === (filteredUsers.length > 0 ? filteredUsers.length : users.length) ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto border rounded-lg p-3 space-y-2">
+                      {(filteredUsers.length > 0 ? filteredUsers : users).map((user) => (
+                        <label key={user.unique_id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedUsers.includes(user.unique_id)}
+                            onChange={() => handleUserSelect(user.unique_id)}
+                            className="rounded"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{user.first_name} {user.last_name}</div>
+                            <div className="text-sm text-gray-500">{user.role} - {user.location}</div>
+                          </div>
+                        </label>
+                      ))}
+                      {(filteredUsers.length === 0 && users.length === 0) && (
+                        <div className="text-center py-4 text-gray-500">
+                          No users found
+                        </div>
+                      )}
+                    </div>
+                    {selectedUsers.length > 0 && (
+                      <div className="mt-2 text-sm text-gray-600">
+                        {selectedUsers.length} user(s) selected
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Target Configuration */}
+              <div className="border-t pt-4">
+                <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="targetTypeId">Target Type</Label>
                   <select 
                     value={formData.targetTypeId} 
                     onChange={(e) => setFormData({...formData, targetTypeId: e.target.value})}
                     className="select-soft h-11 w-full"
+                      required
                   >
                     <option value="">Select target type</option>
-                    {targetTypes.map((type) => (
+                      {targetTypes && targetTypes.length > 0 ? targetTypes.map((type) => (
                       <option key={type.id} value={type.id}>
                         {type.name} ({type.metric_unit})
                       </option>
-                    ))}
+                      )) : (
+                        <option value="" disabled>No target types available</option>
+                      )}
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="targetValue">Target Value</Label>
                   <Input
@@ -250,12 +410,15 @@ const TargetManagement = () => {
                     required
                   />
                 </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4 mt-4">
                 <div>
                   <Label htmlFor="periodType">Period Type</Label>
                   <select 
                     value={formData.periodType} 
                     onChange={(e) => setFormData({...formData, periodType: e.target.value})}
                     className="select-soft h-11 w-full"
+                      required
                   >
                     <option value="">Select period</option>
                     <option value="daily">Daily</option>
@@ -265,8 +428,6 @@ const TargetManagement = () => {
                     <option value="yearly">Yearly</option>
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="periodStart">Period Start</Label>
                   <Input
@@ -288,7 +449,7 @@ const TargetManagement = () => {
                   />
                 </div>
               </div>
-              <div>
+                <div className="mt-4">
                 <Label htmlFor="notes">Notes (Optional)</Label>
                 <Input
                   id="notes"
@@ -297,11 +458,18 @@ const TargetManagement = () => {
                   placeholder="Add any notes about this target..."
                 />
               </div>
-              <div className="flex justify-end space-x-2">
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Create Target</Button>
+                <Button 
+                  type="submit"
+                  disabled={creationMode === 'bulk' && selectedUsers.length === 0}
+                >
+                  {creationMode === 'single' ? 'Create Target' : `Create ${selectedUsers.length} Targets`}
+                </Button>
               </div>
             </form>
           </div>
@@ -391,11 +559,13 @@ const TargetManagement = () => {
                 className="select-soft h-11 w-full"
               >
                 <option value="">All types</option>
-                {targetTypes.map((type) => (
+                {targetTypes && targetTypes.length > 0 ? targetTypes.map((type) => (
                   <option key={type.name} value={type.name}>
                     {type.name}
                   </option>
-                ))}
+                )) : (
+                  <option value="" disabled>No types available</option>
+                )}
               </select>
             </div>
           </div>
@@ -421,7 +591,7 @@ const TargetManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {targets.map((target) => (
+              {targets && targets.length > 0 ? targets.map((target) => (
                 <TableRow key={target.id}>
                   <TableCell>
                     <div>
@@ -472,7 +642,13 @@ const TargetManagement = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No targets found
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

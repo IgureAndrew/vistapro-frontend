@@ -4,23 +4,26 @@ import {
   BarChart2,
   Users,
   CheckCircle,
-  CheckSquare,
   Clock,
   ClipboardList,
-  Package,
-  MoreVertical,
   Wallet,
   TrendingUp,
   Activity,
-  UserCheck,
   ShoppingCart,
   Box,
   MapPin,
-  Camera,
-  Phone
+  History,
+  User,
+  Package,
+  FileText,
+  Calendar
 } from "lucide-react";
 import api from "../api";
-import VerificationNotifications from "./VerificationNotifications";
+
+// Import reusable components
+import { MetricCard } from "./common/MetricCard";
+import { WelcomeSection } from "./common/WelcomeSection";
+import { SectionHeader } from "./common/SectionHeader";
 
 export default function AdminOverview({ onNavigate, isDarkMode = false }) {
   const [summary, setSummary] = useState({
@@ -36,10 +39,6 @@ export default function AdminOverview({ onNavigate, isDarkMode = false }) {
     teamOrders:         0,
     activeMarketers:    0,
     
-    // Operational Status (Current state)
-    teamPendingOrders:  0,
-    teamStockRequests:  0,
-    teamWithdrawals:    0,
     
     // Verification Status
     pendingPhysicalVerification: 0,
@@ -76,10 +75,6 @@ export default function AdminOverview({ onNavigate, isDarkMode = false }) {
         teamOrders:         data.teamOrders         || 0,
         activeMarketers:    data.activeMarketers    || 0,
         
-        // Operational Status
-        teamPendingOrders:  data.teamPendingOrders  || 0,
-        teamStockRequests:  data.teamStockRequests  || 0,
-        teamWithdrawals:    data.teamWithdrawals    || 0,
         
         // Verification Status
         pendingPhysicalVerification: data.pendingPhysicalVerification || 0,
@@ -218,31 +213,6 @@ export default function AdminOverview({ onNavigate, isDarkMode = false }) {
       section: "Team"
     },
     
-    // Operational Status Section
-    {
-      Icon: Clock,
-      label: "Team Pending Orders",
-      value: summary.teamPendingOrders,
-      change: "—", // No change for count
-      color: "text-red-600",
-      section: "Status"
-    },
-    {
-      Icon: Package,
-      label: "Team Stock Requests",
-      value: summary.teamStockRequests,
-      change: "—", // No change for count
-      color: "text-amber-600",
-      section: "Status"
-    },
-    {
-      Icon: UserCheck,
-      label: "Team Withdrawals",
-      value: summary.teamWithdrawals,
-      change: "—", // No change for count
-      color: "text-rose-600",
-      section: "Status"
-    },
     
     // Verification Status Section
     {
@@ -273,7 +243,7 @@ export default function AdminOverview({ onNavigate, isDarkMode = false }) {
 
   if (loading) {
     return (
-      <div className="px-4 py-6 md:px-6 lg:px-12 space-y-6">
+      <div className="w-full space-y-4 sm:space-y-6">
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
         </div>
@@ -281,328 +251,216 @@ export default function AdminOverview({ onNavigate, isDarkMode = false }) {
     );
   }
 
+  // Group cards by section for better organization
+  const personalCards = cards.filter(c => c.section === "Personal");
+  const teamCards = cards.filter(c => c.section === "Team");
+  const verificationCards = cards.filter(c => c.section === "Verification");
+
   return (
-    <div className="px-4 py-6 md:px-6 lg:px-12 space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 border border-green-100 dark:border-green-800">
-        <div className="flex items-center justify-between">
+    <div className="w-full space-y-4 sm:space-y-6">
+      {/* Welcome Section */}
+      <WelcomeSection
+        title="Admin Dashboard"
+        subtitle="Manage your team of marketers and monitor performance"
+        gradientFrom="from-green-50"
+        gradientTo="to-teal-50"
+      />
+
+      {/* Personal Performance */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Admin Dashboard 👨‍💼
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Manage your assigned marketers and track performance
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <VerificationNotifications 
-              userRole="Admin"
-              userId={localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).unique_id : null}
-              onNotificationClick={(notification) => {
-                console.log('Notification clicked:', notification);
-                // Handle notification click - could navigate to relevant page
-              }}
-            />
-            <div className="hidden md:block">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-xl font-bold">A</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stat Cards - Grouped by Sections */}
-      <div className="space-y-8">
-        {/* Personal Performance Section */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-            Personal Performance
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {cards.filter(card => card.section === "Personal").map(({ Icon, label, value, change, color }, idx) => {
-              const colorMap = {
-                "text-blue-600": { bgColor: "bg-blue-50", iconBg: "bg-blue-100" },
-                "text-green-600": { bgColor: "bg-green-50", iconBg: "bg-green-100" },
-                "text-purple-600": { bgColor: "bg-purple-50", iconBg: "bg-purple-100" },
-                "text-emerald-600": { bgColor: "bg-emerald-50", iconBg: "bg-emerald-100" },
-              };
-              const { bgColor, iconBg } = colorMap[color] || { bgColor: "bg-gray-50", iconBg: "bg-gray-100" };
-              
-              return (
-                <div
-                  key={label}
-                  className={`${bgColor} dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`${iconBg} dark:bg-gray-700 p-3 rounded-lg`}>
-                      <Icon className={`${color} dark:text-gray-300`} size={24} />
-                    </div>
-                    <MoreVertical className="text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300" size={20} />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{label}</h3>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{value}</p>
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-medium ${color}`}>{change}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">from last month</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Team Management Section */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-orange-600" />
-            Team Management
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {cards.filter(card => card.section === "Team").map(({ Icon, label, value, change, color }, idx) => {
-              const colorMap = {
-                "text-orange-600": { bgColor: "bg-white", iconBg: "bg-orange-100" },
-                "text-cyan-600": { bgColor: "bg-white", iconBg: "bg-cyan-100" },
-                "text-indigo-600": { bgColor: "bg-white", iconBg: "bg-indigo-100" },
-                "text-teal-600": { bgColor: "bg-white", iconBg: "bg-teal-100" },
-              };
-              const { bgColor, iconBg } = colorMap[color] || { bgColor: "bg-gray-50", iconBg: "bg-gray-100" };
-              
-              return (
-                <div
-                  key={label}
-                  className={`${bgColor} dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`${iconBg} dark:bg-gray-700 p-3 rounded-lg`}>
-                      <Icon className={`${color} dark:text-gray-300`} size={24} />
-                    </div>
-                    <MoreVertical className="text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300" size={20} />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{label}</h3>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{value}</p>
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-medium ${color}`}>{change}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">from last month</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Operational Status Section */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-red-600" />
-            Operational Status
-          </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cards.filter(card => card.section === "Status").map(({ Icon, label, value, change, color }, idx) => {
-              const colorMap = {
-                "text-red-600": { bgColor: "bg-white", iconBg: "bg-red-100" },
-                "text-amber-600": { bgColor: "bg-white", iconBg: "bg-amber-100" },
-                "text-rose-600": { bgColor: "bg-white", iconBg: "bg-rose-100" },
-              };
-              const { bgColor, iconBg } = colorMap[color] || { bgColor: "bg-gray-50", iconBg: "bg-gray-100" };
-
-  return (
-          <div
-            key={label}
-                  className={`${bgColor} dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`${iconBg} dark:bg-gray-700 p-3 rounded-lg`}>
-                      <Icon className={`${color} dark:text-gray-300`} size={24} />
-                    </div>
-                    <MoreVertical className="text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300" size={20} />
-            </div>
-                  <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{label}</h3>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{value}</p>
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-medium ${color}`}>{change}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">from last month</span>
-            </div>
-            </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Verification Status Section */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            Verification Status
-          </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cards.filter(card => card.section === "Verification").map(({ Icon, label, value, change, color }, idx) => {
-              const colorMap = {
-                "text-orange-600": { bgColor: "bg-white", iconBg: "bg-orange-100" },
-                "text-green-600": { bgColor: "bg-white", iconBg: "bg-green-100" },
-                "text-purple-600": { bgColor: "bg-white", iconBg: "bg-purple-100" },
-              };
-              const { bgColor, iconBg } = colorMap[color] || { bgColor: "bg-white", iconBg: "bg-gray-100" };
-              
-              return (
-          <div
-            key={label}
-                  className={`${bgColor} dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`${iconBg} dark:bg-gray-700 p-3 rounded-lg`}>
-                      <Icon className={`${color} dark:text-gray-300`} size={24} />
-                    </div>
-                    <MoreVertical className="text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300" size={20} />
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{label}</h3>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{value}</p>
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-medium ${color}`}>{change}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">verification status</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Wallet Summary and Recent Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Wallet Summary Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-emerald-600" />
-            Wallet Summary
-          </h2>
-          {wallet.breakdown ? (
-            <div className="space-y-4">
-              {/* Personal Earnings */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Personal Earnings</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500">Available (40%)</p>
-                    <p className="text-lg font-bold text-emerald-600">₦{wallet.breakdown.personal?.available?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500">Withheld (60%)</p>
-                    <p className="text-lg font-bold text-orange-600">₦{wallet.breakdown.personal?.withheld?.toLocaleString() || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Team Earnings */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Team Management</h3>
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500">Available</p>
-                  <p className="text-lg font-bold text-blue-600">₦{wallet.breakdown.team?.available?.toLocaleString() || 0}</p>
-                </div>
-              </div>
-              
-              {/* Combined Total */}
-              <div className="border-t border-emerald-200 dark:border-emerald-700 pt-3">
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500">Total Available</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">₦{wallet.breakdown.combined?.available?.toLocaleString() || 0}</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                <p className="text-xs text-gray-500">Total Balance</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-white">₦{wallet.totalBalance.toLocaleString()}</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                <p className="text-xs text-gray-500">Available</p>
-                <p className="text-lg font-bold text-emerald-600">₦{wallet.availableBalance.toLocaleString()}</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                <p className="text-xs text-gray-500">Withheld</p>
-                <p className="text-lg font-bold text-orange-600">₦{wallet.withheldBalance.toLocaleString()}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Recent Activities Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-600" />
-            Recent Activities
-          </h2>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
-            ) : activities.length > 0 ? (
-              activities.map((activity, index) => (
-                <div key={activity.id || index} className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className={`w-2 h-2 rounded-full mt-2 ${
-                    activity.category === 'personal' ? 'bg-blue-500' : 'bg-green-500'
-                  }`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 dark:text-white">{activity.description}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(activity.timestamp).toLocaleString()}
-                    </p>
-                    {activity.amount && (
-                      <p className="text-xs font-medium text-emerald-600">
-                        ₦{activity.amount.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500 dark:text-gray-400">No recent activities</p>
-            </div>
-            )}
-            </div>
-            </div>
-          </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { icon: <Users className="w-5 h-5" />, label: "Manage Marketers", action: () => onNavigate('marketers') },
-            { icon: <MapPin className="w-5 h-5" />, label: "Physical Verification", action: () => onNavigate('physical-verification') },
-            { icon: <CheckCircle className="w-5 h-5" />, label: "Verify Marketers", action: () => onNavigate('verification') },
-            { icon: <Clock className="w-5 h-5" />, label: "Team Orders", action: () => onNavigate('manage-orders') },
-            { icon: <Package className="w-5 h-5" />, label: "Stock Pickups", action: () => onNavigate('stock') },
-            { icon: <ClipboardList className="w-5 h-5" />, label: "Place Orders", action: () => onNavigate('order') },
-            { icon: <Activity className="w-5 h-5" />, label: "Team Performance", action: () => onNavigate('performance') },
-            { icon: <Wallet className="w-5 h-5" />, label: "My Wallet", action: () => onNavigate('wallet') },
-            { icon: <UserCheck className="w-5 h-5" />, label: "Messages", action: () => onNavigate('messages') },
-          ].map(({ icon, label, action }, idx) => (
-            <button
+        <SectionHeader title="Personal Performance" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          {personalCards.map((card, idx) => (
+            <MetricCard
               key={idx}
-              onClick={action}
-              className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-3 rounded-lg flex items-center space-x-2 transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-black dark:text-white cursor-pointer"
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#f59e0b';
-                e.target.style.color = 'white';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '';
-                e.target.style.color = '';
-              }}
-            >
-              {icon}
-              <span className="font-medium">{label}</span>
-            </button>
+              label={card.label}
+              value={card.value}
+              change={card.change}
+              icon={card.Icon}
+              iconColor={card.color}
+              iconBgColor={card.color.replace('text-', 'bg-').replace('600', '100')}
+            />
           ))}
         </div>
       </div>
+
+      {/* Team Management */}
+        <div>
+        <SectionHeader title="Team Management" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          {teamCards.map((card, idx) => (
+            <MetricCard
+              key={idx}
+              label={card.label}
+              value={card.value}
+              change={card.change}
+              icon={card.Icon}
+              iconColor={card.color}
+              iconBgColor={card.color.replace('text-', 'bg-').replace('600', '100')}
+            />
+          ))}
+          </div>
+        </div>
+
+
+      {/* Verification Status */}
+              <div>
+        <SectionHeader title="Verification Status" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+          {verificationCards.map((card, idx) => (
+            <MetricCard
+              key={idx}
+              label={card.label}
+              value={card.value}
+              change={card.change}
+              icon={card.Icon}
+              iconColor={card.color}
+              iconBgColor={card.color.replace('text-', 'bg-').replace('600', '100')}
+            />
+          ))}
+        </div>
+      </div>
+              
+      {/* Wallet Summary */}
+      {wallet?.breakdown && (
+        <div>
+          <SectionHeader title="Wallet Summary" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+            <MetricCard
+              label="Available Balance"
+              value={`₦${(wallet.availableBalance || 0).toLocaleString()}`}
+              icon={Wallet}
+              iconColor="text-green-600"
+              iconBgColor="bg-green-100"
+            />
+            <MetricCard
+              label="Withheld Balance"
+              value={`₦${(wallet.withheldBalance || 0).toLocaleString()}`}
+              icon={Clock}
+              iconColor="text-orange-600"
+              iconBgColor="bg-orange-100"
+            />
+            <MetricCard
+              label="Total Balance"
+              value={`₦${(wallet.totalBalance || 0).toLocaleString()}`}
+              icon={TrendingUp}
+              iconColor="text-blue-600"
+              iconBgColor="bg-blue-100"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activities */}
+      <div>
+        <SectionHeader title="Recent Activities" />
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          {activities.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-lg font-medium">No recent activities</p>
+              <p className="text-sm">Your recent actions and team activities will appear here</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {activities.map((activity, index) => {
+                const getActivityIcon = (type) => {
+                  switch (type?.toLowerCase()) {
+                    case 'order':
+                    case 'order_placed':
+                      return ShoppingCart;
+                    case 'verification':
+                    case 'verification_submitted':
+                    case 'verification_approved':
+                      return CheckCircle;
+                    case 'stock':
+                    case 'stock_pickup':
+                      return Package;
+                    case 'user':
+                    case 'marketer':
+                      return User;
+                    case 'submission':
+                      return FileText;
+                    default:
+                      return Activity;
+                  }
+                };
+
+                const getActivityColor = (type) => {
+                  switch (type?.toLowerCase()) {
+                    case 'order':
+                    case 'order_placed':
+                      return 'text-green-600';
+                    case 'verification':
+                    case 'verification_submitted':
+                    case 'verification_approved':
+                      return 'text-blue-600';
+                    case 'stock':
+                    case 'stock_pickup':
+                      return 'text-purple-600';
+                    case 'user':
+                    case 'marketer':
+                      return 'text-orange-600';
+                    case 'submission':
+                      return 'text-indigo-600';
+                    default:
+                      return 'text-gray-600';
+                  }
+                };
+
+                const formatTimeAgo = (timestamp) => {
+                  const now = new Date();
+                  const activityTime = new Date(timestamp);
+                  const diff = now - activityTime;
+                  const minutes = Math.floor(diff / 60000);
+                  const hours = Math.floor(diff / 3600000);
+                  const days = Math.floor(diff / 86400000);
+
+                  if (minutes < 1) return 'Just now';
+                  if (minutes < 60) return `${minutes}m ago`;
+                  if (hours < 24) return `${hours}h ago`;
+                  return `${days}d ago`;
+                };
+
+                const IconComponent = getActivityIcon(activity.type);
+                const iconColor = getActivityColor(activity.type);
+
+                return (
+                  <div key={index} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex items-start space-x-3">
+                      <div className={`p-2 rounded-full ${iconColor.replace('text-', 'bg-').replace('-600', '-100')} dark:${iconColor.replace('text-', 'bg-').replace('-600', '-900/30')}`}>
+                        <IconComponent className={`w-4 h-4 ${iconColor}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                            {activity.title || activity.message || 'Activity'}
+                          </h4>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            {formatTimeAgo(activity.timestamp || activity.created_at)}
+                          </span>
+                        </div>
+                        {activity.description && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {activity.description}
+                          </p>
+                        )}
+                        {activity.user_name && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            by {activity.user_name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 }

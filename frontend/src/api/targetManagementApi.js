@@ -62,6 +62,14 @@ export const targetManagementApiService = {
     return targetManagementApi.get('/users-without-targets', { params });
   },
   
+  // Get users filtered by role and location for target creation
+  getUsersForTargetCreation: (role = null, location = null) => {
+    const params = {};
+    if (role) params.role = role;
+    if (location) params.location = location;
+    return targetManagementApi.get('/users-for-target-creation', { params });
+  },
+  
   // Get target history
   getTargetHistory: (targetId) => targetManagementApi.get(`/history/${targetId}`),
   
