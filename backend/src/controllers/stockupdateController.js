@@ -2249,12 +2249,12 @@ async function listStockPickups(req, res, next) {
         SELECT 
           su.*,
           u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.name as product_name, p.model, p.brand,
+          p.device_name as product_name, p.device_model as model, p.device_type as brand,
           d.business_name as dealer_name, d.unique_id as dealer_unique_id
         FROM stock_updates su
         JOIN users u ON su.marketer_id = u.id
         JOIN products p ON su.product_id = p.id
-        JOIN dealers d ON su.dealer_id = d.id
+        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         ORDER BY su.created_at DESC
       `;
       params = [];
@@ -2264,12 +2264,12 @@ async function listStockPickups(req, res, next) {
         SELECT 
           su.*,
           u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.name as product_name, p.model, p.brand,
+          p.device_name as product_name, p.device_model as model, p.device_type as brand,
           d.business_name as dealer_name, d.unique_id as dealer_unique_id
         FROM stock_updates su
         JOIN users u ON su.marketer_id = u.id
         JOIN products p ON su.product_id = p.id
-        JOIN dealers d ON su.dealer_id = d.id
+        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         WHERE u.super_admin_id = $1
         ORDER BY su.created_at DESC
       `;
@@ -2280,12 +2280,12 @@ async function listStockPickups(req, res, next) {
         SELECT 
           su.*,
           u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.name as product_name, p.model, p.brand,
+          p.device_name as product_name, p.device_model as model, p.device_type as brand,
           d.business_name as dealer_name, d.unique_id as dealer_unique_id
         FROM stock_updates su
         JOIN users u ON su.marketer_id = u.id
         JOIN products p ON su.product_id = p.id
-        JOIN dealers d ON su.dealer_id = d.id
+        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         WHERE u.admin_id = $1
         ORDER BY su.created_at DESC
       `;
@@ -2296,12 +2296,12 @@ async function listStockPickups(req, res, next) {
         SELECT 
           su.*,
           u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.name as product_name, p.model, p.brand,
+          p.device_name as product_name, p.device_model as model, p.device_type as brand,
           d.business_name as dealer_name, d.unique_id as dealer_unique_id
         FROM stock_updates su
         JOIN users u ON su.marketer_id = u.id
         JOIN products p ON su.product_id = p.id
-        JOIN dealers d ON su.dealer_id = d.id
+        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
         WHERE su.marketer_id = $1
         ORDER BY su.created_at DESC
       `;
