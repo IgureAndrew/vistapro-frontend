@@ -105,11 +105,31 @@ export default function Wallet() {
     loadAll()
   }, [])
 
-  const maxWithdraw = Math.max(wallet.available_balance - 100, 0)
+  const WITHDRAWAL_FEE = 100;
+  const MIN_WITHDRAWAL = 1100;
+  const maxWithdraw = Math.max(wallet.available_balance - WITHDRAWAL_FEE, 0);
+  const canWithdraw = wallet.available_balance >= MIN_WITHDRAWAL;
 
   const handleChange = e => {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
+  }
+
+  const calculateNetAmount = (amount) => {
+    return Math.max(Number(amount) - WITHDRAWAL_FEE, 0);
+  }
+
+  const getValidationError = () => {
+    if (!canWithdraw) {
+      return `Insufficient balance. You need at least ₦${MIN_WITHDRAWAL.toLocaleString()} to withdraw (₦${(MIN_WITHDRAWAL - WITHDRAWAL_FEE).toLocaleString()} + ₦${WITHDRAWAL_FEE} fee).`;
+    }
+    if (form.amount && Number(form.amount) < MIN_WITHDRAWAL) {
+      return `Minimum withdrawal amount is ₦${MIN_WITHDRAWAL.toLocaleString()}.`;
+    }
+    if (form.amount && Number(form.amount) > maxWithdraw) {
+      return `Insufficient balance. You can withdraw up to ₦${maxWithdraw.toLocaleString()}.`;
+    }
+    return null;
   }
 
   const handleSubmit = async e => {
@@ -178,7 +198,7 @@ export default function Wallet() {
   return (
     <div className="w-full space-y-4 sm:space-y-6">
       {/* Account Summary */}
-      <div>
+          <div>
         <SectionHeader title="Account Summary" subtitle="Your wallet balance and available funds" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
           <MetricCard
@@ -205,8 +225,8 @@ export default function Wallet() {
             iconColor="text-orange-600"
             iconBgColor="bg-orange-100"
           />
-        </div>
-      </div>
+            </div>
+          </div>
 
       {/* Wallet Actions */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -240,7 +260,7 @@ export default function Wallet() {
                         <div className="p-2 bg-blue-100 rounded-full">
                           <ArrowUpCircle className="w-4 h-4 text-blue-600" />
                         </div>
-                        <div>
+          <div>
                           <p className="text-sm font-medium text-gray-900">Withdrawal Request</p>
                           <p className="text-xs text-gray-500">{new Date(withdrawal.requested_at).toLocaleDateString()}</p>
                         </div>
@@ -258,8 +278,8 @@ export default function Wallet() {
         </div>
       )}
                 </div>
-              </div>
             </div>
+          </div>
 
             {/* Wallet Summary */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -276,9 +296,9 @@ export default function Wallet() {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Withheld</span>
                   <span className="font-medium text-orange-600">₦{wallet.withheld_balance.toLocaleString()}</span>
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
           </TabsContent>
 
           {/* Transactions Tab */}
@@ -292,7 +312,7 @@ export default function Wallet() {
                   <div className="text-center py-8 text-gray-500">
                     <History className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p>No transactions found</p>
-                  </div>
+        </div>
                 ) : (
                   <div className="space-y-4">
                     {transactions.slice(0, 10).map((transaction, index) => (
@@ -310,8 +330,8 @@ export default function Wallet() {
                           <div>
                             <p className="text-sm font-medium text-gray-900">{transaction.description || 'Transaction'}</p>
                             <p className="text-xs text-gray-500">{new Date(transaction.created_at).toLocaleDateString()}</p>
-                          </div>
-                        </div>
+                </div>
+                </div>
                         <div className="text-right">
                           <p className={`text-sm font-medium ${
                             transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
@@ -319,7 +339,7 @@ export default function Wallet() {
                             {transaction.type === 'credit' ? '+' : '-'}₦{Number(transaction.amount).toLocaleString()}
                           </p>
                           {getStatusBadge(transaction.status)}
-                        </div>
+                </div>
                       </div>
                     ))}
               </div>
@@ -340,17 +360,41 @@ export default function Wallet() {
                     <input
                   type="number"
                   name="amount"
-                      value={form.amount}
-                      onChange={handleChange}
+                  value={form.amount}
+                  onChange={handleChange}
                       placeholder="₦ Amount"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  min="1"
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        !canWithdraw ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      }`}
+                  min={MIN_WITHDRAWAL}
                   max={maxWithdraw}
+                  disabled={!canWithdraw}
                   required
                 />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Available: ₦{maxWithdraw.toLocaleString()}
-                    </p>
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-gray-500">
+                        Available: ₦{wallet.available_balance.toLocaleString()}
+                      </p>
+                      {form.amount && Number(form.amount) >= MIN_WITHDRAWAL && (
+                        <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                          <div className="flex justify-between">
+                            <span>Requested:</span>
+                            <span>₦{Number(form.amount).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Withdrawal Fee:</span>
+                            <span>₦{WITHDRAWAL_FEE}</span>
+                          </div>
+                          <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                            <span>You will receive:</span>
+                            <span>₦{calculateNetAmount(form.amount).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+                      {getValidationError() && (
+                        <p className="text-xs text-red-600">{getValidationError()}</p>
+                      )}
+                    </div>
               </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Account Name</label>
@@ -396,14 +440,16 @@ export default function Wallet() {
             )}
                 <button
               type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !canWithdraw || getValidationError()}
                   className={`w-full py-3 px-4 rounded-lg font-medium ${
-                    submitting
+                    submitting || !canWithdraw || getValidationError()
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
                   }`}
                 >
-                  {submitting ? 'Submitting...' : 'Request Withdrawal'}
+                  {submitting ? 'Submitting...' : 
+                   !canWithdraw ? 'Insufficient Balance' : 
+                   'Request Withdrawal'}
                 </button>
           </form>
             </div>
@@ -443,8 +489,8 @@ export default function Wallet() {
                       ))}
                     </tbody>
                   </table>
-                    </div>
-              </div>
+                          </div>
+                        </div>
             )}
           </TabsContent>
         </Tabs>
@@ -462,28 +508,28 @@ export default function Wallet() {
                 {showDetailedBreakdown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 {showDetailedBreakdown ? 'Hide Details' : 'Show Details'}
               </button>
-            </div>
+                          </div>
             
             {showDetailedBreakdown && (
               <div className="space-y-4 sm:space-y-6">
                 {/* Personal Earnings */}
-                <div>
+                          <div>
                   <h4 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-3">Personal Earnings (Marketer Protocol)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 dark:text-gray-400">Total Personal</p>
                       <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.personal.total || 0).toLocaleString()}</p>
-                    </div>
+                          </div>
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 dark:text-gray-400">Available</p>
                       <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.personal.available || 0).toLocaleString()}</p>
-                    </div>
+                        </div>
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 dark:text-gray-400">Withheld</p>
                       <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.personal.withheld || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
                 {/* Team Management Earnings */}
                 <div>
@@ -492,16 +538,16 @@ export default function Wallet() {
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 dark:text-gray-400">Total Team</p>
                       <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.team.total || 0).toLocaleString()}</p>
-                    </div>
+            </div>
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                       <p className="text-sm text-gray-600 dark:text-gray-400">Available</p>
                       <p className="text-xl font-semibold text-gray-900 dark:text-white">₦{(breakdown.team.available || 0).toLocaleString()}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
               </div>
             )}
-          </div>
+                      </div>
         </div>
       )}
     </div>
