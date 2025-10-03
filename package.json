@@ -1,36 +1,16 @@
 {
-  "name": "vistapro",
+  "name": "vistapro-backend",
   "version": "1.0.0",
-  "description": "Vistapro - Local Development Setup",
+  "description": "Vistapro Backend API",
+  "main": "backend/start.js",
   "scripts": {
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "dev": "node start-servers.js",
-    "dev:reliable": "node start-dev-reliable.js",
-    "dev:ps1": "powershell -ExecutionPolicy Bypass -File start-servers.ps1",
-    "dev:simple": "node start-dev-simple.js",
-    "dev:backend": "node start-backend.js",
-    "dev:frontend": "node start-frontend.js",
-    "dev:old": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "build": "cd frontend && npm run build",
-    "start:backend": "cd backend && npm start",
-    "start:frontend": "cd frontend && npm run preview",
-    "db:start": "docker-compose up -d",
-    "db:stop": "docker-compose down",
-    "db:reset": "docker-compose down -v && docker-compose up -d",
-    "db:setup": "cd backend && node scripts/setup-local-db.js",
-    "db:logs": "docker-compose logs -f postgres"
+    "start": "cd backend && npm start",
+    "install": "cd backend && npm install"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
+  "engines": {
+    "node": "22.x"
   },
-  "keywords": [
-    "vistapro",
-    "development",
-    "local"
-  ],
+  "keywords": ["vistapro", "backend", "api"],
   "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "axios": "^1.12.2"
-  }
+  "license": "ISC"
 }
