@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, XCircle, Clock, Package, User, Calendar, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download, Eye } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { io } from 'socket.io-client'
 import api from '../api'
 import { useAlert } from '../hooks/useAlert'
 import AlertDialog from './AlertDialog'
@@ -31,6 +32,9 @@ const MasterAdminStockPickups = () => {
   const [userSummary, setUserSummary] = useState(null)
   const [loadingSummary, setLoadingSummary] = useState(false)
   
+  // WebSocket connection for real-time updates
+  const socketRef = useRef(null)
+  
   const { alert, showSuccess, showError, hideAlert } = useAlert()
 
   // Live clock for countdown
@@ -49,6 +53,59 @@ const MasterAdminStockPickups = () => {
       setCurrentPage(1)
     }
   }, [searchTerm, statusFilter, locationFilter])
+
+  // WebSocket setup for real-time updates
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    // Connect to WebSocket
+    socketRef.current = io(import.meta.env.VITE_API_URL, {
+      auth: { token }
+    })
+
+    // Listen for stock pickup updates
+    socketRef.current.on('stock_pickup_updated', (data) => {
+      console.log('Real-time stock pickup update:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for new stock pickups
+    socketRef.current.on('stock_pickup_created', (data) => {
+      console.log('New stock pickup created:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for stock pickup confirmations
+    socketRef.current.on('stock_pickup_confirmed', (data) => {
+      console.log('Stock pickup confirmed:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for stock pickup returns
+    socketRef.current.on('stock_pickup_returned', (data) => {
+      console.log('Stock pickup returned:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for stock pickup transfers
+    socketRef.current.on('stock_pickup_transferred', (data) => {
+      console.log('Stock pickup transferred:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
+    }
+  }, [])
 
   const loadStockPickups = async () => {
     try {
