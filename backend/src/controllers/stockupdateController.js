@@ -1528,6 +1528,9 @@ async function checkAdditionalPickupEligibility(req, res, next) {
     }
     
     // Check if there's already a pending additional pickup request (with error handling)
+    let cooldownActive = false;
+    let cooldownUntil = null;
+    
     try {
       const requestCheck = await pool.query(`
         SELECT COUNT(*) as pending_requests
@@ -1536,12 +1539,46 @@ async function checkAdditionalPickupEligibility(req, res, next) {
       `, [marketerId]);
       
       hasPendingRequest = parseInt(requestCheck.rows[0].pending_requests) > 0;
+      
+      // Check for cooldown (24 hours after rejection)
+      const cooldownCheck = await pool.query(`
+        SELECT reviewed_at
+        FROM additional_pickup_requests
+        WHERE marketer_id = $1 AND status = 'rejected'
+        ORDER BY reviewed_at DESC
+        LIMIT 1
+      `, [marketerId]);
+      
+      if (cooldownCheck.rows.length > 0) {
+        const rejectedAt = new Date(cooldownCheck.rows[0].reviewed_at);
+        const cooldownEnd = new Date(rejectedAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+        const now = new Date();
+        
+        if (now < cooldownEnd) {
+          cooldownActive = true;
+          cooldownUntil = cooldownEnd.toISOString();
+        }
+      }
     } catch (tableError) {
       console.log('additional_pickup_requests table does not exist, skipping check');
       hasPendingRequest = false;
+      cooldownActive = false;
     }
     
-    const isEligible = hasConfirmedOrder && !hasPendingCompletion && !hasPendingRequest;
+    const isEligible = hasConfirmedOrder && !hasPendingCompletion && !hasPendingRequest && !cooldownActive;
+    
+    let message = 'You are eligible for additional pickup request';
+    if (!hasConfirmedOrder) {
+      message = 'You must have at least one confirmed order to request additional pickup';
+    } else if (hasPendingCompletion) {
+      message = 'You must complete your current additional pickup before requesting another';
+    } else if (hasPendingRequest) {
+      message = 'You already have a pending additional pickup request';
+    } else if (cooldownActive) {
+      message = 'You must wait 24 hours after rejection before requesting additional pickup again';
+    } else if (!isEligible) {
+      message = 'You are not eligible for additional pickup request';
+    }
     
     res.json({
       success: true,
@@ -1549,9 +1586,9 @@ async function checkAdditionalPickupEligibility(req, res, next) {
       hasConfirmedOrder,
       hasPendingCompletion,
       hasPendingRequest,
-      message: isEligible 
-        ? 'You are eligible for additional pickup request'
-        : 'You are not eligible for additional pickup request'
+      cooldownActive,
+      cooldownUntil,
+      message
     });
     
   } catch (error) {
