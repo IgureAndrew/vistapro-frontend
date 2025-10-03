@@ -867,14 +867,25 @@ async function checkPickupEligibility(req, res, next) {
   try {
     const marketerId = req.user.id;
     
-    // Check if marketer has any active stock
+    // Check if marketer has any active stock (including pending returns/transfers)
     const { rows: activeStockRows } = await pool.query(`
       SELECT COUNT(*) as active_count
       FROM stock_updates 
-      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit')
+      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')
     `, [marketerId]);
     
     const activeStockCount = parseInt(activeStockRows[0].active_count);
+    
+    // Check for specific pending statuses
+    const { rows: pendingStatusRows } = await pool.query(`
+      SELECT status, COUNT(*) as count
+      FROM stock_updates 
+      WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending')
+      GROUP BY status
+    `, [marketerId]);
+    
+    const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
+    const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
     
     // Check if marketer is locked
     const { rows: userRows } = await pool.query(`
@@ -885,16 +896,26 @@ async function checkPickupEligibility(req, res, next) {
     
     const isEligible = !isLocked && activeStockCount === 0;
     
+    // Generate appropriate message
+    let message = 'You are eligible for stock pickup';
+    if (isLocked) {
+      message = 'Your account is locked. Contact your Admin or MasterAdmin.';
+    } else if (hasPendingReturn) {
+      message = 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.';
+    } else if (hasPendingTransfer) {
+      message = 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.';
+    } else if (activeStockCount > 0) {
+      message = 'You have active stock. Complete or return existing stock before picking up new stock.';
+    }
+    
     res.json({ 
       success: true, 
       eligible: isEligible,
       hasActiveStock: activeStockCount > 0,
+      hasPendingReturn: hasPendingReturn,
+      hasPendingTransfer: hasPendingTransfer,
       isLocked: isLocked,
-      message: isEligible 
-        ? 'You are eligible for stock pickup' 
-        : isLocked 
-          ? 'Your account is locked. Contact your Admin or MasterAdmin.'
-          : 'You have active stock. Complete or return existing stock before picking up new stock.'
+      message: message
     });
     
   } catch (error) {
@@ -953,20 +974,39 @@ async function createStockPickup(req, res, next) {
       });
     }
     
-    // Check if marketer has active stock
+    // Check if marketer has active stock (including pending returns/transfers)
     const { rows: activeStockRows } = await client.query(`
       SELECT COUNT(*) as active_count
       FROM stock_updates 
-      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit')
+      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')
     `, [marketerId]);
     
     const activeStockCount = parseInt(activeStockRows[0].active_count);
     
     if (activeStockCount > 0) {
+      // Check for specific pending statuses to provide better error message
+      const { rows: pendingStatusRows } = await client.query(`
+        SELECT status, COUNT(*) as count
+        FROM stock_updates 
+        WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending')
+        GROUP BY status
+      `, [marketerId]);
+      
+      const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
+      const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
+      
+      let errorMessage = `You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`;
+      
+      if (hasPendingReturn) {
+        errorMessage = 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.';
+      } else if (hasPendingTransfer) {
+        errorMessage = 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.';
+      }
+      
       await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
-        message: `You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`
+        message: errorMessage
       });
     }
     

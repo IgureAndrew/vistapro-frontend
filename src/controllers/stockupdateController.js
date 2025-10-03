@@ -206,21 +206,40 @@ const createStockUpdate = async (req, res, next) => {
     let allowance = 1; // Default to 1 unit per pickup
     let allowanceType = 'default';
 
-    // 3) Check for active stock (simplified - no completion tracking)
+    // 3) Check for active stock (including pending returns/transfers)
     const { rows: activeStockRows } = await client.query(
       `SELECT COUNT(*)::int AS cnt
          FROM stock_updates su
         WHERE su.marketer_id = $1 
-          AND su.status IN ('picked_up', 'in_transit')`,
+          AND su.status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')`,
       [marketerId]
     );
     const activeStockCount = activeStockRows[0].cnt;
 
     // 3.1) If user has active stock, prevent pickup (simplified - no violation tracking)
     if (activeStockCount > 0) {
+      // Check for specific pending statuses to provide better error message
+      const { rows: pendingStatusRows } = await client.query(`
+        SELECT status, COUNT(*) as count
+        FROM stock_updates 
+        WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending')
+        GROUP BY status
+      `, [marketerId]);
+      
+      const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
+      const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
+      
+      let errorMessage = `You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`;
+      
+      if (hasPendingReturn) {
+        errorMessage = 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.';
+      } else if (hasPendingTransfer) {
+        errorMessage = 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.';
+      }
+      
       await client.query('ROLLBACK');
       return res.status(400).json({
-        message: `You have ${activeStockCount} active stock unit(s). You must complete or return all active stock before picking up new stock.`,
+        message: errorMessage,
         activeStockCount
       });
     }
