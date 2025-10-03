@@ -655,7 +655,15 @@ async function getWalletsForAdmin(adminUid) {
 async function createWithdrawalRequest(userId, amount, { account_name, account_number, bank_name }) {
   await ensureWallet(userId);
 
-  // ─── 0) Enforce one‐per‐month for Admins & SuperAdmins ─────────────────────────
+  // ─── 0) Validate minimum withdrawal amount ───────────────────────────────────
+  const MIN_WITHDRAWAL = 1100; // ₦1,100 minimum
+  if (amount < MIN_WITHDRAWAL) {
+    const err = new Error(`Minimum withdrawal amount is ₦${MIN_WITHDRAWAL.toLocaleString()}. You requested ₦${amount.toLocaleString()}.`);
+    err.status = 400;
+    throw err;
+  }
+
+  // ─── 1) Enforce one‐per‐month for Admins & SuperAdmins ─────────────────────────
   const { rows: [userRow] } = await pool.query(
     `SELECT role FROM users WHERE unique_id = $1`,
     [userId]
@@ -676,7 +684,7 @@ async function createWithdrawalRequest(userId, amount, { account_name, account_n
     }
   }
 
-  // ─── 1) Proceed with normal withdrawal flow ───────────────────────────────────
+  // ─── 2) Proceed with normal withdrawal flow ───────────────────────────────────
   const fee       = WITHDRAWAL_FEE;
   const totalCost = amount + fee;
   const client    = await pool.connect();
@@ -691,9 +699,10 @@ async function createWithdrawalRequest(userId, amount, { account_name, account_n
     );
     const avail = Number(w?.available_balance || 0);
     if (avail < totalCost) {
-      const insuff = new Error(`Insufficient funds: ₦${avail.toLocaleString()}`);
-      insuff.status = 400;
-      throw insuff;
+      const shortfall = totalCost - avail;
+      const err = new Error(`Insufficient available balance. You have ₦${avail.toLocaleString()} available, but need ₦${totalCost.toLocaleString()} (₦${amount.toLocaleString()} + ₦${fee} withdrawal fee). You need ₦${shortfall.toLocaleString()} more.`);
+      err.status = 400;
+      throw err;
     }
 
     // b) insert the withdrawal request
