@@ -1020,7 +1020,7 @@ async function getUserSummary(userUniqueId) {
     LIMIT 5
   `, [userUniqueId]);
 
-  // 4) Get total order count and commission earned
+  // 4) Get total order count, sales, and commission breakdown
   const { rows: stats } = await pool.query(`
     SELECT
       COUNT(*) as total_orders,
@@ -1029,9 +1029,23 @@ async function getUserSummary(userUniqueId) {
         (SELECT SUM(amount)
          FROM wallet_transactions
          WHERE user_unique_id = $1
-           AND transaction_type LIKE '%commission%'
+           AND transaction_type = 'marketer_commission'
         ), 0
-      ) as total_commission
+      ) as total_commission_earned,
+      COALESCE(
+        (SELECT SUM(amount)
+         FROM wallet_transactions
+         WHERE user_unique_id = $1
+           AND transaction_type = 'marketer_commission_available'
+        ), 0
+      ) as withdrawable_commission,
+      COALESCE(
+        (SELECT SUM(amount)
+         FROM wallet_transactions
+         WHERE user_unique_id = $1
+           AND transaction_type = 'marketer_commission_withheld'
+        ), 0
+      ) as withheld_commission
     FROM orders
     WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
   `, [userUniqueId]);
@@ -1068,7 +1082,10 @@ async function getUserSummary(userUniqueId) {
     stats: {
       total_orders: Number(stats[0]?.total_orders || 0),
       total_sales: Number(stats[0]?.total_sales || 0),
-      total_commission: Number(stats[0]?.total_commission || 0),
+      total_commission_earned: Number(stats[0]?.total_commission_earned || 0),
+      withdrawable_commission: Number(stats[0]?.withdrawable_commission || 0),
+      withheld_commission: Number(stats[0]?.withheld_commission || 0),
+      commission_rate: 10000, // ₦10,000 per Android device
     },
     recent_transactions: transactions.map(t => ({
       type: t.transaction_type,
