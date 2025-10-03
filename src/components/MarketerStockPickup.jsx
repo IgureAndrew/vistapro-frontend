@@ -38,7 +38,11 @@ export default function MarketerStockPickup() {
     eligible: false,
     hasConfirmedOrder: false,
     hasPendingCompletion: false,
-    hasPendingRequest: false
+    hasPendingRequest: false,
+    hasPendingReturn: false,
+    hasPendingTransfer: false,
+    hasActiveStock: false,
+    isLocked: false
   })
   const [accountStatus, setAccountStatus] = useState({
     blocked: false,
@@ -131,7 +135,11 @@ export default function MarketerStockPickup() {
           eligible: false,
           hasConfirmedOrder: false,
           hasPendingCompletion: false,
-          hasPendingRequest: false
+          hasPendingRequest: false,
+          hasPendingReturn: false,
+          hasPendingTransfer: false,
+          hasActiveStock: false,
+          isLocked: false
         })
       })
   }
@@ -147,6 +155,18 @@ export default function MarketerStockPickup() {
   }
 
   function getEligibilityMessage() {
+    if (eligibilityInfo.isLocked) {
+      return 'Your account is locked. Contact your Admin or MasterAdmin.'
+    }
+    if (eligibilityInfo.hasPendingReturn) {
+      return 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.'
+    }
+    if (eligibilityInfo.hasPendingTransfer) {
+      return 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.'
+    }
+    if (eligibilityInfo.hasActiveStock) {
+      return 'You have active stock. Complete or return existing stock before picking up new stock.'
+    }
     if (!eligibilityInfo.hasConfirmedOrder) {
       return 'You must have at least one confirmed order to request additional pickup'
     }
@@ -579,7 +599,7 @@ export default function MarketerStockPickup() {
         variant={alert.variant}
       />
 
-      <form onSubmit={handleSubmit} className={`bg-white p-4 sm:p-6 rounded-lg shadow space-y-4 sm:space-y-6 ${accountStatus.blocked ? 'opacity-50 pointer-events-none' : ''}`}>
+      <form onSubmit={handleSubmit} className={`bg-white p-4 sm:p-6 rounded-lg shadow space-y-4 sm:space-y-6 ${accountStatus.blocked || !eligibilityInfo.eligible ? 'opacity-50 pointer-events-none' : ''}`}>
         {/* Dealer selector */}
         <div>
           <label className="block mb-2 font-medium text-sm sm:text-base">Dealer</label>
@@ -665,17 +685,48 @@ export default function MarketerStockPickup() {
             Your request was rejected. Try again in {rejectedCd}.
           </p>
         )}
-        {allowance === 1 && request_status === null && !eligibilityInfo.eligible && (
-          <p className="text-amber-700 text-sm">
-            💡 {getEligibilityMessage()}
-          </p>
+        {!eligibilityInfo.eligible && (
+          <div className={`p-3 rounded-lg text-sm ${
+            eligibilityInfo.isLocked 
+              ? 'bg-red-50 border border-red-200 text-red-700'
+              : eligibilityInfo.hasPendingReturn || eligibilityInfo.hasPendingTransfer
+              ? 'bg-orange-50 border border-orange-200 text-orange-700'
+              : 'bg-amber-50 border border-amber-200 text-amber-700'
+          }`}>
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                {eligibilityInfo.isLocked ? (
+                  <svg className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                ) : eligibilityInfo.hasPendingReturn || eligibilityInfo.hasPendingTransfer ? (
+                  <svg className="h-4 w-4 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="ml-2">
+                <p className="font-medium">{getEligibilityMessage()}</p>
+              </div>
+            </div>
+          </div>
         )}
 
         <button
           type="submit"
-          className="w-full bg-white text-black py-3 px-4 rounded-lg text-sm sm:text-base font-medium hover:bg-[#f59e0b] hover:text-white transition-colors focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-2 border-2 border-[#f59e0b]"
+          disabled={!eligibilityInfo.eligible || accountStatus.blocked}
+          className={`w-full py-3 px-4 rounded-lg text-sm sm:text-base font-medium transition-colors focus:ring-2 focus:ring-offset-2 border-2 ${
+            eligibilityInfo.eligible && !accountStatus.blocked
+              ? 'bg-white text-black hover:bg-[#f59e0b] hover:text-white border-[#f59e0b] focus:ring-[#f59e0b]'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
+          }`}
+          title={!eligibilityInfo.eligible ? getEligibilityMessage() : ''}
         >
-          Pick up
+          {!eligibilityInfo.eligible ? 'Cannot Pick Up' : 'Pick up'}
         </button>
       </form>
 
