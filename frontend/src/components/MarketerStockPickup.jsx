@@ -167,6 +167,10 @@ export default function MarketerStockPickup() {
     if (eligibilityInfo.hasActiveStock) {
       return 'You have active stock. Complete or return existing stock before picking up new stock.'
     }
+    return 'You are eligible for stock pickup'
+  }
+
+  function getAdditionalPickupEligibilityMessage() {
     if (!eligibilityInfo.hasConfirmedOrder) {
       return 'You must have at least one confirmed order to request additional pickup'
     }
@@ -176,7 +180,7 @@ export default function MarketerStockPickup() {
     if (eligibilityInfo.hasPendingRequest) {
       return 'You already have a pending additional pickup request'
     }
-    return 'You are not eligible for additional pickup request'
+    return 'You are eligible for additional pickup request'
   }
 
   // Track pickup completion (returned/transferred)
@@ -669,7 +673,7 @@ export default function MarketerStockPickup() {
                   ? 'bg-white text-black hover:bg-[#f59e0b] hover:text-white border-[#f59e0b]' 
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
               }`}
-              title={!eligibilityInfo.eligible ? getEligibilityMessage() : ''}
+              title={!eligibilityInfo.eligible ? getAdditionalPickupEligibilityMessage() : ''}
             >
               Request Additional Pickup
             </button>
@@ -710,7 +714,7 @@ export default function MarketerStockPickup() {
                 )}
               </div>
               <div className="ml-2">
-                <p className="font-medium">{getEligibilityMessage()}</p>
+                <p className="font-medium">{getAdditionalPickupEligibilityMessage()}</p>
               </div>
             </div>
           </div>
