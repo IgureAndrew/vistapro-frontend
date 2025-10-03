@@ -168,6 +168,14 @@ router.patch(
   ctrl.confirmReturnTransfer
 );
 
+// 19) Get user stock summary for popover (MasterAdmin only)
+router.get(
+  '/user/:userId/summary',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  ctrl.getUserStockSummary
+);
+
 // 19) Get pending confirmations for MasterAdmin
 router.get(
   '/pickup/pending-confirmations',

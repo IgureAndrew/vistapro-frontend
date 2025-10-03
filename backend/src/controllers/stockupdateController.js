@@ -2240,79 +2240,126 @@ async function listStockPickups(req, res, next) {
     const userId = req.user.id;
     const userUniqueId = req.user.unique_id;
 
-    let query;
-    let params;
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
+    // Search parameters
+    const search = req.query.search || '';
+    const statusFilter = req.query.status || '';
+    const locationFilter = req.query.location || '';
+
+    let baseQuery;
+    let countQuery;
+    let params = [];
+    let paramCount = 0;
+
+    // Build WHERE clause based on role
+    let whereClause = '';
     if (userRole === 'MasterAdmin') {
-      // MasterAdmin sees all pickups
-      query = `
-        SELECT 
-          su.*,
-          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.device_name as product_name, p.device_model as model, p.device_type as brand,
-          d.business_name as dealer_name, d.unique_id as dealer_unique_id
-        FROM stock_updates su
-        JOIN users u ON su.marketer_id = u.id
-        JOIN products p ON su.product_id = p.id
-        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
-        ORDER BY su.pickup_date DESC
-      `;
-      params = [];
+      // MasterAdmin sees all pickups - no additional WHERE clause needed
     } else if (userRole === 'SuperAdmin') {
-      // SuperAdmin sees pickups from their hierarchy
-      query = `
-        SELECT 
-          su.*,
-          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.device_name as product_name, p.device_model as model, p.device_type as brand,
-          d.business_name as dealer_name, d.unique_id as dealer_unique_id
-        FROM stock_updates su
-        JOIN users u ON su.marketer_id = u.id
-        JOIN products p ON su.product_id = p.id
-        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
-        WHERE u.super_admin_id = $1
-        ORDER BY su.pickup_date DESC
-      `;
-      params = [userId];
+      // SuperAdmin sees own pickups + assigned admins' marketers' pickups
+      whereClause = `WHERE (u.super_admin_id = $${++paramCount} OR u.id = $${++paramCount})`;
+      params.push(userId, userId);
     } else if (userRole === 'Admin') {
-      // Admin sees pickups from their assigned marketers
-      query = `
-        SELECT 
-          su.*,
-          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.device_name as product_name, p.device_model as model, p.device_type as brand,
-          d.business_name as dealer_name, d.unique_id as dealer_unique_id
-        FROM stock_updates su
-        JOIN users u ON su.marketer_id = u.id
-        JOIN products p ON su.product_id = p.id
-        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
-        WHERE u.admin_id = $1
-        ORDER BY su.pickup_date DESC
-      `;
-      params = [userId];
+      // Admin sees own pickups + assigned marketers' pickups
+      whereClause = `WHERE (u.admin_id = $${++paramCount} OR u.id = $${++paramCount})`;
+      params.push(userId, userId);
     } else {
       // Marketer sees only their own pickups
-      query = `
-        SELECT 
-          su.*,
-          u.first_name, u.last_name, u.unique_id as marketer_unique_id,
-          p.device_name as product_name, p.device_model as model, p.device_type as brand,
-          d.business_name as dealer_name, d.unique_id as dealer_unique_id
-        FROM stock_updates su
-        JOIN users u ON su.marketer_id = u.id
-        JOIN products p ON su.product_id = p.id
-        JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
-        WHERE su.marketer_id = $1
-        ORDER BY su.pickup_date DESC
-      `;
-      params = [userId];
+      whereClause = `WHERE u.id = $${++paramCount}`;
+      params.push(userId);
     }
 
-    const result = await pool.query(query, params);
+    // Add search filters
+    const searchConditions = [];
+    if (search) {
+      searchConditions.push(`(
+        u.first_name ILIKE $${++paramCount} OR 
+        u.last_name ILIKE $${++paramCount} OR 
+        u.unique_id ILIKE $${++paramCount} OR 
+        p.device_name ILIKE $${++paramCount} OR 
+        p.device_model ILIKE $${++paramCount} OR
+        su.id::text ILIKE $${++paramCount}
+      )`);
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+
+    if (statusFilter) {
+      searchConditions.push(`su.status = $${++paramCount}`);
+      params.push(statusFilter);
+    }
+
+    if (locationFilter) {
+      searchConditions.push(`u.location ILIKE $${++paramCount}`);
+      params.push(`%${locationFilter}%`);
+    }
+
+    // Combine WHERE clauses
+    const allConditions = [];
+    if (whereClause) allConditions.push(whereClause.replace('WHERE ', ''));
+    if (searchConditions.length > 0) allConditions.push(...searchConditions);
     
+    const finalWhereClause = allConditions.length > 0 ? `WHERE ${allConditions.join(' AND ')}` : '';
+
+    // Count query for pagination
+    countQuery = `
+      SELECT COUNT(*) as total
+      FROM stock_updates su
+      JOIN users u ON su.marketer_id = u.id
+      JOIN products p ON su.product_id = p.id
+      JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
+      ${finalWhereClause}
+    `;
+
+    // Main query with pagination
+    baseQuery = `
+      SELECT 
+        su.*,
+        u.first_name, u.last_name, u.unique_id as marketer_unique_id, u.location,
+        u.role as user_role,
+        p.device_name as product_name, p.device_model as model, p.device_type as brand,
+        d.business_name as dealer_name, d.unique_id as dealer_unique_id,
+        -- User hierarchy
+        admin_user.first_name as admin_first_name, admin_user.last_name as admin_last_name, 
+        admin_user.unique_id as admin_unique_id,
+        superadmin_user.first_name as superadmin_first_name, superadmin_user.last_name as superadmin_last_name,
+        superadmin_user.unique_id as superadmin_unique_id
+      FROM stock_updates su
+      JOIN users u ON su.marketer_id = u.id
+      JOIN products p ON su.product_id = p.id
+      JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
+      LEFT JOIN users admin_user ON u.admin_id = admin_user.id
+      LEFT JOIN users superadmin_user ON admin_user.super_admin_id = superadmin_user.id
+      ${finalWhereClause}
+      ORDER BY su.pickup_date DESC
+      LIMIT $${++paramCount} OFFSET $${++paramCount}
+    `;
+    params.push(limit, offset);
+
+    // Execute queries
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countQuery, params.slice(0, -2)), // Remove limit and offset for count
+      pool.query(baseQuery, params)
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
     res.json({
       success: true,
-      data: result.rows
+      data: dataResult.rows,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: total,
+        itemsPerPage: limit,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     });
 
   } catch (error) {
@@ -2362,5 +2409,99 @@ module.exports = {
   confirmOrder,
   confirmReturnTransferNew,
   getPendingOrderConfirmations,
-  getPendingReturnTransferConfirmations
+  getPendingReturnTransferConfirmations,
+  getUserStockSummary
 };
+
+/**
+ * GET /api/stock/user/:userId/summary
+ * Get user stock summary for popover (MasterAdmin only)
+ */
+async function getUserStockSummary(req, res, next) {
+  try {
+    if (req.user.role !== 'MasterAdmin') {
+      return res.status(403).json({ message: 'Only MasterAdmin can view user stock summaries' });
+    }
+
+    const userId = req.params.userId;
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Get user details
+    const { rows: userRows } = await pool.query(`
+      SELECT 
+        u.id, u.unique_id, u.first_name, u.last_name, u.role, u.location,
+        admin_user.first_name as admin_first_name, admin_user.last_name as admin_last_name,
+        admin_user.unique_id as admin_unique_id,
+        superadmin_user.first_name as superadmin_first_name, superadmin_user.last_name as superadmin_last_name,
+        superadmin_user.unique_id as superadmin_unique_id
+      FROM users u
+      LEFT JOIN users admin_user ON u.admin_id = admin_user.id
+      LEFT JOIN users superadmin_user ON admin_user.super_admin_id = superadmin_user.id
+      WHERE u.id = $1
+    `, [userId]);
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = userRows[0];
+
+    // Get all stock pickups for this user
+    const { rows: stockRows } = await pool.query(`
+      SELECT 
+        su.*,
+        p.device_name, p.device_model, p.device_type,
+        d.business_name as dealer_name, d.unique_id as dealer_unique_id
+      FROM stock_updates su
+      JOIN products p ON su.product_id = p.id
+      JOIN users d ON d.id = p.dealer_id AND d.role = 'Dealer'
+      WHERE su.marketer_id = $1
+      ORDER BY su.pickup_date DESC
+    `, [userId]);
+
+    // Calculate summary stats
+    const totalPickups = stockRows.length;
+    const pendingPickups = stockRows.filter(s => s.status === 'pending').length;
+    const soldPickups = stockRows.filter(s => s.status === 'sold' || 
+      (s.status === 'pending' && stockRows.some(o => o.stock_update_id === s.id))).length;
+    const returnedPickups = stockRows.filter(s => s.status === 'returned').length;
+    const expiredPickups = stockRows.filter(s => s.status === 'expired').length;
+    const returnPendingPickups = stockRows.filter(s => s.status === 'return_pending').length;
+    const transferPendingPickups = stockRows.filter(s => s.status === 'transfer_pending').length;
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        unique_id: user.unique_id,
+        name: `${user.first_name} ${user.last_name}`,
+        role: user.role,
+        location: user.location,
+        hierarchy: {
+          admin: user.admin_unique_id ? `${user.admin_first_name} ${user.admin_last_name} (${user.admin_unique_id})` : null,
+          superadmin: user.superadmin_unique_id ? `${user.superadmin_first_name} ${user.superadmin_last_name} (${user.superadmin_unique_id})` : null
+        }
+      },
+      summary: {
+        total: totalPickups,
+        pending: pendingPickups,
+        sold: soldPickups,
+        returned: returnedPickups,
+        expired: expiredPickups,
+        return_pending: returnPendingPickups,
+        transfer_pending: transferPendingPickups
+      },
+      stockPickups: stockRows
+    });
+
+  } catch (error) {
+    console.error('Get user stock summary error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load user stock summary',
+      error: error.message
+    });
+  }
+}
