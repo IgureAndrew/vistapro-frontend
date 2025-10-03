@@ -211,7 +211,7 @@ const createStockUpdate = async (req, res, next) => {
       `SELECT COUNT(*)::int AS cnt
          FROM stock_updates su
         WHERE su.marketer_id = $1 
-          AND su.status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')`,
+          AND su.status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending', 'pending_order')`,
       [marketerId]
     );
     const activeStockCount = activeStockRows[0].cnt;
@@ -408,8 +408,13 @@ async function placeOrder(req, res, next) {
       return res.status(400).json({ message: "Not enough quantity remaining on that pickup." });
     }
 
-    // 2) DO NOT modify stock pickup status or quantity - leave it as 'pending' until MasterAdmin confirms
-    // The stock pickup should remain unchanged until the order is confirmed by MasterAdmin
+    // 2) Update stock pickup status to 'pending_order' when order is placed
+    await client.query(`
+      UPDATE stock_updates
+         SET status = 'pending_order',
+             updated_at = NOW()
+       WHERE id = $1
+    `, [stock_update_id]);
 
     // 3) Create the order (pending until MasterAdmin confirms)
     const { rows: [order] } = await client.query(`
@@ -701,6 +706,7 @@ async function getStockUpdates(req, res, next) {
           WHEN su.status = 'transfer_pending' THEN 'Pending Transfer'
           WHEN su.status = 'transfer_approved' THEN 'Transfer Approved'
           WHEN su.status = 'transfer_rejected' THEN 'Transfer Rejected'
+          WHEN su.status = 'pending_order'    THEN 'Pending Order'
           WHEN EXISTS (
             SELECT 1
               FROM orders o
@@ -1083,6 +1089,7 @@ async function getStockUpdatesForAdmin(req, res, next) {
           WHEN su.status = 'transfer_pending' THEN 'Pending Transfer'
           WHEN su.status = 'transfer_approved' THEN 'Transfer Approved'
           WHEN su.status = 'transfer_rejected' THEN 'Transfer Rejected'
+          WHEN su.status = 'pending_order'    THEN 'Pending Order'
           WHEN EXISTS (
             SELECT 1
               FROM orders o
@@ -1888,6 +1895,78 @@ async function getPendingConfirmations(req, res, next) {
 }
 
 /**
+ * Auto-return expired stock pickups after 48 hours
+ * This function should be called by a cron job or scheduled task
+ */
+async function autoReturnExpiredPickups() {
+  try {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Find stock pickups that are expired (deadline passed) and still pending
+      const { rows: expiredPickups } = await client.query(`
+        SELECT id, marketer_id, product_id, quantity
+        FROM stock_updates
+        WHERE deadline < NOW()
+          AND status IN ('pending', 'pending_order')
+      `);
+      
+      for (const pickup of expiredPickups) {
+        // Update status to return_pending
+        await client.query(`
+          UPDATE stock_updates
+             SET status = 'return_pending',
+                 return_requested_at = NOW(),
+                 updated_at = NOW()
+           WHERE id = $1
+        `, [pickup.id]);
+        
+        // Notify the marketer
+        const { rows: [marketer] } = await client.query(`
+          SELECT unique_id FROM users WHERE id = $1
+        `, [pickup.marketer_id]);
+        
+        if (marketer?.unique_id) {
+          await client.query(`
+            INSERT INTO notifications (user_unique_id, message, created_at)
+            VALUES ($1, $2, NOW())
+          `, [
+            marketer.unique_id,
+            `Your stock pickup has expired and been automatically returned. Please wait for MasterAdmin confirmation.`
+          ]);
+        }
+        
+        // Notify MasterAdmins
+        await client.query(`
+          INSERT INTO notifications (user_unique_id, message, created_at)
+          SELECT unique_id, $1, NOW()
+          FROM users WHERE role = 'MasterAdmin'
+        `, [
+          `Stock pickup #${pickup.id} has expired and been automatically returned for confirmation.`
+        ]);
+      }
+      
+      await client.query('COMMIT');
+      
+      if (expiredPickups.length > 0) {
+        console.log(`Auto-returned ${expiredPickups.length} expired stock pickups`);
+      }
+      
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error('Error in auto-return expired pickups:', error);
+  }
+}
+
+/**
  * Confirm order and update pickup status to sold
  * This function is called when MasterAdmin confirms an order
  */
@@ -2444,6 +2523,7 @@ module.exports = {
   getBlockedAccounts,
   getUserViolationLogs,
   confirmOrder,
+  autoReturnExpiredPickups
   confirmReturnTransferNew,
   getPendingOrderConfirmations,
   getPendingReturnTransferConfirmations,

@@ -871,7 +871,7 @@ async function checkPickupEligibility(req, res, next) {
     const { rows: activeStockRows } = await pool.query(`
       SELECT COUNT(*) as active_count
       FROM stock_updates 
-      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending')
+      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending', 'pending_order')
     `, [marketerId]);
     
     const activeStockCount = parseInt(activeStockRows[0].active_count);
@@ -880,12 +880,13 @@ async function checkPickupEligibility(req, res, next) {
     const { rows: pendingStatusRows } = await pool.query(`
       SELECT status, COUNT(*) as count
       FROM stock_updates 
-      WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending')
+      WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending', 'pending_order')
       GROUP BY status
     `, [marketerId]);
     
     const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
     const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
+    const hasPendingOrder = pendingStatusRows.some(row => row.status === 'pending_order');
     
     // Check if marketer is locked
     const { rows: userRows } = await pool.query(`
@@ -904,6 +905,8 @@ async function checkPickupEligibility(req, res, next) {
       message = 'You have a pending return. Wait for MasterAdmin confirmation before picking up new stock.';
     } else if (hasPendingTransfer) {
       message = 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.';
+    } else if (hasPendingOrder) {
+      message = 'You have a pending order. Wait for MasterAdmin confirmation before picking up new stock.';
     } else if (activeStockCount > 0) {
       message = 'You have active stock. Complete or return existing stock before picking up new stock.';
     }
@@ -914,6 +917,7 @@ async function checkPickupEligibility(req, res, next) {
       hasActiveStock: activeStockCount > 0,
       hasPendingReturn: hasPendingReturn,
       hasPendingTransfer: hasPendingTransfer,
+      hasPendingOrder: hasPendingOrder,
       isLocked: isLocked,
       message: message
     });

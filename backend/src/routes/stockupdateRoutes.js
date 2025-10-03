@@ -176,6 +176,14 @@ router.get(
   ctrl.getUserStockSummary
 );
 
+// 20) Auto-return expired pickups (MasterAdmin only)
+router.post(
+  '/auto-return-expired',
+  verifyToken,
+  verifyRole(['MasterAdmin']),
+  ctrl.autoReturnExpiredPickups
+);
+
 // 19) Get pending confirmations for MasterAdmin
 router.get(
   '/pickup/pending-confirmations',
