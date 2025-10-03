@@ -940,11 +940,14 @@ async function createStockPickup(req, res, next) {
     const marketerUID = req.user.unique_id;
     const { dealer_id, product_id, quantity, deadline_days = 7 } = req.body;
     
+    // Force quantity to 1 (always 1 pickup per request)
+    const pickupQuantity = 1;
+    
     // Basic validation
-    if (!dealer_id || !product_id || !quantity || quantity < 1) {
+    if (!dealer_id || !product_id) {
       return res.status(400).json({
         success: false,
-        message: 'dealer_id, product_id, and quantity are required'
+        message: 'dealer_id and product_id are required'
       });
     }
     
@@ -1043,7 +1046,7 @@ async function createStockPickup(req, res, next) {
     
     // Create stock pickup
     const deadline = new Date();
-    deadline.setDate(deadline.getDate() + deadline_days);
+    deadline.setHours(deadline.getHours() + 48); // 48 hours
     
     const { rows: stockUpdateRows } = await client.query(`
       INSERT INTO stock_updates (
@@ -1051,9 +1054,45 @@ async function createStockPickup(req, res, next) {
         status, deadline, created_at
       ) VALUES ($1, $2, $3, $4, 'pending', $5, NOW())
       RETURNING id, status, deadline
-    `, [marketerId, dealer_id, product_id, quantity, deadline]);
+    `, [marketerId, dealer_id, product_id, pickupQuantity, deadline]);
     
     const stockUpdate = stockUpdateRows[0];
+    
+    // Reserve inventory items
+    const { rows: itemsToReserve } = await client.query(`
+      SELECT id FROM inventory_items
+      WHERE product_id = $1 AND status = 'available'
+      LIMIT $2 FOR UPDATE SKIP LOCKED
+    `, [product_id, pickupQuantity]);
+
+    if (itemsToReserve.length < pickupQuantity) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient inventory available for this product.'
+      });
+    }
+
+    const itemIds = itemsToReserve.map(r => r.id);
+    await client.query(`
+      UPDATE inventory_items
+      SET status = 'reserved', stock_update_id = $1
+      WHERE id = ANY($2::int[])
+    `, [stockUpdate.id, itemIds]);
+    
+    // Notify marketer's admin
+    const { rows: adminRows } = await client.query(`
+      SELECT u2.unique_id FROM users u
+      JOIN users u2 ON u.admin_id = u2.id
+      WHERE u.unique_id = $1
+    `, [marketerUID]);
+
+    if (adminRows[0]?.unique_id) {
+      await client.query(`
+        INSERT INTO notifications (user_unique_id, message, created_at)
+        VALUES ($1, $2, NOW())
+      `, [adminRows[0].unique_id, `Marketer ${marketerUID} picked up 1 unit of product ${product_id}.`]);
+    }
     
     await client.query('COMMIT');
     
@@ -1070,7 +1109,7 @@ async function createStockPickup(req, res, next) {
           model: product.model,
           brand: product.brand
         },
-        quantity: quantity
+        quantity: pickupQuantity
       }
     });
     
