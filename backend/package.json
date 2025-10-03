@@ -1,9 +1,9 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "start.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node start.js",
     "dev": "nodemon start-dev-enhanced.js",
     "dev:legacy": "nodemon server.js",
     "dev:old": "nodemon start-dev.js",
