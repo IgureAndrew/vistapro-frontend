@@ -723,9 +723,18 @@ const getUsers = async (req, res, next) => {
     const conditions = [];
     let paramCount = 0;
 
-    // Always exclude soft-deleted users unless explicitly requested
-    if (includeDeleted !== 'true') {
-      conditions.push('deleted = FALSE');
+    // Check if deleted column exists and handle accordingly
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'deleted'
+    `);
+    
+    const hasDeletedColumn = columnCheck.rows.length > 0;
+    
+    // Only filter by deleted column if it exists
+    if (hasDeletedColumn && includeDeleted !== 'true') {
+      conditions.push('(deleted = FALSE OR deleted IS NULL)');
     }
 
     // Search query (q) - search in name, email, unique_id
@@ -826,6 +835,59 @@ const getUserSummary = async (req, res, next) => {
       totalUsers: parseInt(totalResult.rows[0].count, 10),
       usersByRole: roleResult.rows,
       lockedUsers: parseInt(lockedResult.rows[0].count, 10)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Debug endpoint to check users table state
+ */
+const debugUsersTable = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'MasterAdmin') {
+      return res.status(403).json({ message: 'Only MasterAdmin can access debug endpoint' });
+    }
+
+    // Check if deleted column exists
+    const columnCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name IN ('deleted', 'deleted_at', 'deleted_by')
+      ORDER BY column_name
+    `);
+
+    // Get total user count
+    const totalResult = await pool.query('SELECT COUNT(*) FROM users');
+    
+    // Get deleted column stats if it exists
+    let deletedStats = null;
+    if (columnCheck.rows.some(row => row.column_name === 'deleted')) {
+      const deletedResult = await pool.query(`
+        SELECT 
+          COUNT(*) as total,
+          COUNT(CASE WHEN deleted = TRUE THEN 1 END) as deleted_true,
+          COUNT(CASE WHEN deleted = FALSE THEN 1 END) as deleted_false,
+          COUNT(CASE WHEN deleted IS NULL THEN 1 END) as deleted_null
+        FROM users
+      `);
+      deletedStats = deletedResult.rows[0];
+    }
+
+    // Get sample users
+    const sampleResult = await pool.query(`
+      SELECT id, unique_id, first_name, last_name, role, deleted, deleted_at
+      FROM users 
+      ORDER BY id 
+      LIMIT 10
+    `);
+
+    return res.status(200).json({
+      columns: columnCheck.rows,
+      totalUsers: parseInt(totalResult.rows[0].count, 10),
+      deletedStats,
+      sampleUsers: sampleResult.rows
     });
   } catch (error) {
     next(error);
@@ -982,7 +1044,7 @@ const getDashboardSummary = async (req, res, next) => {
     const totalUsersValue = parseInt(totalUsersAll.rows[0].total, 10);
     console.log('🔍 [DEBUG] Final totalUsers value being sent to frontend:', totalUsersValue);
     console.log('🔍 [DEBUG] Raw totalUsersAll.rows[0]:', totalUsersAll.rows[0]);
-    
+
     return res.status(200).json({
       // Current totals (all time)
       totalUsers: totalUsersValue,
@@ -1760,6 +1822,7 @@ module.exports = {
   unlockUser,
   getUsers,
   getUserSummary,
+  debugUsersTable,
   getDashboardSummary,
   assignMarketersToAdmin,
   assignAdminToSuperAdmin,

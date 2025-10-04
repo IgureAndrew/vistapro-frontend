@@ -114,6 +114,7 @@ router.get(
 router.get(   '/users',         verifyToken, verifyRole(['MasterAdmin']), getUsers);
 router.post(  '/users',         verifyToken, verifyRole(['MasterAdmin']), uploadPDF.single('registrationCertificate'), addUser);
 router.get(   '/users/summary', verifyToken, verifyRole(['MasterAdmin']), getUserSummary);
+router.get(   '/users/debug',   verifyToken, verifyRole(['MasterAdmin']), debugUsersTable);
 
 // --- Get users by location (for transfers) ---
 router.get('/users/location/:location', verifyToken, verifyRole(['Marketer', 'Admin', 'SuperAdmin', 'MasterAdmin']), async (req, res) => {
