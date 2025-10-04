@@ -2523,7 +2523,7 @@ module.exports = {
   getBlockedAccounts,
   getUserViolationLogs,
   confirmOrder,
-  autoReturnExpiredPickups
+  autoReturnExpiredPickups,
   confirmReturnTransferNew,
   getPendingOrderConfirmations,
   getPendingReturnTransferConfirmations,
