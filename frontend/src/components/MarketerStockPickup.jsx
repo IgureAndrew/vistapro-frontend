@@ -49,6 +49,7 @@ export default function MarketerStockPickup() {
     hasActiveStock: false,
     hasPendingReturn: false,
     hasPendingTransfer: false,
+    hasPendingOrder: false,
     isLocked: false,
     message: ''
   })
@@ -172,6 +173,7 @@ export default function MarketerStockPickup() {
           hasActiveStock: false,
           hasPendingReturn: false,
           hasPendingTransfer: false,
+          hasPendingOrder: false,
           isLocked: false,
           message: 'Failed to check eligibility'
         })
@@ -236,6 +238,9 @@ export default function MarketerStockPickup() {
     }
     if (eligibilityInfo.hasPendingTransfer) {
       return 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.'
+    }
+    if (eligibilityInfo.hasPendingOrder) {
+      return 'You have a pending order. Wait for MasterAdmin confirmation before picking up new stock.'
     }
     if (eligibilityInfo.hasActiveStock) {
       return 'You have active stock. Complete or return existing stock before picking up new stock.'
@@ -538,7 +543,7 @@ export default function MarketerStockPickup() {
     try {
       await api.post('/stock/pickup/request-additional')
       showInfo('Additional pickup requested—waiting for approval.', 'Request Submitted')
-        refreshAllowance()
+      refreshAllowance()
         checkEligibility()
         checkAdditionalPickupEligibility() // Refresh eligibility status
     } catch (err) {
@@ -598,7 +603,7 @@ export default function MarketerStockPickup() {
   }
 
   // Enhanced countdown helper with count-up functionality
-  function formatRemaining(ms) {
+  function formatRemaining(ms, status) {
     const isOverdue = ms < 0
     const absMs = Math.abs(ms)
     const hrs  = Math.floor(absMs / 3600000)
@@ -606,16 +611,18 @@ export default function MarketerStockPickup() {
     const secs = Math.floor((absMs % 60000) / 1000)
     
     if (isOverdue) {
+      // Red countup for overdue items
       return {
         text: `+${hrs}h ${mins}m ${secs}s`,
         className: 'text-red-600 font-bold',
         status: 'overdue'
       }
     } else {
+      // Green countdown for items within deadline
       return {
         text: `${hrs}h ${mins}m ${secs}s`,
         className: 'text-green-600',
-        status: 'pending'
+        status: status === 'pending_order' ? 'pending_order' : 'pending'
       }
     }
   }
@@ -832,11 +839,13 @@ export default function MarketerStockPickup() {
             : pickups.map(s => {
                 const diff      = new Date(s.deadline).getTime() - now
                 const remaining = s.status === 'pending'
-                  ? formatRemaining(diff)
+                  ? formatRemaining(diff, s.status)
+                  : s.status === 'pending_order'
+                    ? formatRemaining(diff, s.status)   // Continue countdown during pending order
                   : s.status === 'expired'
-                    ? formatRemaining(-diff)        // Always count-up (red)
+                    ? formatRemaining(-diff, s.status)  // Always count-up (red)
                   : s.status === 'return_pending' || s.status === 'transfer_pending'
-                    ? formatRemaining(diff)         // Countdown if before deadline, count-up if after
+                    ? formatRemaining(diff, s.status)   // Countdown if before deadline, count-up if after
                   : s.status === 'sold'
                     ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
                     : { text: '—', className: 'text-gray-500', status: 'completed' }
@@ -929,11 +938,13 @@ export default function MarketerStockPickup() {
                 : pickups.map(s => {
                     const diff      = new Date(s.deadline).getTime() - now
                     const remaining = s.status === 'pending'
-                      ? formatRemaining(diff)
+                      ? formatRemaining(diff, s.status)
+                      : s.status === 'pending_order'
+                        ? formatRemaining(diff, s.status)   // Continue countdown during pending order
                       : s.status === 'expired'
-                        ? formatRemaining(-diff)        // Always count-up (red)
+                        ? formatRemaining(-diff, s.status)  // Always count-up (red)
                       : s.status === 'return_pending' || s.status === 'transfer_pending'
-                        ? formatRemaining(diff)         // Countdown if before deadline, count-up if after
+                        ? formatRemaining(diff, s.status)   // Countdown if before deadline, count-up if after
                       : s.status === 'sold'
                         ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
                         : { text: '—', className: 'text-gray-500', status: 'completed' }

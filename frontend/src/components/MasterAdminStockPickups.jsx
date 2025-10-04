@@ -233,11 +233,11 @@ const MasterAdminStockPickups = () => {
     setCurrentPage(newPage)
   }
 
-  const formatCountdown = (deadline) => {
+  const formatCountdown = (deadline, status) => {
     const diff = new Date(deadline).getTime() - now
     
     if (diff >= 0) {
-      // Still pending - show remaining time (countdown)
+      // Still within deadline - show remaining time (countdown)
       const hrs = Math.floor(diff / 3_600_000)
       const mins = Math.floor((diff % 3_600_000) / 60_000)
       const secs = Math.floor((diff % 60_000) / 1_000)
@@ -245,17 +245,17 @@ const MasterAdminStockPickups = () => {
       return {
         type: 'countdown',
         text: `${hrs}h ${mins}m ${secs}s`,
-        color: 'text-green-600'
+        color: status === 'pending_order' ? 'text-purple-600' : 'text-green-600'
       }
     } else {
-      // Expired - show elapsed time (count-up)
+      // Overdue - show overdue time (countup)
       const elapsed = Math.abs(diff)
       const hrs = Math.floor(elapsed / 3_600_000)
       const mins = Math.floor((elapsed % 3_600_000) / 60_000)
       
       return {
         type: 'countup',
-        text: `Expired ${hrs}h ${mins}m ago`,
+        text: `+${hrs}h ${mins}m`,
         color: 'text-red-600'
       }
     }
@@ -264,6 +264,7 @@ const MasterAdminStockPickups = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       'Pending': { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+      'Pending Order': { color: 'bg-purple-100 text-purple-800', icon: Clock },
       'Sold': { color: 'bg-green-100 text-green-800', icon: CheckCircle },
       'Returned': { color: 'bg-orange-100 text-orange-800', icon: XCircle },
       'Transferred': { color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -370,6 +371,7 @@ const MasterAdminStockPickups = () => {
               >
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
+                <option value="pending_order">Pending Order</option>
                 <option value="sold">Sold</option>
                 <option value="returned">Returned</option>
                 <option value="transferred">Transferred</option>
@@ -393,7 +395,7 @@ const MasterAdminStockPickups = () => {
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-blue-600">{totalItems}</div>
@@ -422,6 +424,14 @@ const MasterAdminStockPickups = () => {
               {stockPickups.filter(p => p.status === 'return_pending').length}
             </div>
             <div className="text-sm text-gray-600">Pending Return</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-purple-600">
+              {stockPickups.filter(p => p.status === 'pending_order').length}
+            </div>
+            <div className="text-sm text-gray-600">Pending Order</div>
           </CardContent>
         </Card>
         <Card>
@@ -515,7 +525,7 @@ const MasterAdminStockPickups = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {stockPickups.map((pickup) => {
-                    const timer = pickup.deadline && !['sold', 'returned', 'transferred'].includes(pickup.status) ? formatCountdown(pickup.deadline) : null
+                    const timer = pickup.deadline && !['sold', 'returned', 'transferred'].includes(pickup.status) ? formatCountdown(pickup.deadline, pickup.status) : null
                     
                     return (
                       <tr key={pickup.id} className="hover:bg-gray-50">
