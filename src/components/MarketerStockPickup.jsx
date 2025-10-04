@@ -761,13 +761,13 @@ export default function MarketerStockPickup() {
             <button
               type="button"
               onClick={onRequestAdditional}
-              disabled={!eligibilityInfo.eligible}
+              disabled={!additionalPickupEligibility.eligible}
               className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm sm:text-base font-medium transition-colors border-2 ${
-                eligibilityInfo.eligible 
+                additionalPickupEligibility.eligible 
                   ? 'bg-white text-black hover:bg-[#f59e0b] hover:text-white border-[#f59e0b]' 
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
               }`}
-              title={!eligibilityInfo.eligible ? getAdditionalPickupEligibilityMessage() : ''}
+              title={!additionalPickupEligibility.eligible ? getAdditionalPickupEligibilityMessage() : ''}
             >
               Request Additional Pickup
             </button>
