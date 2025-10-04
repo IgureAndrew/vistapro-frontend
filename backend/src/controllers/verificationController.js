@@ -1343,7 +1343,7 @@ const deleteCommitmentSubmission = async (req, res, next) => {
 /**
  * getAllSubmissionsForMasterAdmin
  * Retrieves all verification submissions awaiting MasterAdmin approval
- * Uses the new verification workflow system (verification_submissions table) if available, otherwise falls back to legacy system
+ * Now includes both marketer verifications and admin/superadmin direct approvals
  */
 const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
   try {
@@ -1361,9 +1361,9 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
     const hasVerificationSubmissionsTable = tableCheck.rows[0].exists;
     
     if (hasVerificationSubmissionsTable) {
-      // Use new verification workflow system
-      const submissionsQuery = `
-      SELECT
+      // Get marketer verifications (full workflow)
+      const marketerSubmissionsQuery = `
+        SELECT
           vs.id as submission_id,
           vs.submission_status,
           vs.super_admin_id,
@@ -1380,6 +1380,7 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
           u.email as marketer_email,
           u.location as marketer_location,
           u.overall_verification_status,
+          u.role,
           admin.first_name as admin_first_name,
           admin.last_name as admin_last_name,
           admin.unique_id as admin_unique_id,
@@ -1394,12 +1395,36 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
         ORDER BY vs.updated_at DESC
       `;
       
-      const submissionsResult = await pool.query(submissionsQuery);
-      console.log(`✅ Found ${submissionsResult.rows.length} submissions awaiting MasterAdmin approval`);
+      // Get admin/superadmin direct approvals (no verification needed)
+      const adminSuperadminQuery = `
+        SELECT
+          u.id as user_id,
+          u.unique_id as user_unique_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.location,
+          u.overall_verification_status,
+          u.role,
+          u.created_at,
+          u.updated_at
+        FROM users u
+        WHERE u.role IN ('Admin', 'SuperAdmin')
+          AND u.overall_verification_status = 'masteradmin_approval_pending'
+          AND u.deleted = FALSE
+        ORDER BY u.updated_at DESC
+      `;
       
-      // For each submission, get the detailed form data
-      const submissionsWithDetails = await Promise.all(
-        submissionsResult.rows.map(async (submission) => {
+      const [marketerResult, adminSuperadminResult] = await Promise.all([
+        pool.query(marketerSubmissionsQuery),
+        pool.query(adminSuperadminQuery)
+      ]);
+      
+      console.log(`✅ Found ${marketerResult.rows.length} marketer verifications and ${adminSuperadminResult.rows.length} admin/superadmin approvals`);
+      
+      // Process marketer submissions with form details
+      const marketerSubmissions = await Promise.all(
+        marketerResult.rows.map(async (submission) => {
           try {
             // Get biodata
             const biodataResult = await pool.query(`
@@ -1424,21 +1449,45 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
             
             return {
               ...submission,
+              submission_type: 'marketer_verification',
               biodata: biodataResult.rows[0] || null,
               guarantor: guarantorResult.rows[0] || null,
               commitment: commitmentResult.rows[0] || null
             };
           } catch (error) {
             console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
-            return submission;
+            return {
+              ...submission,
+              submission_type: 'marketer_verification'
+            };
           }
         })
       );
       
+      // Process admin/superadmin approvals (no forms needed)
+      const adminSuperadminApprovals = adminSuperadminResult.rows.map(user => ({
+        user_id: user.user_id,
+        user_unique_id: user.user_unique_id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        location: user.location,
+        role: user.role,
+        overall_verification_status: user.overall_verification_status,
+        submission_type: 'admin_superadmin_approval',
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      }));
+      
+      // Combine all submissions
+      const allSubmissions = [...marketerSubmissions, ...adminSuperadminApprovals];
+      
       return res.json({
         success: true,
-        submissions: submissionsWithDetails,
-        total: submissionsWithDetails.length
+        submissions: allSubmissions,
+        total: allSubmissions.length,
+        marketer_verifications: marketerSubmissions.length,
+        admin_superadmin_approvals: adminSuperadminApprovals.length
       });
       
     } else {
@@ -3096,6 +3145,124 @@ const notifyMasterAdminOfNewSubmission = async (marketerFirstName, marketerLastN
   }
 };
 
+/**
+ * approveAdminSuperadmin
+ * Direct approval for Admin/SuperAdmin users (no forms, no verification needed)
+ */
+const approveAdminSuperadmin = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'MasterAdmin') {
+      return res.status(403).json({ message: 'Only MasterAdmin can approve Admin/SuperAdmin accounts' });
+    }
+
+    const { userId, action } = req.body; // action: 'approve' or 'reject'
+    
+    if (!userId || !action) {
+      return res.status(400).json({ message: 'User ID and action are required' });
+    }
+
+    // Check if user exists and is Admin/SuperAdmin
+    const userCheck = await pool.query(`
+      SELECT id, unique_id, first_name, last_name, role, overall_verification_status
+      FROM users 
+      WHERE id = $1 AND role IN ('Admin', 'SuperAdmin') AND deleted = FALSE
+    `, [userId]);
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Admin/SuperAdmin user not found' });
+    }
+
+    const user = userCheck.rows[0];
+
+    if (action === 'approve') {
+      // Approve the user
+      await pool.query(`
+        UPDATE users 
+        SET overall_verification_status = 'approved',
+            verification_completed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $1
+      `, [userId]);
+
+      // Send notification to user
+      await pool.query(`
+        INSERT INTO notifications (user_unique_id, message, created_at)
+        VALUES ($1, $2, NOW())
+      `, [
+        user.unique_id,
+        `Your ${user.role} account has been approved by MasterAdmin. You now have full access to the system.`
+      ]);
+
+      // Log the activity
+      await logActivity(
+        req.user.id,
+        `${req.user.first_name} ${req.user.last_name}`,
+        'Approve Admin/SuperAdmin',
+        'User',
+        user.unique_id
+      );
+
+      return res.json({
+        success: true,
+        message: `${user.role} ${user.first_name} ${user.last_name} has been approved successfully`,
+        user: {
+          id: user.id,
+          unique_id: user.unique_id,
+          name: `${user.first_name} ${user.last_name}`,
+          role: user.role
+        }
+      });
+
+    } else if (action === 'reject') {
+      const { reason } = req.body;
+      
+      // Reject the user
+      await pool.query(`
+        UPDATE users 
+        SET overall_verification_status = 'rejected',
+            updated_at = NOW()
+        WHERE id = $1
+      `, [userId]);
+
+      // Send notification to user
+      await pool.query(`
+        INSERT INTO notifications (user_unique_id, message, created_at)
+        VALUES ($1, $2, NOW())
+      `, [
+        user.unique_id,
+        `Your ${user.role} account approval was rejected by MasterAdmin.${reason ? ' Reason: ' + reason : ''} Please contact support.`
+      ]);
+
+      // Log the activity
+      await logActivity(
+        req.user.id,
+        `${req.user.first_name} ${req.user.last_name}`,
+        'Reject Admin/SuperAdmin',
+        'User',
+        user.unique_id
+      );
+
+      return res.json({
+        success: true,
+        message: `${user.role} ${user.first_name} ${user.last_name} has been rejected`,
+        user: {
+          id: user.id,
+          unique_id: user.unique_id,
+          name: `${user.first_name} ${user.last_name}`,
+          role: user.role
+        }
+      });
+
+    } else {
+      return res.status(400).json({ message: 'Invalid action. Must be "approve" or "reject"' });
+    }
+
+  } catch (error) {
+    console.error('Approve Admin/SuperAdmin error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitBiodata,
   submitGuarantor,
@@ -3121,5 +3288,6 @@ module.exports = {
   resetSubmissionStatus,
   getVerificationStatus,
   sendToSuperAdmin,
+  approveAdminSuperadmin,
 };
 

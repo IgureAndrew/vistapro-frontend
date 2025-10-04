@@ -38,6 +38,7 @@ const {
   resetSubmissionStatus,
   getVerificationStatus,
   sendToSuperAdmin,
+  approveAdminSuperadmin,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -180,6 +181,14 @@ router.get(
   verifyToken,
   verifyRole(["MasterAdmin"]),
   getVerificationWorkflowLogs
+);
+
+// MasterAdmin approves/rejects Admin/SuperAdmin directly (no verification needed)
+router.post(
+  "/admin-superadmin/approve",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  approveAdminSuperadmin
 );
 
 // Admin sees submissions for _their_ marketers
