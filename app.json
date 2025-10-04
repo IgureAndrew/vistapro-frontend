@@ -1,0 +1,30 @@
+{
+  "name": "Vistapro Backend",
+  "description": "Vistapro Backend API",
+  "repository": "https://github.com/IgureAndrew/vistapro-backend",
+  "logo": "",
+  "keywords": ["node", "express", "postgresql", "vistapro"],
+  "image": "heroku/nodejs",
+  "stack": "heroku-22",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "free"
+    }
+  },
+  "addons": [],
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    }
+  },
+  "scripts": {
+    "postdeploy": "cd backend && npm install"
+  }
+}
