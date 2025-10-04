@@ -26,6 +26,7 @@ const {
   checkPickupEligibility,
   createStockPickup,
   getStockPickups,
+  getRecentActivities,
 } = require('../controllers/marketerController');
 
 // ensure upload dirs exist
@@ -153,6 +154,13 @@ router.get(
   '/stock',
   verifyToken, verifyRole(['Marketer']),
   getStockPickups
+);
+
+// GET /api/marketer/recent-activities - Get marketer's recent activities
+router.get(
+  '/recent-activities',
+  verifyToken, verifyRole(['Marketer']),
+  getRecentActivities
 );
 
 module.exports = router;
