@@ -1,18 +1,21 @@
 {
-  "name": "vistapro-frontend",
+  "name": "vistapro-backend",
   "version": "1.0.0",
-  "description": "Vistapro Frontend Application",
-  "main": "frontend/src/main.jsx",
+  "description": "Vistapro Backend API",
+  "main": "backend/start.js",
   "scripts": {
-    "build": "cd frontend && npm run build",
-    "install": "cd frontend && npm install --legacy-peer-deps",
-    "dev": "cd frontend && npm run dev",
-    "preview": "cd frontend && npm run preview"
+    "start": "cd backend && npm start",
+    "install": "cd backend && npm install",
+    "build": "cd backend && npm install"
   },
   "engines": {
     "node": "22.x"
   },
-  "keywords": ["vistapro", "frontend", "react", "vite"],
-  "author": "",
-  "license": "ISC"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IgureAndrew/vistapro-backend.git"
+  },
+  "keywords": ["vistapro", "backend", "api"],
+  "author": "Vistapro Team",
+  "license": "MIT"
 }

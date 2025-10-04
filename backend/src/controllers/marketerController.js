@@ -867,11 +867,31 @@ async function checkPickupEligibility(req, res, next) {
   try {
     const marketerId = req.user.id;
     
+    // Check if pending_order enum value exists
+    const enumCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_enum 
+        WHERE enumlabel = 'pending_order' 
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'stock_update_status')
+      );
+    `);
+    
+    const hasPendingOrderEnum = enumCheck.rows[0].exists;
+    
+    // Build status list based on available enum values
+    let activeStatusList = "'picked_up', 'in_transit', 'return_pending', 'transfer_pending'";
+    let pendingStatusList = "'return_pending', 'transfer_pending'";
+    
+    if (hasPendingOrderEnum) {
+      activeStatusList += ", 'pending_order'";
+      pendingStatusList += ", 'pending_order'";
+    }
+    
     // Check if marketer has any active stock (including pending returns/transfers)
     const { rows: activeStockRows } = await pool.query(`
       SELECT COUNT(*) as active_count
       FROM stock_updates 
-      WHERE marketer_id = $1 AND status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending', 'pending_order')
+      WHERE marketer_id = $1 AND status IN (${activeStatusList})
     `, [marketerId]);
     
     const activeStockCount = parseInt(activeStockRows[0].active_count);
@@ -880,13 +900,13 @@ async function checkPickupEligibility(req, res, next) {
     const { rows: pendingStatusRows } = await pool.query(`
       SELECT status, COUNT(*) as count
       FROM stock_updates 
-      WHERE marketer_id = $1 AND status IN ('return_pending', 'transfer_pending', 'pending_order')
+      WHERE marketer_id = $1 AND status IN (${pendingStatusList})
       GROUP BY status
     `, [marketerId]);
     
     const hasPendingReturn = pendingStatusRows.some(row => row.status === 'return_pending');
     const hasPendingTransfer = pendingStatusRows.some(row => row.status === 'transfer_pending');
-    const hasPendingOrder = pendingStatusRows.some(row => row.status === 'pending_order');
+    const hasPendingOrder = hasPendingOrderEnum && pendingStatusRows.some(row => row.status === 'pending_order');
     
     // Check if marketer is locked
     const { rows: userRows } = await pool.query(`

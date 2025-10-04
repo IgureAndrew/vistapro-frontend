@@ -156,11 +156,11 @@ const MasterAdminStockPickups = () => {
   const loadAdditionalPickupRequests = async () => {
     try {
       setLoadingRequests(true)
-      const response = await api.get('/stock-pickup/requests')
+      const response = await api.get('/stock/pickup/requests')
       setAdditionalPickupRequests(response.data.requests || [])
     } catch (error) {
       console.error('Error loading additional pickup requests:', error)
-      // Don't show error to user as this is a secondary feature
+      showError('Failed to load additional pickup requests', 'Error')
     } finally {
       setLoadingRequests(false)
     }
@@ -215,7 +215,7 @@ const MasterAdminStockPickups = () => {
   const handleAdditionalPickupAction = async (requestId, action) => {
     try {
       setProcessing(requestId)
-      const response = await api.patch(`/stock-pickup/requests/${requestId}`, { action })
+      const response = await api.patch(`/stock/pickup/requests/${requestId}`, { action })
       
       if (response.data.message) {
         showSuccess(response.data.message, 'Request Updated')

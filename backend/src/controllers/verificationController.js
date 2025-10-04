@@ -4,6 +4,23 @@ const { pool } = require("../config/database");
 const uploadToCloudinary = require("../utils/uploadToCloudinary"); // Helper to upload file buffers to Cloudinary
 const sendSocketNotification = require("../utils/sendSocketNotification");
 
+// Helper function to check if verification_submissions table exists
+async function checkVerificationSubmissionsTable() {
+  try {
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'verification_submissions'
+      );
+    `);
+    return tableCheck.rows[0].exists;
+  } catch (error) {
+    console.error('Error checking verification_submissions table:', error);
+    return false;
+  }
+}
+
 /**
  * Helper function to create or update verification submission
  */
@@ -1350,20 +1367,12 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
     console.log('🔍 MasterAdmin submissions request');
     
     // First check if verification_submissions table exists
-    const tableCheck = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'verification_submissions'
-      );
-    `);
-    
-    const hasVerificationSubmissionsTable = tableCheck.rows[0].exists;
+    const hasVerificationSubmissionsTable = await checkVerificationSubmissionsTable();
     
     if (hasVerificationSubmissionsTable) {
       // Get marketer verifications (full workflow)
       const marketerSubmissionsQuery = `
-        SELECT
+      SELECT
           vs.id as submission_id,
           vs.submission_status,
           vs.super_admin_id,
@@ -1397,7 +1406,7 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
       
       // Get admin/superadmin direct approvals (no verification needed)
       const adminSuperadminQuery = `
-        SELECT
+      SELECT
           u.id as user_id,
           u.unique_id as user_unique_id,
           u.first_name,
@@ -1513,6 +1522,18 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
 const getApprovedSubmissionsForMasterAdmin = async (req, res, next) => {
   try {
     console.log('🔍 MasterAdmin approved submissions history request');
+    
+    // Check if verification_submissions table exists
+    const tableExists = await checkVerificationSubmissionsTable();
+    
+    if (!tableExists) {
+      console.log('⚠️ verification_submissions table does not exist, returning empty results');
+      return res.json({
+        success: true,
+        submissions: [],
+        message: 'Verification submissions table not found. Migration may be needed.'
+      });
+    }
     
     const { status = 'all' } = req.query; // 'approved', 'rejected', or 'all'
     
