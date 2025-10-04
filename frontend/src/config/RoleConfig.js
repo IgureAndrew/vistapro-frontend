@@ -51,7 +51,7 @@ import AdminSubmissionsNew from '../components/AdminSubmissionsNew';
 import SuperAdminSubmissionsNew from '../components/SuperAdminSubmissionsNew';
 import MasterAdminSubmissions from '../components/MasterAdminSubmissions';
 import MasterAdminBlockedAccounts from '../components/MasterAdminBlockedAccounts';
-import MarketerOverview from '../components/MarketerOverview';
+import MarketersOverview from '../components/MarketersOverview';
 
 export const ROLE_CONFIG = {
   masteradmin: {
@@ -181,7 +181,7 @@ export const ROLE_CONFIG = {
     icon: "Target",
     color: "#f59e0b",
     modules: [
-      { key: "overview", label: "Overview", icon: Home, component: MarketerOverview },
+      { key: "overview", label: "Overview", icon: Home, component: MarketersOverview },
       { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
       { key: "verification", label: "Verification", icon: CheckCircle, component: VerificationMarketer },
       { key: "stock-pickup", label: "Stock Pickup", icon: Package, component: MarketerStockPickup },
