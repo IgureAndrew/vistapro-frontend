@@ -1244,4 +1244,114 @@ module.exports = {
   checkPickupEligibility,
   createStockPickup,
   getStockPickups,
+  getRecentActivities,
 };
+
+/**
+ * getRecentActivities - Get recent activities for marketer
+ */
+async function getRecentActivities(req, res, next) {
+  try {
+    const marketerId = req.user.id;
+    const limit = parseInt(req.query.limit) || 10;
+    
+    console.log(`🔍 Fetching recent activities for marketer ID: ${marketerId}, limit: ${limit}`);
+    
+    // Get recent activities from stock updates and orders
+    const activitiesQuery = `
+      (
+        SELECT 
+          'stock_pickup' as type,
+          'Picked up ' || p.device_name || ' ' || p.device_model || ' (' || su.quantity || ' units)' as description,
+          su.pickup_date as timestamp,
+          su.status,
+          p.device_name,
+          p.device_model,
+          su.quantity,
+          su.id as reference_id,
+          'pickup' as category
+        FROM stock_updates su
+        JOIN products p ON su.product_id = p.id
+        WHERE su.marketer_id = $1
+        
+        UNION ALL
+        
+        SELECT 
+          'order_placed' as type,
+          'Order #' || o.id || ' - ' || o.device_name || ' ' || o.device_model || ' for ' || o.customer_name as description,
+          o.sale_date as timestamp,
+          o.status,
+          o.device_name,
+          o.device_model,
+          o.number_of_devices as quantity,
+          o.id as reference_id,
+          'order' as category
+        FROM orders o
+        WHERE o.marketer_id = $1
+        
+        UNION ALL
+        
+        SELECT 
+          'stock_return' as type,
+          'Returned ' || p.device_name || ' ' || p.device_model || ' (' || su.quantity || ' units)' as description,
+          su.updated_at as timestamp,
+          su.status,
+          p.device_name,
+          p.device_model,
+          su.quantity,
+          su.id as reference_id,
+          'return' as category
+        FROM stock_updates su
+        JOIN products p ON su.product_id = p.id
+        WHERE su.marketer_id = $1 AND su.status IN ('returned', 'transfer_approved')
+        
+        UNION ALL
+        
+        SELECT 
+          'stock_transfer' as type,
+          'Transferred ' || p.device_name || ' ' || p.device_model || ' (' || su.quantity || ' units)' as description,
+          su.updated_at as timestamp,
+          su.status,
+          p.device_name,
+          p.device_model,
+          su.quantity,
+          su.id as reference_id,
+          'transfer' as category
+        FROM stock_updates su
+        JOIN products p ON su.product_id = p.id
+        WHERE su.marketer_id = $1 AND su.status IN ('transfer_approved', 'transfer_rejected')
+      )
+      ORDER BY timestamp DESC
+      LIMIT $2
+    `;
+    
+    const result = await pool.query(activitiesQuery, [marketerId, limit]);
+    
+    console.log(`📊 Found ${result.rows.length} activities for marketer ${marketerId}`);
+    
+    const activities = result.rows.map(row => ({
+      id: row.reference_id,
+      type: row.type,
+      description: row.description,
+      timestamp: row.timestamp,
+      status: row.status,
+      device_name: row.device_name,
+      device_model: row.device_model,
+      quantity: row.quantity,
+      category: row.category
+    }));
+    
+    res.json({
+      success: true,
+      activities
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching marketer recent activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent activities',
+      error: error.message
+    });
+  }
+}

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "cd backend && npm start",
     "install": "cd backend && npm install",
-    "build": "cd backend && npm install"
+    "build": "cd backend && npm install",
+    "postinstall": "cd backend && npm install"
   },
   "engines": {
     "node": "22.x"

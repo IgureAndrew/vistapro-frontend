@@ -35,6 +35,8 @@ export default function MarketersOverview({ onNavigate }) {
     wallet:        0,
   });
   const [dateFilter, setDateFilter] = useState("All Time");
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // ── Live socket updates ────────────────────────────────────────
   useEffect(() => {
@@ -58,7 +60,9 @@ export default function MarketersOverview({ onNavigate }) {
   useEffect(() => {
     (async () => {
       try {
+        setIsLoading(true);
         const token = localStorage.getItem("token");
+        
         // fetch orders history
         const { data: orderData } = await api.get("/marketer/orders/history", {
           headers: { Authorization: `Bearer ${token}` },
@@ -83,8 +87,17 @@ export default function MarketersOverview({ onNavigate }) {
           ...prev,
           wallet: Number(walletData.wallet.available_balance) || 0,
         }));
+
+        // fetch recent activities
+        const { data: activitiesData } = await api.get("/marketer/recent-activities?limit=5", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setRecentActivity(activitiesData.activities || []);
+        
       } catch (err) {
         console.error("Error loading dashboard data:", err);
+      } finally {
+        setIsLoading(false);
       }
     })();
   }, []);
@@ -117,11 +130,68 @@ export default function MarketersOverview({ onNavigate }) {
     { key: 'stock-pickup', label: 'Stock Pickup', icon: Package, action: () => onNavigate('stock-pickup') }
   ];
 
-  const activityData = [
-    { id: 1, text: 'Order #5678 completed', time: '2 hours ago', icon: CheckCircle },
-    { id: 2, text: 'Commission earned: ₦2,400', time: '4 hours ago', icon: Wallet },
-    { id: 3, text: 'New order placed', time: '6 hours ago', icon: ShoppingCart }
-  ];
+  // Helper function to get activity icon
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'stock_pickup': return Package;
+      case 'order_placed': return ShoppingCart;
+      case 'stock_return': return Package;
+      case 'stock_transfer': return Package;
+      default: return Activity;
+    }
+  };
+
+  // Helper function to format time ago
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
+  // Helper function to get status color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'confirmed':
+      case 'released_confirmed':
+      case 'sold':
+        return 'text-green-600';
+      case 'pending':
+      case 'pending_order':
+        return 'text-yellow-600';
+      case 'returned':
+      case 'transfer_approved':
+        return 'text-blue-600';
+      case 'canceled':
+      case 'transfer_rejected':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  // Transform real activity data
+  const activityData = recentActivity.map(activity => {
+    const IconComponent = getActivityIcon(activity.type);
+    return {
+      id: activity.id,
+      text: activity.description,
+      time: formatTimeAgo(activity.timestamp),
+      icon: IconComponent,
+      status: activity.status,
+      statusColor: getStatusColor(activity.status),
+      device: activity.device_name + ' ' + activity.device_model,
+      quantity: activity.quantity,
+      type: activity.type
+    };
+  });
 
   if (isLoading) {
   return (
