@@ -1,24 +1,43 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, Clock, Package, User, Calendar, Search, Filter, RefreshCw } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Package, User, Calendar, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download, Eye } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { io } from 'socket.io-client'
 import api from '../api'
 import { useAlert } from '../hooks/useAlert'
 import AlertDialog from './AlertDialog'
 
 const MasterAdminStockPickups = () => {
   const [stockPickups, setStockPickups] = useState([])
-  const [filteredPickups, setFilteredPickups] = useState([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(null)
   const [now, setNow] = useState(Date.now())
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [itemsPerPage] = useState(10)
+  
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [locationFilter, setLocationFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  
+  // User summary popover states
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [userSummary, setUserSummary] = useState(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
+  
+  // Additional pickup requests states
+  const [additionalPickupRequests, setAdditionalPickupRequests] = useState([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  
+  // WebSocket connection for real-time updates
+  const socketRef = useRef(null)
   
   const { alert, showSuccess, showError, hideAlert } = useAlert()
 
@@ -30,19 +49,101 @@ const MasterAdminStockPickups = () => {
 
   useEffect(() => {
     loadStockPickups()
-  }, [])
+    loadAdditionalPickupRequests()
+  }, [currentPage, searchTerm, statusFilter, locationFilter])
 
-  // Filter pickups when search term or filters change
+  // Reset to first page when filters change
   useEffect(() => {
-    filterPickups()
-  }, [stockPickups, searchTerm, statusFilter, roleFilter])
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
+  }, [searchTerm, statusFilter, locationFilter])
+
+  // WebSocket setup for real-time updates
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    // Connect to WebSocket
+    socketRef.current = io(import.meta.env.VITE_API_URL, {
+      auth: { token }
+    })
+
+    // Listen for stock pickup updates
+    socketRef.current.on('stock_pickup_updated', (data) => {
+      console.log('Real-time stock pickup update:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for new stock pickups
+    socketRef.current.on('stock_pickup_created', (data) => {
+      console.log('New stock pickup created:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for stock pickup confirmations
+    socketRef.current.on('stock_pickup_confirmed', (data) => {
+      console.log('Stock pickup confirmed:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for stock pickup returns
+    socketRef.current.on('stock_pickup_returned', (data) => {
+      console.log('Stock pickup returned:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for stock pickup transfers
+    socketRef.current.on('stock_pickup_transferred', (data) => {
+      console.log('Stock pickup transferred:', data)
+      // Refresh the data
+      loadStockPickups()
+    })
+
+    // Listen for additional pickup request events
+    socketRef.current.on('additional_pickup_request_created', (data) => {
+      console.log('New additional pickup request:', data)
+      loadAdditionalPickupRequests()
+    })
+
+    socketRef.current.on('additional_pickup_request_approved', (data) => {
+      console.log('Additional pickup request approved:', data)
+      loadAdditionalPickupRequests()
+    })
+
+    socketRef.current.on('additional_pickup_request_rejected', (data) => {
+      console.log('Additional pickup request rejected:', data)
+      loadAdditionalPickupRequests()
+    })
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
+    }
+  }, [])
 
   const loadStockPickups = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/stock/')
-      if (response.data.data) {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage,
+        ...(searchTerm && { search: searchTerm }),
+        ...(statusFilter && { status: statusFilter }),
+        ...(locationFilter && { location: locationFilter })
+      })
+      
+      const response = await api.get(`/stock/?${params}`)
+      if (response.data.success) {
         setStockPickups(response.data.data)
+        setTotalPages(response.data.pagination.totalPages)
+        setTotalItems(response.data.pagination.totalItems)
       }
     } catch (error) {
       console.error('Error loading stock pickups:', error)
@@ -52,44 +153,91 @@ const MasterAdminStockPickups = () => {
     }
   }
 
-  const filterPickups = () => {
-    let filtered = stockPickups
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(pickup => 
-        pickup.marketer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pickup.marketer_unique_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pickup.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pickup.device_model?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+  const loadAdditionalPickupRequests = async () => {
+    try {
+      setLoadingRequests(true)
+      const response = await api.get('/stock-pickup/requests')
+      setAdditionalPickupRequests(response.data.requests || [])
+    } catch (error) {
+      console.error('Error loading additional pickup requests:', error)
+      // Don't show error to user as this is a secondary feature
+    } finally {
+      setLoadingRequests(false)
     }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(pickup => pickup.status === statusFilter)
-    }
-
-    // Role filter (we'll need to add role to the API response)
-    // For now, we'll filter by user type based on unique_id patterns
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter(pickup => {
-        const uid = pickup.marketer_unique_id || ''
-        if (roleFilter === 'marketer') return uid.startsWith('DSR')
-        if (roleFilter === 'admin') return uid.startsWith('ASM')
-        if (roleFilter === 'superadmin') return uid.startsWith('RSM')
-        return true
-      })
-    }
-
-    setFilteredPickups(filtered)
   }
 
-  const formatCountdown = (deadline) => {
+  const loadUserSummary = async (userId) => {
+    try {
+      setLoadingSummary(true)
+      const response = await api.get(`/stock/user/${userId}/summary`)
+      if (response.data.success) {
+        setUserSummary(response.data)
+      }
+    } catch (error) {
+      console.error('Error loading user summary:', error)
+      showError('Failed to load user summary', 'Error')
+    } finally {
+      setLoadingSummary(false)
+    }
+  }
+
+  const handleUserClick = (userId) => {
+    setSelectedUser(userId)
+    loadUserSummary(userId)
+  }
+
+  const exportUserSummary = () => {
+    if (!userSummary) return
+    
+    const csvContent = [
+      ['User', 'Role', 'Location', 'Total Pickups', 'Pending', 'Sold', 'Returned', 'Expired'],
+      [
+        userSummary.user.name,
+        userSummary.user.role,
+        userSummary.user.location,
+        userSummary.summary.total,
+        userSummary.summary.pending,
+        userSummary.summary.sold,
+        userSummary.summary.returned,
+        userSummary.summary.expired
+      ]
+    ].map(row => row.join(',')).join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${userSummary.user.unique_id}_stock_summary.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const handleAdditionalPickupAction = async (requestId, action) => {
+    try {
+      setProcessing(requestId)
+      const response = await api.patch(`/stock-pickup/requests/${requestId}`, { action })
+      
+      if (response.data.message) {
+        showSuccess(response.data.message, 'Request Updated')
+        loadAdditionalPickupRequests() // Refresh the list
+      }
+    } catch (error) {
+      console.error('Error updating additional pickup request:', error)
+      showError(error.response?.data?.message || 'Failed to update request', 'Error')
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage)
+  }
+
+  const formatCountdown = (deadline, status) => {
     const diff = new Date(deadline).getTime() - now
     
     if (diff >= 0) {
-      // Still pending - show remaining time (countdown)
+      // Still within deadline - show remaining time (countdown)
       const hrs = Math.floor(diff / 3_600_000)
       const mins = Math.floor((diff % 3_600_000) / 60_000)
       const secs = Math.floor((diff % 60_000) / 1_000)
@@ -97,17 +245,17 @@ const MasterAdminStockPickups = () => {
       return {
         type: 'countdown',
         text: `${hrs}h ${mins}m ${secs}s`,
-        color: 'text-green-600'
+        color: status === 'pending_order' ? 'text-purple-600' : 'text-green-600'
       }
     } else {
-      // Expired - show elapsed time (count-up)
+      // Overdue - show overdue time (countup)
       const elapsed = Math.abs(diff)
       const hrs = Math.floor(elapsed / 3_600_000)
       const mins = Math.floor((elapsed % 3_600_000) / 60_000)
       
       return {
         type: 'countup',
-        text: `Expired ${hrs}h ${mins}m ago`,
+        text: `+${hrs}h ${mins}m`,
         color: 'text-red-600'
       }
     }
@@ -116,6 +264,7 @@ const MasterAdminStockPickups = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       'Pending': { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+      'Pending Order': { color: 'bg-purple-100 text-purple-800', icon: Clock },
       'Sold': { color: 'bg-green-100 text-green-800', icon: CheckCircle },
       'Returned': { color: 'bg-orange-100 text-orange-800', icon: XCircle },
       'Transferred': { color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -220,45 +369,43 @@ const MasterAdminStockPickups = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Sold">Sold</option>
-                <option value="Returned">Returned</option>
-                <option value="Transferred">Transferred</option>
-                <option value="Expired">Expired</option>
-                <option value="Pending Return">Pending Return</option>
-                <option value="Pending Transfer">Pending Transfer</option>
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="pending_order">Pending Order</option>
+                <option value="sold">Sold</option>
+                <option value="returned">Returned</option>
+                <option value="transferred">Transferred</option>
+                <option value="expired">Expired</option>
+                <option value="return_pending">Pending Return</option>
+                <option value="transfer_pending">Pending Transfer</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">User Role</label>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
+              <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+              <input
+                type="text"
+                placeholder="Filter by location..."
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Roles</option>
-                <option value="marketer">Marketers</option>
-                <option value="admin">Admins</option>
-                <option value="superadmin">SuperAdmins</option>
-              </select>
+              />
             </div>
           </div>
         )}
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{stockPickups.length}</div>
+            <div className="text-2xl font-bold text-blue-600">{totalItems}</div>
             <div className="text-sm text-gray-600">Total Pickups</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-yellow-600">
-              {stockPickups.filter(p => p.status === 'Pending').length}
+              {stockPickups.filter(p => p.status === 'pending').length}
             </div>
             <div className="text-sm text-gray-600">Pending</div>
           </CardContent>
@@ -266,7 +413,7 @@ const MasterAdminStockPickups = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-green-600">
-              {stockPickups.filter(p => p.status === 'Sold').length}
+              {stockPickups.filter(p => p.status === 'sold').length}
             </div>
             <div className="text-sm text-gray-600">Sold</div>
           </CardContent>
@@ -281,22 +428,78 @@ const MasterAdminStockPickups = () => {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">
-              {stockPickups.filter(p => p.status === 'Expired').length}
+            <div className="text-2xl font-bold text-purple-600">
+              {stockPickups.filter(p => p.status === 'pending_order').length}
             </div>
-            <div className="text-sm text-gray-600">Expired</div>
+            <div className="text-sm text-gray-600">Pending Order</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-purple-600">
+              {additionalPickupRequests.length}
+            </div>
+            <div className="text-sm text-gray-600">Additional Requests</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Stock Pickups List */}
-      {filteredPickups.length === 0 ? (
+      {/* Additional Pickup Requests */}
+      {additionalPickupRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Package className="h-5 w-5 mr-2" />
+              Additional Pickup Requests ({additionalPickupRequests.length})
+            </CardTitle>
+            <CardDescription>
+              Pending requests for additional pickup allowance (up to 3 units)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {additionalPickupRequests.map((request) => (
+                <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <div className="font-medium">{request.marketer_name}</div>
+                    <div className="text-sm text-gray-600">{request.marketer_uid}</div>
+                    <div className="text-xs text-gray-500">
+                      Requested: {formatDate(request.requested_at)}
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleAdditionalPickupAction(request.id, 'approve')}
+                      disabled={processing === request.id}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {processing === request.id ? 'Processing...' : 'Approve'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleAdditionalPickupAction(request.id, 'reject')}
+                      disabled={processing === request.id}
+                    >
+                      {processing === request.id ? 'Processing...' : 'Reject'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stock Pickups Table */}
+      {stockPickups.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center">
             <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Stock Pickups Found</h3>
             <p className="text-gray-600">
-              {searchTerm || statusFilter !== 'all' || roleFilter !== 'all' 
+              {searchTerm || statusFilter || locationFilter 
                 ? 'Try adjusting your search or filters.' 
                 : 'No stock pickups have been created yet.'}
             </p>
@@ -304,88 +507,156 @@ const MasterAdminStockPickups = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredPickups.map((pickup) => {
-            // Only show timer if status is not completed (sold, returned, transferred)
-            const timer = pickup.deadline && !['sold', 'returned', 'transferred'].includes(pickup.status) ? formatCountdown(pickup.deadline) : null
-            const role = getRoleFromUniqueId(pickup.marketer_unique_id)
-            
-            return (
-              <Card key={pickup.id} className="border-l-4 border-l-blue-500">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Package className="h-5 w-5 text-gray-500" />
-                      <div>
-                        <CardTitle className="text-lg">
-                          {pickup.device_name} - {pickup.device_model}
-                        </CardTitle>
-                        <CardDescription>
-                          Pickup ID: {pickup.id} | Quantity: {pickup.quantity} | {pickup.dealer_name} ({pickup.dealer_location})
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {getStatusBadge(pickup.status)}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{pickup.marketer_name}</div>
-                        <div className="text-xs text-gray-500">{pickup.marketer_unique_id} ({role})</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <div className="text-sm text-gray-600">Pickup: {formatDate(pickup.pickup_date)}</div>
-                        {pickup.deadline && (
-                          <div className="text-xs text-gray-500">Deadline: {formatDate(pickup.deadline)}</div>
-                        )}
-                      </div>
-                    </div>
-                    {timer && (
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-gray-500" />
-                        <div className={`text-sm font-medium ${timer.color}`}>
-                          {timer.text}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+          {/* Table */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pickup Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Countdown</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {stockPickups.map((pickup) => {
+                    const timer = pickup.deadline && !['sold', 'returned', 'transferred'].includes(pickup.status) ? formatCountdown(pickup.deadline, pickup.status) : null
+                    
+                    return (
+                      <tr key={pickup.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button 
+                                className="text-left hover:text-blue-600 cursor-pointer"
+                                onClick={() => handleUserClick(pickup.marketer_id)}
+                              >
+                                <div className="text-sm font-medium text-gray-900">
+                                  {pickup.first_name} {pickup.last_name}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {pickup.marketer_unique_id} ({pickup.user_role}) - {pickup.location}
+                                </div>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-96 p-4">
+                              {loadingSummary ? (
+                                <div className="text-center py-4">Loading...</div>
+                              ) : userSummary ? (
+                                <div className="space-y-4">
+                                  <div className="border-b pb-2">
+                                    <h3 className="font-semibold text-lg">{userSummary.user.name}</h3>
+                                    <p className="text-sm text-gray-600">{userSummary.user.unique_id} ({userSummary.user.role})</p>
+                                    <p className="text-sm text-gray-600">{userSummary.user.location}</p>
+                                    {userSummary.user.hierarchy.admin && (
+                                      <p className="text-xs text-gray-500">Admin: {userSummary.user.hierarchy.admin}</p>
+                                    )}
+                                    {userSummary.user.hierarchy.superadmin && (
+                                      <p className="text-xs text-gray-500">SuperAdmin: {userSummary.user.hierarchy.superadmin}</p>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>Total: {userSummary.summary.total}</div>
+                                    <div>Pending: {userSummary.summary.pending}</div>
+                                    <div>Sold: {userSummary.summary.sold}</div>
+                                    <div>Returned: {userSummary.summary.returned}</div>
+                                    <div>Expired: {userSummary.summary.expired}</div>
+                                    <div>Return Pending: {userSummary.summary.return_pending}</div>
+                                  </div>
+                                  <div className="flex space-x-2">
+                                    <Button size="sm" onClick={exportUserSummary}>
+                                      <Download className="h-4 w-4 mr-1" />
+                                      Export
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-4">Click to load user summary</div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{pickup.product_name}</div>
+                          <div className="text-sm text-gray-500">{pickup.model}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {pickup.quantity}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDate(pickup.pickup_date)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {pickup.deadline ? formatDate(pickup.deadline) : '—'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {getStatusBadge(pickup.status)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {timer ? (
+                            <span className={timer.color}>{timer.text}</span>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          {pickup.status === 'return_pending' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirmReturn(pickup.id)}
+                              disabled={processing === pickup.id}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              {processing === pickup.id ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                  {pickup.transfer_to_name && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-700">
-                        <strong>Transfer to:</strong> {pickup.transfer_to_name} ({pickup.transfer_to_uid})
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  {pickup.status === 'return_pending' && (
-                    <div className="mt-4 flex justify-end space-x-2">
-                      <Button
-                        onClick={() => handleConfirmReturn(pickup.id)}
-                        disabled={processing === pickup.id}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {processing === pickup.id ? (
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                        )}
-                        Confirm Return
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
+          {/* Pagination */}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} results
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-gray-700">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

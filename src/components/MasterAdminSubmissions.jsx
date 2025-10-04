@@ -55,6 +55,8 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
     pendingApproval: 0,
     approved: 0,
     rejected: 0,
+    marketerVerifications: 0,
+    adminSuperadminApprovals: 0,
   });
 
   useEffect(() => {
@@ -86,6 +88,16 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         }
       );
       setSubmissions(response.data.submissions || []);
+      
+      // Update stats from response
+      if (response.data.marketer_verifications !== undefined) {
+        setStats(prev => ({
+          ...prev,
+          marketerVerifications: response.data.marketer_verifications,
+          adminSuperadminApprovals: response.data.admin_superadmin_approvals
+        }));
+      }
+      
       setError(null);
     } catch (err) {
       console.error("Error fetching MasterAdmin submissions:", err);
@@ -125,15 +137,32 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
     const allSubmissions = [...submissions, ...historySubmissions];
     
     const totalSubmissions = allSubmissions.length;
-    const pendingApproval = submissions.filter(s => s.submission_status === 'superadmin_verified' || s.submission_status === 'pending_masteradmin_approval').length;
-    const approved = allSubmissions.filter(s => s.submission_status === 'approved').length;
-    const rejected = allSubmissions.filter(s => s.submission_status === 'rejected').length;
+    const pendingApproval = submissions.filter(s => 
+      s.submission_type === 'marketer_verification' 
+        ? (s.submission_status === 'superadmin_verified' || s.submission_status === 'pending_masteradmin_approval')
+        : s.overall_verification_status === 'masteradmin_approval_pending'
+    ).length;
+    const approved = allSubmissions.filter(s => 
+      s.submission_type === 'marketer_verification' 
+        ? s.submission_status === 'approved'
+        : s.overall_verification_status === 'approved'
+    ).length;
+    const rejected = allSubmissions.filter(s => 
+      s.submission_type === 'marketer_verification' 
+        ? s.submission_status === 'rejected'
+        : s.overall_verification_status === 'rejected'
+    ).length;
+    
+    const marketerVerifications = submissions.filter(s => s.submission_type === 'marketer_verification').length;
+    const adminSuperadminApprovals = submissions.filter(s => s.submission_type === 'admin_superadmin_approval').length;
     
     setStats({
       totalSubmissions,
       pendingApproval,
       approved,
-      rejected
+      rejected,
+      marketerVerifications,
+      adminSuperadminApprovals
     });
   };
 
@@ -188,7 +217,15 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
   };
 
   const handleApproveReject = async () => {
-    if (!selectedSubmission || !approvalReason.trim()) {
+    if (!selectedSubmission) {
+      setAlertMessage("No submission selected.");
+      setAlertType("error");
+      setShowAlert(true);
+      return;
+    }
+
+    // For Admin/SuperAdmin approvals, reason is optional
+    if (selectedSubmission.submission_type === 'marketer_verification' && !approvalReason.trim()) {
       setAlertMessage(`Please provide a reason for ${approvalAction}.`);
       setAlertType("error");
       setShowAlert(true);
@@ -198,12 +235,28 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
     setProcessing(true);
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.post(
-        `${API_URL}/api/verification/masteradmin/approve/${selectedSubmission.submission_id}`,
-        { 
+      
+      // Determine endpoint and request body based on submission type
+      let endpoint, requestBody;
+      
+      if (selectedSubmission.submission_type === 'admin_superadmin_approval') {
+        endpoint = `${API_URL}/api/verification/admin-superadmin/approve`;
+        requestBody = {
+          userId: selectedSubmission.user_id,
+          action: approvalAction,
+          reason: approvalReason.trim() || null
+        };
+      } else {
+        endpoint = `${API_URL}/api/verification/masteradmin/approve/${selectedSubmission.submission_id}`;
+        requestBody = {
           action: approvalAction,
           reason: approvalReason
-        },
+        };
+      }
+
+      const response = await axios.post(
+        endpoint,
+        requestBody,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -212,7 +265,10 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
       );
 
       // Show success alert
-      setAlertMessage(`Verification ${approvalAction}d successfully!`);
+      const userType = selectedSubmission.submission_type === 'admin_superadmin_approval' 
+        ? selectedSubmission.role 
+        : 'marketer';
+      setAlertMessage(`${userType} ${approvalAction}d successfully!`);
       setAlertType("success");
       setShowAlert(true);
       
@@ -225,12 +281,12 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
       await fetchSubmissions();
       
     } catch (err) {
-      console.error(`Error ${approvalAction}ing verification:`, err);
+      console.error(`Error ${approvalAction}ing:`, err);
       
       // Show error alert with detailed message
       const errorMessage = err.response?.data?.message || 
                           err.message || 
-                          `Failed to ${approvalAction} verification.`;
+                          `Failed to ${approvalAction}.`;
       
       setAlertMessage(errorMessage);
       setAlertType("error");
@@ -283,7 +339,7 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
           MasterAdmin Submissions
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Review and approve verification packages from SuperAdmins.
+          Review and approve marketer verifications and Admin/SuperAdmin accounts.
         </p>
 
         {/* Tab Navigation */}
@@ -311,7 +367,7 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <Card className="bg-white dark:bg-gray-800 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -335,6 +391,32 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
             <CardContent>
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 {stats.pendingApproval}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-gray-800 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Marketer Verifications
+              </CardTitle>
+              <Users className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                {stats.marketerVerifications}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-gray-800 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Admin/SuperAdmin Approvals
+              </CardTitle>
+              <User className="h-4 w-4 text-orange-500 dark:text-orange-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                {stats.adminSuperadminApprovals}
               </div>
             </CardContent>
           </Card>
@@ -419,7 +501,10 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Marketer
+                      User
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Admin
@@ -439,93 +524,140 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredSubmissions.map((submission) => (
-                    <tr key={submission.submission_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                              <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                  {filteredSubmissions.map((submission) => {
+                    const isMarketerVerification = submission.submission_type === 'marketer_verification';
+                    const isAdminSuperadminApproval = submission.submission_type === 'admin_superadmin_approval';
+                    
+                    return (
+                      <tr key={submission.submission_id || submission.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                {isMarketerVerification 
+                                  ? `${submission.marketer_first_name} ${submission.marketer_last_name}`
+                                  : `${submission.first_name} ${submission.last_name}`
+                                }
+                              </div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {isMarketerVerification ? submission.marketer_email : submission.email}
+                              </div>
+                              {isMarketerVerification && (
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {submission.marketer_unique_id}
+                                </div>
+                              )}
+                              {isAdminSuperadminApproval && (
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {submission.user_unique_id}
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {submission.marketer_first_name} {submission.marketer_last_name}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {submission.marketer_email}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {submission.marketer_phone}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {submission.admin_first_name} {submission.admin_last_name}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {submission.admin_email}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {submission.superadmin_first_name} {submission.superadmin_last_name}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {submission.superadmin_email}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {submission.submission_created_at ? 
-                          format(new Date(submission.submission_created_at), 'MMM dd, yyyy') : 
-                          'N/A'
-                        }
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(submission.submission_status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Button
-                            onClick={() => handleViewSubmission(submission)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            size="sm"
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge 
+                            className={
+                              isMarketerVerification 
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                            }
                           >
-                            <Eye className="w-4 h-4 mr-1" />
-                            Review
-                          </Button>
-                          {(submission.submission_status === 'superadmin_verified' || submission.submission_status === 'pending_masteradmin_approval') && (
-                            <>
-                              <Button
-                                onClick={() => {
-                                  setApprovalAction("approve");
-                                  handleViewSubmission(submission);
-                                }}
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                                size="sm"
-                              >
-                                <ThumbsUp className="w-4 h-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  setApprovalAction("reject");
-                                  handleViewSubmission(submission);
-                                }}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                                size="sm"
-                              >
-                                <ThumbsDown className="w-4 h-4 mr-1" />
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {isMarketerVerification ? 'Marketer Verification' : `${submission.role} Approval`}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-white">
+                            {isMarketerVerification ? (
+                              <>
+                                {submission.admin_first_name} {submission.admin_last_name}
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {submission.admin_unique_id}
+                                </div>
+                              </>
+                            ) : (
+                              'N/A'
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-white">
+                            {isMarketerVerification ? (
+                              <>
+                                {submission.superadmin_first_name} {submission.superadmin_last_name}
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {submission.superadmin_unique_id}
+                                </div>
+                              </>
+                            ) : (
+                              'N/A'
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {isMarketerVerification 
+                            ? (submission.submission_created_at ? 
+                                format(new Date(submission.submission_created_at), 'MMM dd, yyyy') : 
+                                'N/A')
+                            : (submission.created_at ? 
+                                format(new Date(submission.created_at), 'MMM dd, yyyy') : 
+                                'N/A')
+                          }
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {isMarketerVerification 
+                            ? getStatusBadge(submission.submission_status)
+                            : getStatusBadge(submission.overall_verification_status)
+                          }
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <Button
+                              onClick={() => handleViewSubmission(submission)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              size="sm"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              Review
+                            </Button>
+                            {((isMarketerVerification && 
+                               (submission.submission_status === 'superadmin_verified' || submission.submission_status === 'pending_masteradmin_approval')) ||
+                              (isAdminSuperadminApproval && submission.overall_verification_status === 'masteradmin_approval_pending')) && (
+                              <>
+                                <Button
+                                  onClick={() => {
+                                    setApprovalAction("approve");
+                                    handleViewSubmission(submission);
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  size="sm"
+                                >
+                                  <ThumbsUp className="w-4 h-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    setApprovalAction("reject");
+                                    handleViewSubmission(submission);
+                                  }}
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                  size="sm"
+                                >
+                                  <ThumbsDown className="w-4 h-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -623,39 +755,63 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl max-h-[80vh] overflow-y-auto w-full">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Review Complete Verification Package
+                  {selectedSubmission?.submission_type === 'admin_superadmin_approval' 
+                    ? `Review ${selectedSubmission.role} Account Approval`
+                    : 'Review Complete Verification Package'
+                  }
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Review marketer forms, admin verification, and superadmin validation
+                  {selectedSubmission?.submission_type === 'admin_superadmin_approval' 
+                    ? `Review ${selectedSubmission.role} account details before making a decision. No forms required.`
+                    : 'Review marketer forms, admin verification, and superadmin validation'
+                  }
                 </p>
               </div>
             {selectedSubmission && (
               <div className="space-y-6">
-                {/* Marketer Information */}
+                {/* User Information */}
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Marketer Information
+                    {selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                      ? `${selectedSubmission.role} Information`
+                      : 'Marketer Information'
+                    }
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Name</label>
                       <p className="text-gray-900 dark:text-white">
-                        {selectedSubmission.marketer_first_name} {selectedSubmission.marketer_last_name}
+                        {selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                          ? `${selectedSubmission.first_name} ${selectedSubmission.last_name}`
+                          : `${selectedSubmission.marketer_first_name} ${selectedSubmission.marketer_last_name}`
+                        }
                       </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</label>
-                      <p className="text-gray-900 dark:text-white">{selectedSubmission.marketer_email}</p>
+                      <p className="text-gray-900 dark:text-white">
+                        {selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                          ? selectedSubmission.email
+                          : selectedSubmission.marketer_email
+                        }
+                      </p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</label>
-                      <p className="text-gray-900 dark:text-white">{selectedSubmission.marketer_phone}</p>
+                      <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        {selectedSubmission.submission_type === 'admin_superadmin_approval' ? 'Unique ID' : 'Phone'}
+                      </label>
+                      <p className="text-gray-900 dark:text-white">
+                        {selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                          ? selectedSubmission.user_unique_id
+                          : selectedSubmission.marketer_phone
+                        }
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Marketer Biodata Form */}
-                {selectedSubmission.forms?.biodata && (
+                {/* Marketer Biodata Form - Only show for marketer verifications */}
+                {selectedSubmission.submission_type === 'marketer_verification' && selectedSubmission.forms?.biodata && (
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                       Marketer Biodata Form
@@ -778,8 +934,8 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                   </div>
                 )}
 
-                {/* Guarantor Employment Form */}
-                {selectedSubmission.forms?.guarantor && (
+                {/* Guarantor Employment Form - Only show for marketer verifications */}
+                {selectedSubmission.submission_type === 'marketer_verification' && selectedSubmission.forms?.guarantor && (
                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                       Guarantor Employment Form
@@ -855,8 +1011,8 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                   </div>
                 )}
 
-                {/* Direct Sales Commitment Form */}
-                {selectedSubmission.forms?.commitment && (
+                {/* Direct Sales Commitment Form - Only show for marketer verifications */}
+                {selectedSubmission.submission_type === 'marketer_verification' && selectedSubmission.forms?.commitment && (
                   <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                       Direct Sales Commitment Form
@@ -957,8 +1113,8 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                   </div>
                 )}
 
-                {/* Admin Verification Details */}
-                {selectedSubmission.forms?.admin_verification && (
+                {/* Admin Verification Details - Only show for marketer verifications */}
+                {selectedSubmission.submission_type === 'marketer_verification' && selectedSubmission.forms?.admin_verification && (
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                       Admin Verification Details
@@ -1055,20 +1211,35 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                 )}
 
                 {/* Approval/Rejection */}
-                {(selectedSubmission.submission_status === 'superadmin_verified' || selectedSubmission.submission_status === 'pending_masteradmin_approval') && (
+                {((selectedSubmission.submission_type === 'marketer_verification' && 
+                   (selectedSubmission.submission_status === 'superadmin_verified' || selectedSubmission.submission_status === 'pending_masteradmin_approval')) ||
+                  (selectedSubmission.submission_type === 'admin_superadmin_approval' && 
+                   selectedSubmission.overall_verification_status === 'masteradmin_approval_pending')) && (
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                      {approvalAction === 'approve' ? 'Approve Verification' : 'Reject Verification'}
+                      {approvalAction === 'approve' 
+                        ? (selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                           ? `Approve ${selectedSubmission.role} Account` 
+                           : 'Approve Verification')
+                        : (selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                           ? `Reject ${selectedSubmission.role} Account` 
+                           : 'Reject Verification')
+                      }
                     </h3>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         {approvalAction === 'approve' ? 'Approval Reason' : 'Rejection Reason'}
+                        {selectedSubmission.submission_type === 'admin_superadmin_approval' && approvalAction === 'approve' && (
+                          <span className="text-gray-500 text-xs ml-2">(Optional for Admin/SuperAdmin)</span>
+                        )}
                       </label>
                       <textarea
                         value={approvalReason}
                         onChange={(e) => setApprovalReason(e.target.value)}
                         placeholder={approvalAction === 'approve' ? 
-                          "Enter reason for approval..." : 
+                          (selectedSubmission.submission_type === 'admin_superadmin_approval' 
+                           ? "Enter reason for approval (optional)..." 
+                           : "Enter reason for approval...") : 
                           "Enter reason for rejection..."
                         }
                         className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -1087,16 +1258,19 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                 >
                   Close
                 </Button>
-                {(selectedSubmission?.submission_status === 'superadmin_verified' || selectedSubmission?.submission_status === 'pending_masteradmin_approval') && (
+                {((selectedSubmission?.submission_type === 'marketer_verification' && 
+                   (selectedSubmission?.submission_status === 'superadmin_verified' || selectedSubmission?.submission_status === 'pending_masteradmin_approval')) ||
+                  (selectedSubmission?.submission_type === 'admin_superadmin_approval' && 
+                   selectedSubmission?.overall_verification_status === 'masteradmin_approval_pending')) && (
                   <Button
                     onClick={handleApproveReject}
-                    disabled={processing || !approvalReason.trim()}
+                    disabled={processing || (selectedSubmission?.submission_type === 'marketer_verification' && !approvalReason.trim())}
                     className={approvalAction === 'approve' ? 
                       "bg-green-600 hover:bg-green-700" : 
                       "bg-red-600 hover:bg-red-700"
                     }
                   >
-                    {processing ? "Processing..." : `${approvalAction === 'approve' ? 'Approve' : 'Reject'} Verification`}
+                    {processing ? "Processing..." : `${approvalAction === 'approve' ? 'Approve' : 'Reject'} ${selectedSubmission?.submission_type === 'admin_superadmin_approval' ? selectedSubmission.role : 'Verification'}`}
                   </Button>
                 )}
               </div>

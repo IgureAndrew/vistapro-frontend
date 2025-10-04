@@ -5,6 +5,7 @@ import AlertDialog from './ui/alert-dialog'
 import { useAlert } from '../hooks/useAlert'
 import { formatCurrency } from '../utils/currency'
 import TransferPopover from './TransferPopover'
+import { io } from 'socket.io-client'
 
 // Import mobile-first components
 import MobileTable from "./MobileTable";
@@ -31,18 +32,26 @@ export default function MarketerStockPickup() {
   const [transferringId, setTransferringId] = useState(null)
   const [transferTarget, setTransferTarget] = useState('')
   const [hasConfirmedOrders, setHasConfirmedOrders] = useState(false)
+  const [additionalPickupEligibility, setAdditionalPickupEligibility] = useState({
+    eligible: false,
+    hasConfirmedOrder: false,
+    hasPendingCompletion: false,
+    hasPendingRequest: false,
+    cooldownActive: false,
+    cooldownUntil: null,
+    message: ''
+  })
   const [showTransferPopover, setShowTransferPopover] = useState(false)
   const [currentStockId, setCurrentStockId] = useState(null)
   const [currentUserLocation, setCurrentUserLocation] = useState('')
   const [eligibilityInfo, setEligibilityInfo] = useState({
     eligible: false,
-    hasConfirmedOrder: false,
-    hasPendingCompletion: false,
-    hasPendingRequest: false,
+    hasActiveStock: false,
     hasPendingReturn: false,
     hasPendingTransfer: false,
-    hasActiveStock: false,
-    isLocked: false
+    hasPendingOrder: false,
+    isLocked: false,
+    message: ''
   })
   const [accountStatus, setAccountStatus] = useState({
     blocked: false,
@@ -57,6 +66,33 @@ export default function MarketerStockPickup() {
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(iv)
+  }, [])
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const socket = io(import.meta.env.VITE_API_URL, {
+      auth: { token }
+    })
+
+    // Listen for additional pickup request updates
+    socket.on('additional_pickup_request_approved', (data) => {
+      console.log('Additional pickup request approved:', data)
+      refreshAllowance()
+      checkAdditionalPickupEligibility()
+    })
+
+    socket.on('additional_pickup_request_rejected', (data) => {
+      console.log('Additional pickup request rejected:', data)
+      refreshAllowance()
+      checkAdditionalPickupEligibility()
+    })
+
+    return () => {
+      socket.disconnect()
+    }
   }, [])
 
   // Initial load: dealers, allowance, pickups, confirmed orders
@@ -93,6 +129,7 @@ export default function MarketerStockPickup() {
     loadCurrentUserLocation()
     checkEligibility()
     checkAccountStatus()
+    checkAdditionalPickupEligibility()
   }, [])
 
   // Load current user location
@@ -102,7 +139,7 @@ export default function MarketerStockPickup() {
   }
 
   function checkEligibility() {
-    api.get('/stock/pickup/eligibility')
+    api.get('/marketer/stock/pickup/eligibility')
       .then(r => {
         setEligibilityInfo(r.data)
         console.log('Eligibility check:', r.data)
@@ -133,13 +170,12 @@ export default function MarketerStockPickup() {
         // Set fallback eligibility info
         setEligibilityInfo({
           eligible: false,
-          hasConfirmedOrder: false,
-          hasPendingCompletion: false,
-          hasPendingRequest: false,
+          hasActiveStock: false,
           hasPendingReturn: false,
           hasPendingTransfer: false,
-          hasActiveStock: false,
-          isLocked: false
+          hasPendingOrder: false,
+          isLocked: false,
+          message: 'Failed to check eligibility'
         })
       })
   }
@@ -154,6 +190,45 @@ export default function MarketerStockPickup() {
     })
   }
 
+  function checkAdditionalPickupEligibility() {
+    api.get('/stock/pickup/eligibility')
+      .then(r => {
+        setAdditionalPickupEligibility(r.data)
+        console.log('Additional pickup eligibility check:', r.data)
+      })
+      .catch(err => {
+        console.error('Additional pickup eligibility check failed:', err)
+        
+        const errorData = err.response?.data
+        const statusCode = err.response?.status
+        
+        let errorMessage = 'Failed to check additional pickup eligibility'
+        
+        if (statusCode === 403) {
+          errorMessage = 'Access denied. Please contact your Admin.'
+        } else if (statusCode === 404) {
+          errorMessage = 'Additional pickup eligibility service not found. Please refresh and try again.'
+        } else if (statusCode === 500) {
+          errorMessage = 'Server error occurred. Please try again in a moment.'
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = errorData?.message || 'Unable to check additional pickup eligibility. Please try again.'
+        }
+        
+        // Set fallback eligibility info
+        setAdditionalPickupEligibility({
+          eligible: false,
+          hasConfirmedOrder: false,
+          hasPendingCompletion: false,
+          hasPendingRequest: false,
+          cooldownActive: false,
+          cooldownUntil: null,
+          message: errorMessage
+        })
+      })
+  }
+
   function getEligibilityMessage() {
     if (eligibilityInfo.isLocked) {
       return 'Your account is locked. Contact your Admin or MasterAdmin.'
@@ -164,19 +239,38 @@ export default function MarketerStockPickup() {
     if (eligibilityInfo.hasPendingTransfer) {
       return 'You have a pending transfer. Wait for MasterAdmin confirmation before picking up new stock.'
     }
+    if (eligibilityInfo.hasPendingOrder) {
+      return 'You have a pending order. Wait for MasterAdmin confirmation before picking up new stock.'
+    }
     if (eligibilityInfo.hasActiveStock) {
       return 'You have active stock. Complete or return existing stock before picking up new stock.'
     }
-    if (!eligibilityInfo.hasConfirmedOrder) {
+    return 'You are eligible for stock pickup'
+  }
+
+  function getAdditionalPickupEligibilityMessage() {
+    if (additionalPickupEligibility.cooldownActive && additionalPickupEligibility.cooldownUntil) {
+      const cooldownMs = new Date(additionalPickupEligibility.cooldownUntil).getTime() - now
+      if (cooldownMs > 0) {
+        const hours = Math.floor(cooldownMs / 3600000)
+        const minutes = Math.floor((cooldownMs % 3600000) / 60000)
+        return `You must wait ${hours}h ${minutes}m before requesting additional pickup again`
+      }
+    }
+    
+    if (!additionalPickupEligibility.hasConfirmedOrder) {
       return 'You must have at least one confirmed order to request additional pickup'
     }
-    if (eligibilityInfo.hasPendingCompletion) {
+    
+    if (additionalPickupEligibility.hasPendingCompletion) {
       return 'You must complete your current additional pickup before requesting another'
     }
-    if (eligibilityInfo.hasPendingRequest) {
+    
+    if (additionalPickupEligibility.hasPendingRequest) {
       return 'You already have a pending additional pickup request'
     }
-    return 'You are not eligible for additional pickup request'
+    
+    return additionalPickupEligibility.message || 'You are eligible for additional pickup request'
   }
 
   // Track pickup completion (returned/transferred)
@@ -195,6 +289,7 @@ export default function MarketerStockPickup() {
         )
         loadPickups() // Refresh the pickups list
         checkEligibility() // Refresh eligibility status
+        checkAdditionalPickupEligibility() // Refresh additional pickup eligibility
       }
     } catch (error) {
       console.error('Error tracking completion:', error)
@@ -449,7 +544,8 @@ export default function MarketerStockPickup() {
       await api.post('/stock/pickup/request-additional')
       showInfo('Additional pickup requested—waiting for approval.', 'Request Submitted')
       refreshAllowance()
-      checkEligibility() // Refresh eligibility status
+        checkEligibility()
+        checkAdditionalPickupEligibility() // Refresh eligibility status
     } catch (err) {
       console.error(err)
       showError(err.response?.data?.message || 'Request failed', 'Request Failed')
@@ -507,7 +603,7 @@ export default function MarketerStockPickup() {
   }
 
   // Enhanced countdown helper with count-up functionality
-  function formatRemaining(ms) {
+  function formatRemaining(ms, status) {
     const isOverdue = ms < 0
     const absMs = Math.abs(ms)
     const hrs  = Math.floor(absMs / 3600000)
@@ -515,23 +611,25 @@ export default function MarketerStockPickup() {
     const secs = Math.floor((absMs % 60000) / 1000)
     
     if (isOverdue) {
+      // Red countup for overdue items
       return {
         text: `+${hrs}h ${mins}m ${secs}s`,
         className: 'text-red-600 font-bold',
         status: 'overdue'
       }
     } else {
+      // Green countdown for items within deadline
       return {
         text: `${hrs}h ${mins}m ${secs}s`,
         className: 'text-green-600',
-        status: 'pending'
+        status: status === 'pending_order' ? 'pending_order' : 'pending'
       }
     }
   }
 
   const { allowance, request_status, next_request_at } = allowanceInfo
   const canAddMore = request_status === 'approved' && lines.length < allowance
-  const canRequestAdditional = allowance === 1 && request_status === null && hasConfirmedOrders
+  const canRequestAdditional = allowance === 1 && request_status === null && additionalPickupEligibility.eligible
   const rejectedCd = request_status === 'rejected' && next_request_at
     ? formatRemaining(new Date(next_request_at).getTime() - now).text
     : null
@@ -669,7 +767,7 @@ export default function MarketerStockPickup() {
                   ? 'bg-white text-black hover:bg-[#f59e0b] hover:text-white border-[#f59e0b]' 
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300'
               }`}
-              title={!eligibilityInfo.eligible ? getEligibilityMessage() : ''}
+              title={!eligibilityInfo.eligible ? getAdditionalPickupEligibilityMessage() : ''}
             >
               Request Additional Pickup
             </button>
@@ -710,7 +808,7 @@ export default function MarketerStockPickup() {
                 )}
               </div>
               <div className="ml-2">
-                <p className="font-medium">{getEligibilityMessage()}</p>
+                <p className="font-medium">{getAdditionalPickupEligibilityMessage()}</p>
               </div>
             </div>
           </div>
@@ -741,11 +839,15 @@ export default function MarketerStockPickup() {
             : pickups.map(s => {
                 const diff      = new Date(s.deadline).getTime() - now
                 const remaining = s.status === 'pending'
-                  ? formatRemaining(diff)
-                  : s.status === 'expired' || s.status === 'return_pending' || s.status === 'transfer_pending'
-                    ? formatRemaining(-diff)
-                    : s.status === 'sold'
-                      ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
+                  ? formatRemaining(diff, s.status)
+                  : s.status === 'pending_order'
+                    ? formatRemaining(diff, s.status)   // Continue countdown during pending order
+                  : s.status === 'expired'
+                    ? formatRemaining(-diff, s.status)  // Always count-up (red)
+                  : s.status === 'return_pending' || s.status === 'transfer_pending'
+                    ? formatRemaining(diff, s.status)   // Countdown if before deadline, count-up if after
+                  : s.status === 'sold'
+                    ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
                     : { text: '—', className: 'text-gray-500', status: 'completed' }
                 return (
                   <div key={s.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
@@ -836,11 +938,15 @@ export default function MarketerStockPickup() {
                 : pickups.map(s => {
                     const diff      = new Date(s.deadline).getTime() - now
                     const remaining = s.status === 'pending'
-                      ? formatRemaining(diff)
-                      : s.status === 'expired' || s.status === 'return_pending' || s.status === 'transfer_pending'
-                        ? formatRemaining(-diff)
-                        : s.status === 'sold'
-                          ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
+                      ? formatRemaining(diff, s.status)
+                      : s.status === 'pending_order'
+                        ? formatRemaining(diff, s.status)   // Continue countdown during pending order
+                      : s.status === 'expired'
+                        ? formatRemaining(-diff, s.status)  // Always count-up (red)
+                      : s.status === 'return_pending' || s.status === 'transfer_pending'
+                        ? formatRemaining(diff, s.status)   // Countdown if before deadline, count-up if after
+                      : s.status === 'sold'
+                        ? { text: 'Sold', className: 'text-green-600 font-semibold', status: 'sold' }
                         : { text: '—', className: 'text-gray-500', status: 'completed' }
                     return (
                       <tr key={s.id} className="hover:bg-gray-50">
