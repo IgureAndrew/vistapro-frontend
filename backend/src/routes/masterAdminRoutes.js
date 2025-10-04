@@ -22,6 +22,7 @@ const {
   unlockUser,
   getUsers,
   getUserSummary,
+  debugUsersTable,
   getDashboardSummary,
   assignMarketersToAdmin,
   assignAdminToSuperAdmin,
