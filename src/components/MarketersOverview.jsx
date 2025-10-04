@@ -211,12 +211,115 @@ export default function MarketersOverview({ onNavigate }) {
   }
 
   return (
-    <MobileDashboard
-      userRole="marketer"
-      user={{ first_name: marketerName, last_name: "Marketer" }}
-      metrics={metrics}
-      recentActivity={activityData}
-      quickActions={quickActions}
-    />
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-lg p-6 text-white">
+        <h1 className="text-2xl font-bold mb-2">Welcome back, {marketerName}!</h1>
+        <p className="text-orange-100">Here's your marketing performance overview</p>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Wallet Balance</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">₦{metrics.walletBalance?.toLocaleString() || '0'}</p>
+            </div>
+            <Wallet className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{metrics.totalOrders}</p>
+            </div>
+            <ShoppingCart className="w-8 h-8 text-blue-500" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">₦{metrics.totalSales?.toLocaleString() || '0'}</p>
+            </div>
+            <TrendingUp className="w-8 h-8 text-purple-500" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Pending Orders</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{metrics.pendingOrders}</p>
+            </div>
+            <Clock className="w-8 h-8 text-yellow-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+            <Activity className="w-5 h-5 mr-2" />
+            Recent Activity
+          </h2>
+        </div>
+        <div className="p-6">
+          {activityData.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No recent activity</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activityData.map((activity, index) => {
+                const IconComponent = activity.icon;
+                return (
+                  <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+                    <div className={`p-2 rounded-full ${activity.statusColor}`}>
+                      <IconComponent className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{activity.text}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{activity.time}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {quickActions.map((action, index) => {
+              const IconComponent = action.icon;
+              return (
+                <button
+                  key={index}
+                  onClick={action.action}
+                  className="flex items-center space-x-3 p-4 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <IconComponent className="w-5 h-5 text-orange-500" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{action.label}</span>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
