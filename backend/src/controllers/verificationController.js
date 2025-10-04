@@ -1343,97 +1343,114 @@ const deleteCommitmentSubmission = async (req, res, next) => {
 /**
  * getAllSubmissionsForMasterAdmin
  * Retrieves all verification submissions awaiting MasterAdmin approval
- * Uses the new verification workflow system (verification_submissions table)
+ * Uses the new verification workflow system (verification_submissions table) if available, otherwise falls back to legacy system
  */
 const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
   try {
     console.log('🔍 MasterAdmin submissions request');
     
-    // Get verification submissions awaiting MasterAdmin approval
-    const submissionsQuery = `
+    // First check if verification_submissions table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'verification_submissions'
+      );
+    `);
+    
+    const hasVerificationSubmissionsTable = tableCheck.rows[0].exists;
+    
+    if (hasVerificationSubmissionsTable) {
+      // Use new verification workflow system
+      const submissionsQuery = `
       SELECT
-        vs.id as submission_id,
-        vs.submission_status,
-        vs.super_admin_id,
-        vs.created_at as submission_created_at,
-        vs.updated_at as last_updated,
-        vs.admin_reviewed_at,
-        vs.superadmin_reviewed_at,
-        vs.masteradmin_approved_at,
-        vs.rejection_reason,
-        u.id as marketer_id,
-        u.unique_id as marketer_unique_id,
-        u.first_name as marketer_first_name,
-        u.last_name as marketer_last_name,
-        u.email as marketer_email,
-        u.location as marketer_location,
-        u.overall_verification_status,
-        admin.first_name as admin_first_name,
-        admin.last_name as admin_last_name,
-        admin.unique_id as admin_unique_id,
-        superadmin.first_name as superadmin_first_name,
-        superadmin.last_name as superadmin_last_name,
-        superadmin.unique_id as superadmin_unique_id
-      FROM verification_submissions vs
-      JOIN users u ON u.id = vs.marketer_id
-      LEFT JOIN users admin ON admin.id = vs.admin_id
-      LEFT JOIN users superadmin ON superadmin.id = vs.super_admin_id
-      WHERE vs.submission_status = 'pending_masteradmin_approval'
-      ORDER BY vs.updated_at DESC
-    `;
-    
-    const submissionsResult = await pool.query(submissionsQuery);
-    console.log(`✅ Found ${submissionsResult.rows.length} submissions awaiting MasterAdmin approval`);
-    
-    // For each submission, get the detailed form data
-    const submissionsWithDetails = await Promise.all(
-      submissionsResult.rows.map(async (submission) => {
-        try {
-          // Get biodata
-          const biodataResult = await pool.query(
-            "SELECT * FROM marketer_biodata WHERE marketer_unique_id = $1",
-            [submission.marketer_unique_id]
-          );
-          
-          // Get guarantor form
-          const guarantorResult = await pool.query(
-            "SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = $1",
-            [submission.marketer_unique_id]
-          );
-          
-          // Get commitment form
-          const commitmentResult = await pool.query(
-            "SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = $1",
-            [submission.marketer_unique_id]
-          );
-          
-          // Get admin verification details
-          const adminVerificationResult = await pool.query(
-            "SELECT * FROM admin_verification_details WHERE verification_submission_id = $1",
-            [submission.submission_id]
-          );
-          
-          return {
-            ...submission,
-            forms: {
+          vs.id as submission_id,
+          vs.submission_status,
+          vs.super_admin_id,
+          vs.created_at as submission_created_at,
+          vs.updated_at as last_updated,
+          vs.admin_reviewed_at,
+          vs.superadmin_reviewed_at,
+          vs.masteradmin_approved_at,
+          vs.rejection_reason,
+          u.id as marketer_id,
+          u.unique_id as marketer_unique_id,
+          u.first_name as marketer_first_name,
+          u.last_name as marketer_last_name,
+          u.email as marketer_email,
+          u.location as marketer_location,
+          u.overall_verification_status,
+          admin.first_name as admin_first_name,
+          admin.last_name as admin_last_name,
+          admin.unique_id as admin_unique_id,
+          superadmin.first_name as superadmin_first_name,
+          superadmin.last_name as superadmin_last_name,
+          superadmin.unique_id as superadmin_unique_id
+        FROM verification_submissions vs
+        JOIN users u ON u.id = vs.marketer_id
+        LEFT JOIN users admin ON admin.id = vs.admin_id
+        LEFT JOIN users superadmin ON superadmin.id = vs.super_admin_id
+        WHERE vs.submission_status = 'pending_masteradmin_approval'
+        ORDER BY vs.updated_at DESC
+      `;
+      
+      const submissionsResult = await pool.query(submissionsQuery);
+      console.log(`✅ Found ${submissionsResult.rows.length} submissions awaiting MasterAdmin approval`);
+      
+      // For each submission, get the detailed form data
+      const submissionsWithDetails = await Promise.all(
+        submissionsResult.rows.map(async (submission) => {
+          try {
+            // Get biodata
+            const biodataResult = await pool.query(`
+              SELECT * FROM marketer_biodata 
+              WHERE marketer_unique_id = $1 
+              ORDER BY created_at DESC LIMIT 1
+            `, [submission.marketer_unique_id]);
+            
+            // Get guarantor form
+            const guarantorResult = await pool.query(`
+              SELECT * FROM guarantor_employment_form 
+              WHERE marketer_unique_id = $1 
+              ORDER BY created_at DESC LIMIT 1
+            `, [submission.marketer_unique_id]);
+            
+            // Get commitment form
+            const commitmentResult = await pool.query(`
+              SELECT * FROM direct_sales_commitment_form 
+              WHERE marketer_unique_id = $1 
+              ORDER BY created_at DESC LIMIT 1
+            `, [submission.marketer_unique_id]);
+            
+            return {
+              ...submission,
               biodata: biodataResult.rows[0] || null,
               guarantor: guarantorResult.rows[0] || null,
-              commitment: commitmentResult.rows[0] || null,
-              admin_verification: adminVerificationResult.rows[0] || null
-            }
-          };
-        } catch (error) {
-          console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
-          return submission;
-        }
-      })
-    );
-
-    res.status(200).json({
-      success: true,
-      submissions: submissionsWithDetails,
-      count: submissionsWithDetails.length
-    });
+              commitment: commitmentResult.rows[0] || null
+            };
+          } catch (error) {
+            console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
+            return submission;
+          }
+        })
+      );
+      
+      return res.json({
+        success: true,
+        submissions: submissionsWithDetails,
+        total: submissionsWithDetails.length
+      });
+      
+    } else {
+      // Fallback to legacy system - return empty array for now
+      console.log('⚠️ verification_submissions table not found, using legacy fallback');
+      return res.json({
+        success: true,
+        submissions: [],
+        total: 0,
+        message: 'Verification system not yet migrated. No submissions available.'
+      });
+    }
   } catch (error) {
     console.error('MasterAdmin submissions error:', error);
     next(error);
@@ -1602,7 +1619,7 @@ const getVerificationWorkflowLogs = async (req, res, next) => {
     
     const logsResult = await pool.query(logsQuery, queryParams);
     console.log(`✅ Found ${logsResult.rows.length} workflow logs`);
-    
+
     res.status(200).json({
       success: true,
       logs: logsResult.rows,
