@@ -207,11 +207,27 @@ const createStockUpdate = async (req, res, next) => {
     let allowanceType = 'default';
 
     // 3) Check for active stock (including pending returns/transfers)
+    // Check if pending_order enum value exists
+    const enumCheck = await client.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_enum 
+        WHERE enumlabel = 'pending_order' 
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'stock_update_status')
+      );
+    `);
+    
+    const hasPendingOrderEnum = enumCheck.rows[0].exists;
+    let activeStatusList = "'picked_up', 'in_transit', 'return_pending', 'transfer_pending'";
+    
+    if (hasPendingOrderEnum) {
+      activeStatusList += ", 'pending_order'";
+    }
+    
     const { rows: activeStockRows } = await client.query(
       `SELECT COUNT(*)::int AS cnt
          FROM stock_updates su
         WHERE su.marketer_id = $1 
-          AND su.status IN ('picked_up', 'in_transit', 'return_pending', 'transfer_pending', 'pending_order')`,
+          AND su.status IN (${activeStatusList})`,
       [marketerId]
     );
     const activeStockCount = activeStockRows[0].cnt;
@@ -408,13 +424,33 @@ async function placeOrder(req, res, next) {
       return res.status(400).json({ message: "Not enough quantity remaining on that pickup." });
     }
 
-    // 2) Update stock pickup status to 'pending_order' when order is placed
-    await client.query(`
-      UPDATE stock_updates
-         SET status = 'pending_order',
-             updated_at = NOW()
-       WHERE id = $1
-    `, [stock_update_id]);
+    // 2) Update stock pickup status to 'pending_order' when order is placed (if enum exists)
+    // Check if pending_order enum value exists
+    const enumCheck = await client.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_enum 
+        WHERE enumlabel = 'pending_order' 
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'stock_update_status')
+      );
+    `);
+    
+    const hasPendingOrderEnum = enumCheck.rows[0].exists;
+    
+    if (hasPendingOrderEnum) {
+      await client.query(`
+        UPDATE stock_updates
+           SET status = 'pending_order',
+               updated_at = NOW()
+         WHERE id = $1
+      `, [stock_update_id]);
+    } else {
+      // Fallback: keep as 'pending' if enum doesn't exist
+      await client.query(`
+        UPDATE stock_updates
+           SET updated_at = NOW()
+         WHERE id = $1
+      `, [stock_update_id]);
+    }
 
     // 3) Create the order (pending until MasterAdmin confirms)
     const { rows: [order] } = await client.query(`
@@ -1906,11 +1942,27 @@ async function autoReturnExpiredPickups() {
       await client.query('BEGIN');
       
       // Find stock pickups that are expired (deadline passed) and still pending
+      // Check if pending_order enum value exists
+      const enumCheck = await client.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_enum 
+          WHERE enumlabel = 'pending_order' 
+          AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'stock_update_status')
+        );
+      `);
+      
+      const hasPendingOrderEnum = enumCheck.rows[0].exists;
+      let statusList = "'pending'";
+      
+      if (hasPendingOrderEnum) {
+        statusList += ", 'pending_order'";
+      }
+      
       const { rows: expiredPickups } = await client.query(`
         SELECT id, marketer_id, product_id, quantity
         FROM stock_updates
         WHERE deadline < NOW()
-          AND status IN ('pending', 'pending_order')
+          AND status IN (${statusList})
       `);
       
       for (const pickup of expiredPickups) {
