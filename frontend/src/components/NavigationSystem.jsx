@@ -69,17 +69,11 @@ const NavigationSystem = ({
     }
   };
 
-  // Right-click handler for opening in new tab
-  const handleRightClick = (e, key) => {
-    e.preventDefault();
-    
-    // Get the current URL and construct the new tab URL
+  // Generate URL for navigation links
+  const getModuleUrl = (key) => {
     const currentPath = window.location.pathname;
     const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
-    const newUrl = `${window.location.origin}${basePath}/${key}`;
-    
-    // Open in new tab
-    window.open(newUrl, '_blank');
+    return `${basePath}/${key}`;
   };
     if (isMobile || isTablet) {
       setSidebarOpen(false);
@@ -115,20 +109,22 @@ const NavigationSystem = ({
             const isActive = activeModule === module.key;
             
             return (
-              <Button
+              <a
                 key={module.key}
-                variant={isActive ? "default" : "ghost"}
-                className={`w-full justify-start ${
+                href={getModuleUrl(module.key)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavClick(module.key);
+                }}
+                className={`w-full flex items-center justify-start px-3 py-2 rounded-md transition-colors ${
                   isActive 
                     ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
-                onClick={() => handleNavClick(module.key)}
-                onContextMenu={(e) => handleRightClick(e, module.key)}
               >
                 <Icon className="mr-3 h-5 w-5" />
                 {module.label}
-              </Button>
+              </a>
             );
           })}
         </nav>

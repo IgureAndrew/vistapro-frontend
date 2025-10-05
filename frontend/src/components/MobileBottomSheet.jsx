@@ -70,17 +70,11 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
     onClose();
   };
 
-  // Right-click handler for opening in new tab
-  const handleRightClick = (e, key) => {
-    e.preventDefault();
-    
-    // Get the current URL and construct the new tab URL
+  // Generate URL for navigation links
+  const getModuleUrl = (key) => {
     const currentPath = window.location.pathname;
     const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
-    const newUrl = `${window.location.origin}${basePath}/${key}`;
-    
-    // Open in new tab
-    window.open(newUrl, '_blank');
+    return `${basePath}/${key}`;
   };
 
   return (
@@ -137,10 +131,13 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
               const isActive = activeModule === item.key;
               
               return (
-                <button
+                <a
                   key={item.key}
-                  onClick={() => handleItemClick(item.key)}
-                  onContextMenu={(e) => handleRightClick(e, item.key)}
+                  href={getModuleUrl(item.key)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleItemClick(item.key);
+                  }}
                   className={`flex flex-col items-center p-4 rounded-2xl transition-all duration-200 ${
                     isActive 
                       ? 'bg-[#f59e0b] text-white shadow-lg' 
@@ -149,7 +146,7 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
                 >
                   <Icon className="w-6 h-6 mb-2" />
                   <span className="text-sm font-medium">{item.label}</span>
-                </button>
+                </a>
               );
             })}
           </div>
