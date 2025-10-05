@@ -474,6 +474,10 @@ function LandingPage() {
             src="/assets/logo/vistapro logo-01.png"
             alt="VistaPro Logo"
             className="h-16"
+            onError={(e) => {
+              console.error('Logo failed to load:', e.target.src);
+              e.target.style.display = 'none';
+            }}
           />
         </div>
       </header>
@@ -498,6 +502,10 @@ function LandingPage() {
                 src="/assets/6942413_3484567.jpg"
                 alt="Phone Distribution Illustration"
                 className="w-full max-w-md mx-auto"
+                onError={(e) => {
+                  console.error('Illustration failed to load:', e.target.src);
+                  e.target.style.display = 'none';
+                }}
               />
             </div>
           </div>
