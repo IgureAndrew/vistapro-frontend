@@ -471,18 +471,13 @@ function LandingPage() {
       <header className="p-6 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto flex items-center">
           <div className="h-16 flex items-center">
-            {/* VistaPro Logo - CSS recreation */}
+            {/* VistaPro Logo */}
             <div className="flex items-center space-x-3">
-              {/* Logo Symbol */}
-              <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg">
-                  <div className="text-white font-bold text-lg">VP</div>
-                </div>
-              </div>
-              {/* Logo Text */}
-              <div className="text-2xl font-bold bg-gradient-to-r from-yellow-600 to-yellow-800 bg-clip-text text-transparent">
-                VistaPro
-              </div>
+              <img
+                src="/assets/logo/vistapro logo-01.png"
+                alt="VistaPro Logo"
+                className="h-12 w-auto"
+              />
             </div>
           </div>
         </div>
@@ -502,12 +497,14 @@ function LandingPage() {
               </p>
             </div>
             
-            {/* Image below the tagline */}
+            {/* Smartphone illustration below the tagline */}
             <div className="mt-12">
-              <div className="w-full max-w-md mx-auto bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-8 text-center">
-                <div className="text-6xl mb-4">📱</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-2">Phone Distribution</h3>
-                <p className="text-gray-600">Streamlined business management for mobile device distribution</p>
+              <div className="w-full max-w-lg mx-auto">
+                <img
+                  src="/assets/illustrations/smartphone-people.jpg"
+                  alt="People using smartphones - Phone Distribution"
+                  className="w-full h-auto rounded-lg shadow-lg"
+                />
               </div>
             </div>
           </div>
