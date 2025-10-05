@@ -23,6 +23,9 @@ import { getRoleConfig } from '../config/RoleConfig';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationBell from './NotificationBell';
 import { getAvatarUrl, getUserInitials } from '../utils/avatarUtils';
+import Performance from './Performance';
+import UsersManagement from './UsersManagement';
+import MasterAdminWallet from './MasterAdminWallet';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
@@ -374,15 +377,15 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                     </TabsContent>
 
                     <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
-                      <div className="text-gray-500 dark:text-gray-400">Analytics content coming soon...</div>
+                      <Performance userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
                     </TabsContent>
 
                     <TabsContent value="users" className="space-y-4 sm:space-y-6">
-                      <div className="text-gray-500 dark:text-gray-400">Users management coming soon...</div>
+                      <UsersManagement userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
                     </TabsContent>
 
                     <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
-                      <div className="text-gray-500 dark:text-gray-400">Wallet management coming soon...</div>
+                      <MasterAdminWallet userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
                     </TabsContent>
                   </Tabs>
                 </div>
