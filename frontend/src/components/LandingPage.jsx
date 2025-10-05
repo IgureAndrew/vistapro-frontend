@@ -471,7 +471,7 @@ function LandingPage() {
       <header className="p-6 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto flex items-center">
           <img
-            src="/vistapro-logo.png"
+            src="/logo.png"
             alt="VistaPro Logo"
             className="h-16"
             onError={(e) => {
@@ -499,7 +499,7 @@ function LandingPage() {
             {/* Image below the tagline */}
             <div className="mt-12">
               <img
-                src="/phone-illustration.jpg"
+                src="/illustration.jpg"
                 alt="Phone Distribution Illustration"
                 className="w-full max-w-md mx-auto"
                 onError={(e) => {
