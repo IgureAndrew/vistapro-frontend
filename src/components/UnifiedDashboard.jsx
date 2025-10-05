@@ -120,9 +120,11 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
       {/* Logo */}
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">V</span>
-                  </div>
+          <img
+            src="/assets/logo/vistapro-logo-new.png"
+            alt="VistaPro Logo"
+            className="h-10 w-auto"
+          />
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Vistapro</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">{roleConfig.title}</p>
@@ -131,8 +133,8 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                 ID: {user.unique_id}
               </p>
             )}
-                      </div>
-                    </div>
+          </div>
+        </div>
         </div>
 
       {/* Navigation */}

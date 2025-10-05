@@ -470,15 +470,16 @@ function LandingPage() {
       {/* Header with Logo */}
       <header className="p-6 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto flex items-center">
-          <img
-            src="/vistapro-logo.png"
-            alt="VistaPro Logo"
-            className="h-16"
-            onError={(e) => {
-              console.error('Logo failed to load:', e.target.src);
-              e.target.style.display = 'none';
-            }}
-          />
+          <div className="h-16 flex items-center">
+            {/* VistaPro Logo */}
+            <div className="flex items-center space-x-3">
+              <img
+                src="/assets/logo/vistapro-logo-new.png"
+                alt="VistaPro Logo"
+                className="h-12 w-auto"
+              />
+            </div>
+          </div>
         </div>
       </header>
 
@@ -498,15 +499,11 @@ function LandingPage() {
             
             {/* Image below the tagline */}
             <div className="mt-12">
-              <img
-                src="/phone-illustration.jpg"
-                alt="Phone Distribution Illustration"
-                className="w-full max-w-md mx-auto"
-                onError={(e) => {
-                  console.error('Illustration failed to load:', e.target.src);
-                  e.target.style.display = 'none';
-                }}
-              />
+              <div className="w-full max-w-md mx-auto bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-8 text-center">
+                <div className="text-6xl mb-4">📱</div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">Phone Distribution</h3>
+                <p className="text-gray-600">Streamlined business management for mobile device distribution</p>
+              </div>
             </div>
           </div>
         </div>
