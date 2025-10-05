@@ -497,12 +497,14 @@ function LandingPage() {
               </p>
             </div>
             
-            {/* Image below the tagline */}
+            {/* Smartphone illustration below the tagline */}
             <div className="mt-12">
-              <div className="w-full max-w-md mx-auto bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-8 text-center">
-                <div className="text-6xl mb-4">📱</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-2">Phone Distribution</h3>
-                <p className="text-gray-600">Streamlined business management for mobile device distribution</p>
+              <div className="w-full max-w-lg mx-auto">
+                <img
+                  src="/assets/illustrations/smartphone-people.png"
+                  alt="People using smartphones - Phone Distribution"
+                  className="w-full h-auto rounded-lg shadow-lg"
+                />
               </div>
             </div>
           </div>
