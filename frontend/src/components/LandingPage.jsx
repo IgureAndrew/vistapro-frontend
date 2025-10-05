@@ -492,7 +492,7 @@ function LandingPage() {
             <div className="mb-8">
               <div className="w-full max-w-md mx-auto">
                 <img
-                  src="/assets/illustrations/smartphone-people.png"
+                  src="/assets/illustrations/smartphone-people.svg"
                   alt="People using smartphones - Business Management"
                   className="w-full h-auto rounded-lg shadow-lg"
                 />
