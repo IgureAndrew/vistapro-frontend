@@ -474,7 +474,7 @@ function LandingPage() {
             {/* VistaPro Logo */}
             <div className="flex items-center space-x-3">
               <img
-                src="/assets/logo/vistapro logo-01.png"
+                src="/assets/logo/vistapro-logo-new.png"
                 alt="VistaPro Logo"
                 className="h-12 w-auto"
               />
