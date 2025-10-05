@@ -4,7 +4,7 @@
   "installCommand": "cd frontend && npm install --legacy-peer-deps",
   "rewrites": [
     {
-      "source": "/((?!api|_next|_static|favicon.ico|.*\\.).*)",
+      "source": "/((?!.*\\.).*)",
       "destination": "/index.html"
     }
   ]
