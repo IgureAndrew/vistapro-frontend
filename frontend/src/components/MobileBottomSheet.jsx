@@ -70,6 +70,19 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
     onClose();
   };
 
+  // Right-click handler for opening in new tab
+  const handleRightClick = (e, key) => {
+    e.preventDefault();
+    
+    // Get the current URL and construct the new tab URL
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
+    const newUrl = `${window.location.origin}${basePath}/${key}`;
+    
+    // Open in new tab
+    window.open(newUrl, '_blank');
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -127,6 +140,7 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
                 <button
                   key={item.key}
                   onClick={() => handleItemClick(item.key)}
+                  onContextMenu={(e) => handleRightClick(e, item.key)}
                   className={`flex flex-col items-center p-4 rounded-2xl transition-all duration-200 ${
                     isActive 
                       ? 'bg-[#f59e0b] text-white shadow-lg' 

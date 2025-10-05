@@ -89,6 +89,19 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
     setSidebarOpen(false); // Close mobile sidebar
   };
 
+  // Right-click handler for opening in new tab
+  const handleRightClick = (e, moduleKey) => {
+    e.preventDefault();
+    
+    // Get the current URL and construct the new tab URL
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
+    const newUrl = `${window.location.origin}${basePath}/${moduleKey}`;
+    
+    // Open in new tab
+    window.open(newUrl, '_blank');
+  };
+
   // Get current module component
   const getCurrentModuleComponent = () => {
     const module = roleConfig.modules.find(m => m.key === activeModule);
@@ -147,6 +160,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
             <button
               key={module.key}
               onClick={() => handleNavigate(module.key)}
+              onContextMenu={(e) => handleRightClick(e, module.key)}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 isActive
                   ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'

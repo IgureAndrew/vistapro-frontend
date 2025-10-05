@@ -67,6 +67,20 @@ const NavigationSystem = ({
     } else {
       setActiveModule(key);
     }
+  };
+
+  // Right-click handler for opening in new tab
+  const handleRightClick = (e, key) => {
+    e.preventDefault();
+    
+    // Get the current URL and construct the new tab URL
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
+    const newUrl = `${window.location.origin}${basePath}/${key}`;
+    
+    // Open in new tab
+    window.open(newUrl, '_blank');
+  };
     if (isMobile || isTablet) {
       setSidebarOpen(false);
     }
@@ -110,6 +124,7 @@ const NavigationSystem = ({
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
                 onClick={() => handleNavClick(module.key)}
+                onContextMenu={(e) => handleRightClick(e, module.key)}
               >
                 <Icon className="mr-3 h-5 w-5" />
                 {module.label}
