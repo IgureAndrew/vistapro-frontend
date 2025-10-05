@@ -493,17 +493,8 @@ function LandingPage() {
                 Vistapro
               </h1>
               <p className="text-xl lg:text-2xl text-gray-700 max-w-lg mx-auto leading-relaxed">
-                Redefine Success in Phone Distribution.
+                Streamlined Business Management Platform.
               </p>
-            </div>
-            
-            {/* Phone Distribution card below the tagline */}
-            <div className="mt-12">
-              <div className="w-full max-w-md mx-auto bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-8 text-center">
-                <div className="text-6xl mb-4">📱</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-2">Phone Distribution</h3>
-                <p className="text-gray-600">Streamlined business management for mobile device distribution</p>
-              </div>
             </div>
           </div>
         </div>
