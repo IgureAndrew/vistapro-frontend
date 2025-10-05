@@ -494,7 +494,7 @@ function LandingPage() {
                 <img
                   src="/assets/illustrations/smartphone-people.png"
                   alt="People using smartphones - Business Management"
-                  className="w-full h-auto rounded-lg shadow-lg"
+                  className="w-full h-auto"
                 />
               </div>
             </div>
@@ -504,7 +504,7 @@ function LandingPage() {
                 Vistapro
               </h1>
               <p className="text-xl lg:text-2xl text-gray-700 max-w-lg mx-auto leading-relaxed">
-                Streamlined Business Management Platform.
+                Redefine Success in Phone Distribution.
               </p>
             </div>
           </div>
