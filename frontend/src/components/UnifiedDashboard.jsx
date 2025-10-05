@@ -72,6 +72,23 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
     return () => window.removeEventListener('userUpdated', handleUserUpdate);
   }, []);
 
+  // Handle URL parameters for module navigation
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const moduleParam = urlParams.get('module');
+    
+    if (moduleParam) {
+      // Check if the module exists in the current role's configuration
+      const moduleExists = roleConfig.modules.some(module => module.key === moduleParam);
+      if (moduleExists) {
+        setActiveModule(moduleParam);
+        // Clean up the URL by removing the parameter
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [roleConfig.modules]);
+
   // Dark mode toggle using custom ThemeProvider
   const toggleDarkMode = () => {
     toggleTheme();
@@ -91,9 +108,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
   // Generate URL for navigation links
   const getModuleUrl = (moduleKey) => {
+    // For SPA routing, we need to include the module as a URL parameter or hash
+    // This allows the dashboard to load and then navigate to the specific module
     const currentPath = window.location.pathname;
-    const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
-    return `${basePath}/${moduleKey}`;
+    return `${currentPath}?module=${moduleKey}`;
   };
 
   // Get current module component

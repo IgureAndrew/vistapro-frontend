@@ -71,9 +71,9 @@ const NavigationSystem = ({
 
   // Generate URL for navigation links
   const getModuleUrl = (key) => {
+    // For SPA routing, we need to include the module as a URL parameter
     const currentPath = window.location.pathname;
-    const basePath = currentPath.split('/').slice(0, -1).join('/'); // Remove last segment
-    return `${basePath}/${key}`;
+    return `${currentPath}?module=${key}`;
   };
     if (isMobile || isTablet) {
       setSidebarOpen(false);
