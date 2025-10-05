@@ -488,6 +488,17 @@ function LandingPage() {
         {/* Left Section: Title, Tagline & Image */}
         <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-16 text-center">
           <div className="max-w-2xl space-y-8">
+            {/* Smartphone illustration above the title */}
+            <div className="mb-8">
+              <div className="w-full max-w-md mx-auto">
+                <img
+                  src="/assets/illustrations/smartphone-people.png"
+                  alt="People using smartphones - Business Management"
+                  className="w-full h-auto rounded-lg shadow-lg"
+                />
+              </div>
+            </div>
+            
             <div className="space-y-4">
               <h1 className="text-6xl lg:text-7xl font-bold text-black leading-tight">
                 Vistapro
