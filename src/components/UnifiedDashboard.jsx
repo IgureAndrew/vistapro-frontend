@@ -121,7 +121,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3">
           <img
-            src="/assets/logo/vistapro-logo-new.png"
+            src="/assets/logo/vistapro logo-01.png"
             alt="VistaPro Logo"
             className="h-10 w-auto"
           />
