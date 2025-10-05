@@ -471,7 +471,19 @@ function LandingPage() {
       <header className="p-6 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto flex items-center">
           <div className="h-16 flex items-center">
-            <div className="text-2xl font-bold text-black">VISTAPRO</div>
+            {/* VistaPro Logo - CSS recreation */}
+            <div className="flex items-center space-x-3">
+              {/* Logo Symbol */}
+              <div className="relative">
+                <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg">
+                  <div className="text-white font-bold text-lg">VP</div>
+                </div>
+              </div>
+              {/* Logo Text */}
+              <div className="text-2xl font-bold bg-gradient-to-r from-yellow-600 to-yellow-800 bg-clip-text text-transparent">
+                VistaPro
+              </div>
+            </div>
           </div>
         </div>
       </header>
