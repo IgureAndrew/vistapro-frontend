@@ -467,24 +467,8 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white font-['Geist',sans-serif]">
-      {/* Header with Logo */}
-      <header className="p-6 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto flex items-center">
-          <div className="h-16 flex items-center">
-            {/* VistaPro Logo */}
-            <div className="flex items-center space-x-3">
-              <img
-                src="/assets/logo/vistapro-logo-new.png"
-                alt="VistaPro Logo"
-                className="h-12 w-auto"
-              />
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main content area */}
-      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-96px)]">
+      <div className="flex flex-col lg:flex-row min-h-screen">
         {/* Left Section: Title, Tagline & Image */}
         <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-16 text-center">
           <div className="max-w-2xl space-y-8">
