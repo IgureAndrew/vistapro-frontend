@@ -393,10 +393,12 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
       const newStatus = 'pending_admin_review';
 
       // Validate status transition
+      console.log(`🔍 Validating status transition from ${currentStatus} to ${newStatus} for marketer ${marketerId}`);
       if (!validateWorkflowStatusTransition(currentStatus, newStatus)) {
         console.log(`⚠️ Invalid status transition from ${currentStatus} to ${newStatus} for marketer ${marketerId}`);
         return;
       }
+      console.log(`✅ Status transition validated successfully`);
 
       // Update verification submission status
       await pool.query(
@@ -407,12 +409,15 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
       );
 
       // Update user's overall verification status
-      await pool.query(
+      console.log(`🔄 Updating user ${marketerId} overall_verification_status to 'awaiting_admin_review'`);
+      const userUpdateResult = await pool.query(
         `UPDATE users 
          SET overall_verification_status = 'awaiting_admin_review', updated_at = NOW()
-         WHERE id = $1`,
+         WHERE id = $1
+         RETURNING overall_verification_status`,
         [marketerId]
       );
+      console.log(`✅ User status updated:`, userUpdateResult.rows[0]);
 
       // Log the status change
       await pool.query(
