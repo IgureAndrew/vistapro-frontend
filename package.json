@@ -4,7 +4,7 @@
   "description": "Vistapro Backend API",
   "main": "backend/start.js",
   "scripts": {
-    "start": "cd backend && npm start",
+    "start": "node backend/start.js",
     "install": "cd backend && npm install",
     "build": "cd backend && npm install",
     "postinstall": "cd backend && npm install",

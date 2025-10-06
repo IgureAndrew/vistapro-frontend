@@ -648,6 +648,14 @@ const submitBiodata = async (req, res, next) => {
       "UPDATE users SET bio_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
       [marketerUniqueId]
     );
+    
+    if (updatedUserResult.rows.length === 0) {
+      console.error('❌ Failed to update user bio_submitted flag - user not found');
+      return res.status(500).json({
+        message: "Failed to update user status. Please try again.",
+        error: "User update failed"
+      });
+    }
 
     // Get marketer's ID and admin_id for workflow
     const marketerInfo = await pool.query(
@@ -807,6 +815,14 @@ const submitGuarantor = async (req, res, next) => {
       "UPDATE users SET guarantor_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
       [marketerUniqueId]
     );
+    
+    if (updatedUserResult.rows.length === 0) {
+      console.error('❌ Failed to update user guarantor_submitted flag - user not found');
+      return res.status(500).json({
+        message: "Failed to update user status. Please try again.",
+        error: "User update failed"
+      });
+    }
 
     // Get marketer's ID and admin_id for workflow
     const marketerInfo = await pool.query(
@@ -1004,11 +1020,20 @@ const submitCommitment = async (req, res, next) => {
     }
 
     console.log('🔄 Updating user commitment_submitted flag...');
-    await pool.query(
-      "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1",
+    const updatedUserResult = await pool.query(
+      "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
       [marketerUniqueId]
     );
-    console.log('✅ User commitment_submitted flag updated');
+    
+    if (updatedUserResult.rows.length === 0) {
+      console.error('❌ Failed to update user commitment_submitted flag - user not found');
+      return res.status(500).json({
+        message: "Failed to update user status. Please try again.",
+        error: "User update failed"
+      });
+    }
+    
+    console.log('✅ User commitment_submitted flag updated successfully');
 
     // Get marketer's ID and admin_id for workflow
     console.log('🔍 Getting marketer info for workflow...');
@@ -1059,7 +1084,7 @@ const submitCommitment = async (req, res, next) => {
     res.status(201).json({
       message: "Commitment form submitted successfully.",
       commitment: result.rows[0],
-      updatedUser: { bio_submitted, guarantor_submitted, commitment_submitted }
+      updatedUser: updatedUserResult.rows[0]
     });
   } catch (error) {
     console.error('❌ Commitment form submission error:', {
@@ -2040,12 +2065,12 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         CASE WHEN u.commitment_submitted THEN 'completed' ELSE 'not_submitted' END as commitment_status,
         -- Check if all forms are submitted
         (u.bio_submitted AND u.guarantor_submitted AND u.commitment_submitted) as all_forms_submitted,
-        -- Admin verification fields from admin_verification_details table
-        avd.admin_verification_date,
-        avd.verification_notes as admin_verification_notes,
-        avd.location_photo_url as location_photos,
-        avd.admin_marketer_photo_url as admin_marketer_photos,
-        avd.landmark_description as landmark_photos,
+        -- Admin verification fields (with fallback for missing table)
+        NULL as admin_verification_date,
+        NULL as admin_verification_notes,
+        NULL as location_photos,
+        NULL as admin_marketer_photos,
+        NULL as landmark_photos,
         -- Admin name
         CONCAT(admin.first_name, ' ', admin.last_name) as admin_name,
         -- Detailed form data
@@ -2102,7 +2127,6 @@ const getSubmissionsForAdmin = async (req, res, next) => {
       FROM verification_submissions vs
       JOIN users u ON vs.marketer_id = u.id
       LEFT JOIN users admin ON vs.admin_id = admin.id
-      LEFT JOIN admin_verification_details avd ON vs.id = avd.verification_submission_id
       LEFT JOIN (
         SELECT DISTINCT ON (marketer_unique_id) *
         FROM marketer_biodata
@@ -2119,7 +2143,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
     let submissionsResult;
     try {
       submissionsResult = await pool.query(submissionsQuery, [adminId]);
-      console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
     } catch (queryError) {
       console.error(`❌ Complex query error for admin ${adminId}:`, queryError);
       console.log(`🔄 Falling back to simple query...`);
@@ -2529,13 +2553,13 @@ async function getVerificationStatus(req, res, next) {
         superadmin_user.last_name as superadmin_last_name,
         superadmin_user.email as superadmin_email,
         
-        -- Admin verification details
-        avd.admin_verification_date,
-        avd.verification_notes,
-        avd.location_photo_url,
-        avd.admin_marketer_photo_url,
-        avd.landmark_description,
-        avd.additional_documents,
+        -- Admin verification details (with fallback for missing table)
+        NULL as admin_verification_date,
+        NULL as verification_notes,
+        NULL as location_photo_url,
+        NULL as admin_marketer_photo_url,
+        NULL as landmark_description,
+        NULL as additional_documents,
         
         -- Workflow logs will be fetched separately
         NULL as last_action,
@@ -2548,7 +2572,6 @@ async function getVerificationStatus(req, res, next) {
       JOIN users u ON vs.marketer_id = u.id
       LEFT JOIN users admin_user ON vs.admin_id = admin_user.id
       LEFT JOIN users superadmin_user ON vs.super_admin_id = superadmin_user.id
-      LEFT JOIN admin_verification_details avd ON vs.id = avd.verification_submission_id
       WHERE vs.id = $1
       ORDER BY vs.updated_at DESC
       LIMIT 1
@@ -3681,6 +3704,62 @@ const approveAdminSuperadmin = async (req, res, next) => {
 };
 
 /**
+ * fixUserFormFlags
+ * Utility function to fix user form flags based on actual form submissions
+ */
+const fixUserFormFlags = async (marketerUniqueId) => {
+  try {
+    console.log(`🔧 Fixing user form flags for marketer: ${marketerUniqueId}`);
+    
+    // Check if forms actually exist in database
+    const biodataCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM marketer_biodata WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    const guarantorCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM marketer_guarantor_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)',
+      [marketerUniqueId]
+    );
+    
+    const commitmentCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM marketer_commitment_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)',
+      [marketerUniqueId]
+    );
+    
+    const bioSubmitted = parseInt(biodataCheck.rows[0].count) > 0;
+    const guarantorSubmitted = parseInt(guarantorCheck.rows[0].count) > 0;
+    const commitmentSubmitted = parseInt(commitmentCheck.rows[0].count) > 0;
+    
+    console.log(`📊 Form existence check:`, { bioSubmitted, guarantorSubmitted, commitmentSubmitted });
+    
+    // Update user flags to match actual form existence
+    const updateResult = await pool.query(
+      `UPDATE users 
+       SET bio_submitted = $1, 
+           guarantor_submitted = $2, 
+           commitment_submitted = $3,
+           updated_at = NOW()
+       WHERE unique_id = $4
+       RETURNING *`,
+      [bioSubmitted, guarantorSubmitted, commitmentSubmitted, marketerUniqueId]
+    );
+    
+    if (updateResult.rows.length > 0) {
+      console.log(`✅ User form flags fixed for marketer: ${marketerUniqueId}`);
+      return updateResult.rows[0];
+    } else {
+      console.log(`❌ User not found: ${marketerUniqueId}`);
+      return null;
+    }
+    
+  } catch (error) {
+    console.error('❌ Error fixing user form flags:', error);
+    throw error;
+  }
+};
+
+/**
  * getAdminAssignmentInfo
  * Gets admin and superadmin assignment information for a marketer
  */
@@ -3799,5 +3878,6 @@ module.exports = {
   sendToSuperAdmin,
   approveAdminSuperadmin,
   getAdminAssignmentInfo,
+  fixUserFormFlags,
 };
 
