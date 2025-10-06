@@ -39,6 +39,8 @@ const {
   getVerificationStatus,
   sendToSuperAdmin,
   approveAdminSuperadmin,
+  getAdminAssignmentInfo,
+  fixUserFormFlags,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -291,6 +293,48 @@ router.get(
   verifyToken,
   verifyRole(["Admin", "SuperAdmin", "MasterAdmin"]),
   getVerificationStatus
+);
+
+// Get admin assignment information for marketer
+router.get(
+  "/admin-assignment",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  getAdminAssignmentInfo
+);
+
+// Fix user form flags (utility endpoint for debugging)
+router.post(
+  "/fix-user-flags",
+  verifyToken,
+  verifyRole(["MasterAdmin", "Admin"]),
+  async (req, res, next) => {
+    try {
+      const { marketerUniqueId } = req.body;
+      if (!marketerUniqueId) {
+        return res.status(400).json({
+          success: false,
+          message: "Marketer unique ID is required"
+        });
+      }
+      
+      const result = await fixUserFormFlags(marketerUniqueId);
+      if (result) {
+        res.json({
+          success: true,
+          message: "User form flags fixed successfully",
+          user: result
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 // Removed redundant success routes - main submission endpoints handle everything
