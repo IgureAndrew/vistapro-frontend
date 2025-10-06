@@ -2143,7 +2143,20 @@ const getSubmissionsForAdmin = async (req, res, next) => {
     let submissionsResult;
     try {
       submissionsResult = await pool.query(submissionsQuery, [adminId]);
-    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+      console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+      
+      if (submissionsResult.rows.length > 0) {
+        console.log('🔍 First submission data:', {
+          marketer_id: submissionsResult.rows[0].marketer_id,
+          marketer_name: submissionsResult.rows[0].marketer_name,
+          bio_submitted: submissionsResult.rows[0].bio_submitted,
+          guarantor_submitted: submissionsResult.rows[0].guarantor_submitted,
+          commitment_submitted: submissionsResult.rows[0].commitment_submitted,
+          guarantor_well_known: submissionsResult.rows[0].guarantor_well_known,
+          guarantor_relationship: submissionsResult.rows[0].guarantor_relationship,
+          commitment_false_docs: submissionsResult.rows[0].commitment_false_docs
+        });
+      }
     } catch (queryError) {
       console.error(`❌ Complex query error for admin ${adminId}:`, queryError);
       console.log(`🔄 Falling back to simple query...`);
@@ -2227,6 +2240,16 @@ const getSubmissionsForAdmin = async (req, res, next) => {
       submissionsResult = await pool.query(basicQuery, [adminId]);
       console.log(`✅ Basic query found ${submissionsResult.rows.length} submissions`);
       
+      if (submissionsResult.rows.length > 0) {
+        console.log('🔍 Basic query first submission:', {
+          marketer_id: submissionsResult.rows[0].marketer_id,
+          marketer_name: submissionsResult.rows[0].marketer_name,
+          bio_submitted: submissionsResult.rows[0].bio_submitted,
+          guarantor_submitted: submissionsResult.rows[0].guarantor_submitted,
+          commitment_submitted: submissionsResult.rows[0].commitment_submitted
+        });
+      }
+      
       // Now try to get guarantor and commitment form data for each submission
       for (let i = 0; i < submissionsResult.rows.length; i++) {
         const submission = submissionsResult.rows[i];
@@ -2258,8 +2281,11 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           `;
           
           const guarantorResult = await pool.query(guarantorQuery, [submission.marketer_id]);
+          console.log(`🔍 Guarantor query result for marketer ${submission.marketer_id}:`, guarantorResult.rows.length, 'rows');
+          
           if (guarantorResult.rows.length > 0) {
             const guarantorData = guarantorResult.rows[0];
+            console.log(`📋 Guarantor data found:`, guarantorData);
             submissionsResult.rows[i] = {
               ...submission,
               ...guarantorData
@@ -2335,8 +2361,11 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           `;
           
           const commitmentResult = await pool.query(commitmentQuery, [submission.marketer_id]);
+          console.log(`🔍 Commitment query result for marketer ${submission.marketer_id}:`, commitmentResult.rows.length, 'rows');
+          
           if (commitmentResult.rows.length > 0) {
             const commitmentData = commitmentResult.rows[0];
+            console.log(`📋 Commitment data found:`, commitmentData);
             submissionsResult.rows[i] = {
               ...submissionsResult.rows[i],
               ...commitmentData
