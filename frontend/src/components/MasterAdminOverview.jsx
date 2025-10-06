@@ -325,7 +325,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalUsers,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalUsers, stats.previousTotalUsers, cardIcons[0]),
+        ...computeChange(stats.currentPeriodUsers, stats.previousTotalUsers, cardIcons[0]),
       },
       {
         icon: cardIcons[1],
@@ -334,7 +334,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalPendingOrders,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalPendingOrders, stats.previousPendingOrders, cardIcons[1]),
+        ...computeChange(stats.currentPeriodPendingOrders, stats.previousPendingOrders, cardIcons[1]),
       },
       {
         icon: cardIcons[2],
@@ -343,7 +343,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalConfirmedOrders,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalConfirmedOrders, stats.previousConfirmedOrders, cardIcons[2]),
+        ...computeChange(stats.currentPeriodConfirmedOrders, stats.previousConfirmedOrders, cardIcons[2]),
       },
       {
         icon: cardIcons[3],
@@ -352,7 +352,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalSales,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalSales, stats.previousSales, cardIcons[3]),
+        ...computeChange(stats.currentPeriodSales, stats.previousSales, cardIcons[3]),
       },
       {
         icon: cardIcons[4],
@@ -361,7 +361,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalAvailableProducts,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalAvailableProducts, stats.previousAvailableProducts, cardIcons[4]),
+        ...computeChange(stats.currentPeriodAvailableProducts, stats.previousAvailableProducts, cardIcons[4]),
       },
       {
         icon: cardIcons[5],
@@ -370,7 +370,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.pendingVerification,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.pendingVerification, stats.previousPendingVerification, cardIcons[5]),
+        ...computeChange(stats.currentPeriodPendingVerification, stats.previousPendingVerification, cardIcons[5]),
       },
       {
         icon: cardIcons[6],
@@ -379,7 +379,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalPickupStocks,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalPickupStocks, stats.previousPickupStocks, cardIcons[6]),
+        ...computeChange(stats.currentPeriodPickupStocks, stats.previousPickupStocks, cardIcons[6]),
       },
     ];
   }, [stats]);
