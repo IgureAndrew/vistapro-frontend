@@ -248,6 +248,7 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   };
 
   if (!user) {
+    console.log('🔍 MarketerVerificationDashboard: No user data');
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -258,12 +259,33 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     );
   }
 
+  console.log('🔍 MarketerVerificationDashboard: User data:', {
+    role: user.role,
+    admin_id: user.admin_id,
+    verificationStatus: user.overall_verification_status
+  });
+
   if (user.role !== 'Marketer' || !user.admin_id) {
-    return null;
+    console.log('❌ MarketerVerificationDashboard: User not eligible - role:', user.role, 'admin_id:', user.admin_id);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Account Not Ready</h2>
+          <p className="text-gray-600 mb-4">
+            {user.role !== 'Marketer' ? 'Your account role is not set as Marketer.' : 'Your account is not assigned to an Admin yet.'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Please contact your administrator for assistance.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Show loading state while checking form status
   if (isLoading) {
+    console.log('🔍 MarketerVerificationDashboard: Loading form status...');
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -273,6 +295,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
       </div>
     );
   }
+
+  console.log('✅ MarketerVerificationDashboard: Rendering verification dashboard');
 
   const getVerificationStatus = () => {
     if (!user) {
