@@ -2242,7 +2242,15 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               id_document_url as guarantor_id_document,
               passport_photo_url as guarantor_passport_photo,
               signature_url as guarantor_signature,
-              created_at as guarantor_submitted_at
+              created_at as guarantor_submitted_at,
+              -- Additional fields for frontend compatibility
+              NULL as guarantor_means_of_identification,
+              NULL as guarantor_full_name,
+              NULL as guarantor_email,
+              NULL as guarantor_phone,
+              NULL as guarantor_home_address,
+              NULL as guarantor_office_address,
+              NULL as candidate_name
             FROM marketer_guarantor_form 
             WHERE marketer_id = $1
             ORDER BY created_at DESC
@@ -2268,7 +2276,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               guarantor_id_document: null,
               guarantor_passport_photo: null,
               guarantor_signature: null,
-              guarantor_submitted_at: null
+              guarantor_submitted_at: null,
+              guarantor_means_of_identification: null,
+              guarantor_full_name: null,
+              guarantor_email: null,
+              guarantor_phone: null,
+              guarantor_home_address: null,
+              guarantor_office_address: null,
+              candidate_name: null
             };
           }
         } catch (guarantorError) {
@@ -2283,7 +2298,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
             guarantor_id_document: null,
             guarantor_passport_photo: null,
             guarantor_signature: null,
-            guarantor_submitted_at: null
+            guarantor_submitted_at: null,
+            guarantor_means_of_identification: null,
+            guarantor_full_name: null,
+            guarantor_email: null,
+            guarantor_phone: null,
+            guarantor_home_address: null,
+            guarantor_office_address: null,
+            candidate_name: null
           };
         }
         
