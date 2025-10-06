@@ -236,6 +236,21 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
  */
 const submitBiodata = async (req, res, next) => {
   try {
+    const marketerUniqueId = req.user.unique_id;
+    
+    // Check if biodata has already been submitted
+    const existingBiodata = await pool.query(
+      'SELECT id FROM marketer_biodata WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    if (existingBiodata.rows.length > 0) {
+      return res.status(400).json({
+        message: "Biodata form has already been submitted. You cannot submit it again.",
+        error: "Duplicate submission not allowed"
+      });
+    }
+    
     const {
       name, address, phone, religion, date_of_birth, marital_status,
       state_of_origin, state_of_residence, mothers_maiden_name,
@@ -290,11 +305,6 @@ const submitBiodata = async (req, res, next) => {
       if (req.files?.id_document?.[0]?.buffer) {
         identificationFileUrl = 'https://via.placeholder.com/300x200?text=ID+Document+Uploaded';
       }
-    }
-
-    const marketerUniqueId = req.user.unique_id;
-    if (!marketerUniqueId) {
-      return res.status(400).json({ field: null, message: "Marketer Unique ID is missing." });
     }
 
     // Check if biodata form has already been submitted
@@ -360,6 +370,8 @@ const submitBiodata = async (req, res, next) => {
     try {
       result = await pool.query(insertQuery, values);
     } catch (error) {
+      console.error('Database error in submitBiodata:', error);
+      
       if (error.code === "23505") {
         if (error.constraint === "users_phone_key") {
           return res.status(400).json({
@@ -374,6 +386,29 @@ const submitBiodata = async (req, res, next) => {
           });
         }
       }
+      
+      // Handle specific database errors
+      if (error.code === "42P01") {
+        return res.status(500).json({
+          message: "Database table missing. Please contact support.",
+          error: "Database configuration error"
+        });
+      }
+      
+      if (error.code === "23503") {
+        return res.status(400).json({
+          message: "Invalid reference data. Please check your information.",
+          error: "Foreign key constraint violation"
+        });
+      }
+      
+      if (error.code === "23514") {
+        return res.status(400).json({
+          message: "Invalid data provided. Please check your inputs.",
+          error: "Check constraint violation"
+        });
+      }
+      
       return next(error);
     }
 
