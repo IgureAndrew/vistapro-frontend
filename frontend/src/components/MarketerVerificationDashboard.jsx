@@ -21,6 +21,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const [progressMessage, setProgressMessage] = useState('');
   const [adminAssignment, setAdminAssignment] = useState(null);
   const [loadingAssignment, setLoadingAssignment] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   const forms = [
     { key: 'biodata', label: 'Biodata Form', component: ApplicantBiodataForm },
@@ -167,6 +169,36 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     fetchAdminAssignment();
   }, [user]);
 
+  // Periodic status check to ensure UI stays in sync
+  useEffect(() => {
+    if (!user) return;
+    
+    const checkStatus = async () => {
+      try {
+        const response = await api.get('/verification/form-status');
+        if (response.data.success) {
+          const currentStatus = response.data.overall_verification_status;
+          if (currentStatus && currentStatus !== user.overall_verification_status) {
+            console.log(`🔄 Status mismatch detected: UI=${user.overall_verification_status}, Server=${currentStatus}`);
+            const updated = {
+              ...user,
+              overall_verification_status: currentStatus,
+            };
+            setUser(updated);
+            localStorage.setItem("user", JSON.stringify(updated));
+          }
+        }
+      } catch (error) {
+        console.error('Error checking status:', error);
+      }
+    };
+    
+    // Check status every 30 seconds
+    const interval = setInterval(checkStatus, 30000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
   // Redirect if user is not a marketer or not assigned
   useEffect(() => {
     if (!user || user.role !== 'Marketer' || !user.admin_id) {
@@ -192,10 +224,24 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     
     // Register with socket
     socket.emit("register", user.unique_id);
+    
+    // Connection status handlers
+    socket.on("connect", () => {
+      console.log('🔗 WebSocket connected');
+      setSocketConnected(true);
+    });
+    
+    socket.on("disconnect", () => {
+      console.log('🔌 WebSocket disconnected');
+      setSocketConnected(false);
+    });
 
     // Listen for verification status changes
     socket.on("verificationStatusChanged", (data) => {
+      console.log('🔔 Received verification status change:', data);
       if (data.marketerUniqueId === user.unique_id) {
+        setIsUpdating(true);
+        
         const updated = {
           ...user,
           overall_verification_status: data.newStatus,
@@ -203,11 +249,19 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setUser(updated);
         localStorage.setItem("user", JSON.stringify(updated));
         console.log(`🔄 Verification status updated to: ${data.newStatus}`);
+        
+        // Show notification to user
+        setProgressMessage(data.message);
+        setShowProgressAlert(true);
+        
+        // Clear updating state after a short delay
+        setTimeout(() => setIsUpdating(false), 2000);
       }
     });
 
     // Listen for verification approval
     socket.on("verificationApproved", (data) => {
+      console.log('🎉 Received verification approval:', data);
       if (data.marketerUniqueId === user.unique_id) {
         const updated = {
           ...user,
@@ -216,6 +270,10 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setUser(updated);
         localStorage.setItem("user", JSON.stringify(updated));
         console.log(`✅ Verification approved!`);
+        
+        // Show success notification
+        setSuccessMessage(data.message || 'Your verification has been approved!');
+        setShowSuccessNotification(true);
       }
     });
 
@@ -701,8 +759,25 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                 </p>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 relative">
+                {/* Real-time update indicator */}
+                {isUpdating && (
+                  <div className="absolute -top-2 -right-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center space-x-1 z-10">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>Updating...</span>
+                  </div>
+                )}
+                
+                {/* Connection status indicator */}
+                <div className="absolute -top-2 -left-2 flex items-center space-x-1">
+                  <div className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className="text-xs text-gray-500">
+                    {socketConnected ? 'Live' : 'Offline'}
+                  </span>
+                </div>
+                
                 <div className="flex items-center justify-center space-x-8 text-sm text-gray-600">
+                  
                   {/* Step 1: Forms Submitted - Always completed if user is in verification dashboard */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
