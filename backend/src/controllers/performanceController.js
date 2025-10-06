@@ -5,24 +5,55 @@ const performanceCalculationService = require('../services/performanceCalculatio
 const { logger } = require('../utils/logger');
 
 /**
- * Get performance overview for all roles
+ * Get performance overview for all roles - with timeout protection
  */
 const getPerformanceOverview = async (req, res) => {
+  // Set a timeout to prevent hanging
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(408).json({
+        success: false,
+        message: 'Performance data request timed out. Please try again.',
+        error: 'Request timeout'
+      });
+    }
+  }, 15000); // 15 second timeout
+
   try {
+    console.log('🚀 Performance overview request started');
+    const startTime = Date.now();
+    
     const performanceData = await performanceCalculationService.getPerformanceSummary();
     
-    res.json({
-      success: true,
-      message: "Performance overview retrieved successfully",
-      data: performanceData
-    });
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    console.log(`✅ Performance overview completed in ${duration}ms`);
+    
+    clearTimeout(timeout);
+    
+    if (!res.headersSent) {
+      res.json({
+        success: true,
+        message: "Performance overview retrieved successfully",
+        data: performanceData,
+        meta: {
+          processingTime: duration,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
   } catch (error) {
+    clearTimeout(timeout);
     logger.error('Error getting performance overview:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get performance overview',
-      error: error.message
-    });
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get performance overview',
+        error: error.message,
+        fallback: true
+      });
+    }
   }
 };
 

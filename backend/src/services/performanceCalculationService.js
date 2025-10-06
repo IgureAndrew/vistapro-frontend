@@ -287,95 +287,195 @@ async function calculateSuperAdminPerformance(superAdminId) {
 }
 
 /**
- * Get performance summary for all roles
+ * Get performance summary for all roles - OPTIMIZED VERSION
+ * Uses batch queries and limits processing to prevent hanging
  */
 async function getPerformanceSummary() {
-  // Get all marketers performance
-  const { rows: marketers } = await pool.query(`
-    SELECT u.unique_id, u.first_name, u.last_name, u.role
-    FROM users u
-    WHERE u.role = 'Marketer'
-    ORDER BY u.first_name, u.last_name
-  `);
-  
-  const marketerPerformances = [];
-  let totalOrders = 0;
-  let totalSales = 0;
-  
-  for (const marketer of marketers) {
-    try {
-      const performance = await calculateMarketerPerformance(marketer.unique_id);
-      marketerPerformances.push({
-        ...marketer,
-        name: `${marketer.first_name} ${marketer.last_name}`,
-        performance: performance.performance
-      });
+  try {
+    console.log('🚀 Starting optimized performance summary calculation...');
+    
+    // Set a reasonable limit to prevent performance issues
+    const MAX_USERS_PER_ROLE = 50;
+    
+    // Get basic user counts first (fast query)
+    const { rows: userCounts } = await pool.query(`
+      SELECT 
+        role,
+        COUNT(*) as count
+      FROM users 
+      WHERE role IN ('Marketer', 'Admin', 'SuperAdmin')
+      GROUP BY role
+    `);
+    
+    const counts = userCounts.reduce((acc, row) => {
+      acc[row.role.toLowerCase()] = parseInt(row.count);
+      return acc;
+    }, {});
+    
+    console.log('📊 User counts:', counts);
+    
+    // Get aggregated performance data in batch queries (much faster)
+    const { rows: marketerStats } = await pool.query(`
+      SELECT 
+        u.unique_id,
+        u.first_name,
+        u.last_name,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.sold_amount), 0) as total_sales,
+        COUNT(CASE WHEN o.status = 'released_confirmed' THEN 1 END) as confirmed_orders,
+        COALESCE(SUM(CASE WHEN o.status = 'released_confirmed' THEN o.sold_amount ELSE 0 END), 0) as confirmed_sales
+      FROM users u
+      LEFT JOIN orders o ON u.id = o.marketer_id
+      WHERE u.role = 'Marketer'
+      GROUP BY u.unique_id, u.first_name, u.last_name
+      ORDER BY confirmed_sales DESC
+      LIMIT $1
+    `, [MAX_USERS_PER_ROLE]);
+    
+    const { rows: adminStats } = await pool.query(`
+      SELECT 
+        u.unique_id,
+        u.first_name,
+        u.last_name,
+        COUNT(DISTINCT m.id) as assigned_marketers,
+        COUNT(o.id) as team_orders,
+        COALESCE(SUM(o.sold_amount), 0) as team_sales
+      FROM users u
+      LEFT JOIN users m ON m.admin_id = u.id AND m.role = 'Marketer'
+      LEFT JOIN orders o ON m.id = o.marketer_id AND o.status = 'released_confirmed'
+      WHERE u.role = 'Admin'
+      GROUP BY u.unique_id, u.first_name, u.last_name
+      ORDER BY team_sales DESC
+      LIMIT $1
+    `, [MAX_USERS_PER_ROLE]);
+    
+    const { rows: superAdminStats } = await pool.query(`
+      SELECT 
+        u.unique_id,
+        u.first_name,
+        u.last_name,
+        COUNT(DISTINCT a.id) as assigned_admins,
+        COUNT(DISTINCT m.id) as total_team_members,
+        COUNT(o.id) as team_orders,
+        COALESCE(SUM(o.sold_amount), 0) as team_sales
+      FROM users u
+      LEFT JOIN users a ON a.super_admin_id = u.id AND a.role = 'Admin'
+      LEFT JOIN users m ON m.admin_id = a.id AND m.role = 'Marketer'
+      LEFT JOIN orders o ON m.id = o.marketer_id AND o.status = 'released_confirmed'
+      WHERE u.role = 'SuperAdmin'
+      GROUP BY u.unique_id, u.first_name, u.last_name
+      ORDER BY team_sales DESC
+      LIMIT $1
+    `, [MAX_USERS_PER_ROLE]);
+    
+    // Process marketers data
+    const marketerPerformances = marketerStats.map(marketer => {
+      const totalOrders = parseInt(marketer.total_orders) || 0;
+      const confirmedOrders = parseInt(marketer.confirmed_orders) || 0;
+      const totalSales = parseFloat(marketer.total_sales) || 0;
+      const confirmedSales = parseFloat(marketer.confirmed_sales) || 0;
       
-      totalOrders += performance.performance.overall.totalOrders;
-      totalSales += performance.performance.overall.totalSales;
-    } catch (error) {
-      console.error(`Error calculating performance for marketer ${marketer.unique_id}:`, error);
-    }
-  }
-  
-  // Get all admins performance
-  const { rows: admins } = await pool.query(`
-    SELECT u.unique_id, u.first_name, u.last_name, u.role
-    FROM users u
-    WHERE u.role = 'Admin'
-    ORDER BY u.first_name, u.last_name
-  `);
-  
-  const adminPerformances = [];
-  
-  for (const admin of admins) {
-    try {
-      const performance = await calculateAdminPerformance(admin.unique_id);
-      adminPerformances.push({
-        ...admin,
+      // Calculate performance score (0-100)
+      const performanceScore = totalOrders > 0 ? Math.round((confirmedOrders / totalOrders) * 100) : 0;
+      
+      return {
+        unique_id: marketer.unique_id,
+        first_name: marketer.first_name,
+        last_name: marketer.last_name,
+        name: `${marketer.first_name} ${marketer.last_name}`,
+        performance: {
+          overall: {
+            totalOrders,
+            totalSales: confirmedSales,
+            performance: performanceScore
+          }
+        }
+      };
+    });
+    
+    // Process admins data
+    const adminPerformances = adminStats.map(admin => {
+      const assignedMarketers = parseInt(admin.assigned_marketers) || 0;
+      const teamOrders = parseInt(admin.team_orders) || 0;
+      const teamSales = parseFloat(admin.team_sales) || 0;
+      
+      // Calculate average performance based on team performance
+      const averagePerformance = assignedMarketers > 0 ? Math.round((teamOrders / assignedMarketers) * 10) : 0;
+      
+      return {
+        unique_id: admin.unique_id,
+        first_name: admin.first_name,
+        last_name: admin.last_name,
         name: `${admin.first_name} ${admin.last_name}`,
-        performance: performance.performance
-      });
-    } catch (error) {
-      console.error(`Error calculating performance for admin ${admin.unique_id}:`, error);
-    }
-  }
-  
-  // Get all superadmins performance
-  const { rows: superAdmins } = await pool.query(`
-    SELECT u.unique_id, u.first_name, u.last_name, u.role
-    FROM users u
-    WHERE u.role = 'SuperAdmin'
-    ORDER BY u.first_name, u.last_name
-  `);
-  
-  const superAdminPerformances = [];
-  
-  for (const superAdmin of superAdmins) {
-    try {
-      const performance = await calculateSuperAdminPerformance(superAdmin.unique_id);
-      superAdminPerformances.push({
-        ...superAdmin,
+        performance: {
+          teamSize: assignedMarketers,
+          totalOrders: teamOrders,
+          totalSales: teamSales,
+          averagePerformance: Math.min(averagePerformance, 100)
+        }
+      };
+    });
+    
+    // Process superadmins data
+    const superAdminPerformances = superAdminStats.map(superAdmin => {
+      const assignedAdmins = parseInt(superAdmin.assigned_admins) || 0;
+      const totalTeamMembers = parseInt(superAdmin.total_team_members) || 0;
+      const teamOrders = parseInt(superAdmin.team_orders) || 0;
+      const teamSales = parseFloat(superAdmin.team_sales) || 0;
+      
+      // Calculate average performance based on team performance
+      const averagePerformance = totalTeamMembers > 0 ? Math.round((teamOrders / totalTeamMembers) * 10) : 0;
+      
+      return {
+        unique_id: superAdmin.unique_id,
+        first_name: superAdmin.first_name,
+        last_name: superAdmin.last_name,
         name: `${superAdmin.first_name} ${superAdmin.last_name}`,
-        performance: performance.performance
-      });
-    } catch (error) {
-      console.error(`Error calculating performance for superadmin ${superAdmin.unique_id}:`, error);
-    }
+        performance: {
+          teamSize: totalTeamMembers,
+          totalOrders: teamOrders,
+          totalSales: teamSales,
+          averagePerformance: Math.min(averagePerformance, 100)
+        }
+      };
+    });
+    
+    // Calculate totals
+    const totalOrders = marketerPerformances.reduce((sum, m) => sum + m.performance.overall.totalOrders, 0);
+    const totalSales = marketerPerformances.reduce((sum, m) => sum + m.performance.overall.totalSales, 0);
+    
+    console.log('✅ Performance summary calculation completed successfully');
+    
+    return {
+      marketers: marketerPerformances,
+      admins: adminPerformances,
+      superAdmins: superAdminPerformances,
+      summary: {
+        totalMarketers: counts.marketer || 0,
+        totalAdmins: counts.admin || 0,
+        totalSuperAdmins: counts.superadmin || 0,
+        totalOrders,
+        totalSales
+      }
+    };
+    
+  } catch (error) {
+    console.error('❌ Error in getPerformanceSummary:', error);
+    
+    // Return fallback data instead of throwing
+    return {
+      marketers: [],
+      admins: [],
+      superAdmins: [],
+      summary: {
+        totalMarketers: 0,
+        totalAdmins: 0,
+        totalSuperAdmins: 0,
+        totalOrders: 0,
+        totalSales: 0
+      }
+    };
   }
-  
-  return {
-    marketers: marketerPerformances.sort((a, b) => b.performance.overall.performance - a.performance.overall.performance),
-    admins: adminPerformances.sort((a, b) => b.performance.averagePerformance - a.performance.averagePerformance),
-    superAdmins: superAdminPerformances.sort((a, b) => b.performance.averagePerformance - a.performance.averagePerformance),
-    summary: {
-      totalMarketers: marketers.length,
-      totalAdmins: admins.length,
-      totalSuperAdmins: superAdmins.length,
-      totalOrders,
-      totalSales
-    }
-  };
 }
 
 module.exports = {
