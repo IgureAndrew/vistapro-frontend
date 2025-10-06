@@ -699,6 +699,11 @@ const submitBiodata = async (req, res, next) => {
  */
 const submitGuarantor = async (req, res, next) => {
   try {
+    console.log('🔍 Guarantor form submission started');
+    console.log('📋 Request body:', req.body);
+    console.log('📁 Request files:', req.files);
+    console.log('👤 User:', req.user);
+    
     // Ensure verification_submissions table exists
     await checkVerificationSubmissionsTable();
     
@@ -769,39 +774,36 @@ const submitGuarantor = async (req, res, next) => {
     }
 
     const insertQuery = `
-      INSERT INTO guarantor_employment_form (
-        marketer_unique_id, is_candidate_known, relationship,
-        known_duration, occupation, means_of_identification,
-        identification_file_url, guarantor_full_name,
-        guarantor_home_address, guarantor_office_address,
-        guarantor_email, guarantor_phone, candidate_name,
-        signature_url, created_at, updated_at
+      INSERT INTO marketer_guarantor_form (
+        marketer_id, is_candidate_well_known, relationship,
+        known_duration, occupation,
+        id_document_url, passport_photo_url, signature_url,
+        created_at, updated_at
       ) VALUES (
-        $1, $2, $3,
-        $4, $5, $6,
-        $7, $8,
-        $9, $10,
-        $11, $12, $13,
-        $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        (SELECT id FROM users WHERE unique_id = $1), $2, $3,
+        $4, $5,
+        $6, $7, $8,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       RETURNING *;
     `;
     const values = [
       marketerUniqueId, is_candidate_known, relationship,
-      known_duration, occupation, means_of_identification,
-      identificationFileUrl, guarantor_full_name,
-      guarantor_home_address, guarantor_office_address,
-      guarantor_email, guarantor_phone,
-      candidate_name || null, signatureUrl
+      known_duration, occupation,
+      identificationFileUrl, identificationFileUrl, signatureUrl
     ];
 
+    console.log('📝 Inserting guarantor data:', { insertQuery, values });
+    
     let result;
     try {
       result = await pool.query(insertQuery, values);
+      console.log('✅ Guarantor form inserted successfully:', result.rows[0]);
     } catch (error) {
+      console.log('❌ Error inserting guarantor form:', error.message);
       if (error.code === "23505") {
         // example constraint name
-        if (error.constraint === "guarantor_employment_form_identification_file_key") {
+        if (error.constraint === "marketer_guarantor_form_identification_file_key") {
           return res.status(400).json({
             field: "identification_file",
             message: "That identification file has already been uploaded."
@@ -872,6 +874,7 @@ const submitCommitment = async (req, res, next) => {
     console.log('🔍 Commitment form submission started');
     console.log('📋 Request body:', req.body);
     console.log('📁 Request file:', req.file ? 'File present' : 'No file');
+    console.log('👤 User:', req.user);
     
     const {
       promise_accept_false_documents,
@@ -949,10 +952,10 @@ const submitCommitment = async (req, res, next) => {
 
     const parseBool = val => (val?.toLowerCase() === "yes");
     const insertQuery = `
-      INSERT INTO direct_sales_commitment_form (
-        marketer_unique_id,
+      INSERT INTO marketer_commitment_form (
+        marketer_id,
         promise_accept_false_documents,
-        promise_not_request_unrelated_info,
+        promise_not_request_irrelevant_info,
         promise_not_charge_customer_fees,
         promise_not_modify_contract_info,
         promise_not_sell_unapproved_phones,
@@ -967,7 +970,7 @@ const submitCommitment = async (req, res, next) => {
         date_signed,
         created_at, updated_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+        (SELECT id FROM users WHERE unique_id = $1),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
       )
       RETURNING *;
     `;
@@ -2065,12 +2068,12 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         CASE WHEN u.commitment_submitted THEN 'completed' ELSE 'not_submitted' END as commitment_status,
         -- Check if all forms are submitted
         (u.bio_submitted AND u.guarantor_submitted AND u.commitment_submitted) as all_forms_submitted,
-        -- Admin verification fields from admin_verification_details table
-        avd.admin_verification_date,
-        avd.verification_notes as admin_verification_notes,
-        avd.location_photo_url as location_photos,
-        avd.admin_marketer_photo_url as admin_marketer_photos,
-        avd.landmark_description as landmark_photos,
+        -- Admin verification fields (with fallback for missing table)
+        NULL as admin_verification_date,
+        NULL as admin_verification_notes,
+        NULL as location_photos,
+        NULL as admin_marketer_photos,
+        NULL as landmark_photos,
         -- Admin name
         CONCAT(admin.first_name, ' ', admin.last_name) as admin_name,
         -- Detailed form data
@@ -2127,7 +2130,6 @@ const getSubmissionsForAdmin = async (req, res, next) => {
       FROM verification_submissions vs
       JOIN users u ON vs.marketer_id = u.id
       LEFT JOIN users admin ON vs.admin_id = admin.id
-      LEFT JOIN admin_verification_details avd ON vs.id = avd.verification_submission_id
       LEFT JOIN (
         SELECT DISTINCT ON (marketer_unique_id) *
         FROM marketer_biodata
@@ -2144,13 +2146,26 @@ const getSubmissionsForAdmin = async (req, res, next) => {
     let submissionsResult;
     try {
       submissionsResult = await pool.query(submissionsQuery, [adminId]);
-    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+      console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+      
+      if (submissionsResult.rows.length > 0) {
+        console.log('🔍 First submission data:', {
+          marketer_id: submissionsResult.rows[0].marketer_id,
+          marketer_name: submissionsResult.rows[0].marketer_name,
+          bio_submitted: submissionsResult.rows[0].bio_submitted,
+          guarantor_submitted: submissionsResult.rows[0].guarantor_submitted,
+          commitment_submitted: submissionsResult.rows[0].commitment_submitted,
+          guarantor_well_known: submissionsResult.rows[0].guarantor_well_known,
+          guarantor_relationship: submissionsResult.rows[0].guarantor_relationship,
+          commitment_false_docs: submissionsResult.rows[0].commitment_false_docs
+        });
+      }
     } catch (queryError) {
       console.error(`❌ Complex query error for admin ${adminId}:`, queryError);
       console.log(`🔄 Falling back to simple query...`);
       
-      // Fallback to simple query
-      const simpleQuery = `
+      // First, try to get basic submission data with biodata
+      const basicQuery = `
         SELECT 
           vs.id as submission_id,
           vs.submission_status,
@@ -2167,15 +2182,244 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           u.guarantor_submitted,
           u.commitment_submitted,
           u.overall_verification_status,
-          CONCAT(u.first_name, ' ', u.last_name) as marketer_name
+          CONCAT(u.first_name, ' ', u.last_name) as marketer_name,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.phone,
+          u.location as marketer_address,
+          -- Form status fields
+          CASE WHEN u.bio_submitted THEN 'completed' ELSE 'not_submitted' END as biodata_status,
+          CASE WHEN u.guarantor_submitted THEN 'completed' ELSE 'not_submitted' END as guarantor_status,
+          CASE WHEN u.commitment_submitted THEN 'completed' ELSE 'not_submitted' END as commitment_status,
+          -- Check if all forms are submitted
+          (u.bio_submitted AND u.guarantor_submitted AND u.commitment_submitted) as all_forms_submitted,
+          -- Admin verification fields (with fallback for missing table)
+          NULL as admin_verification_date,
+          NULL as admin_verification_notes,
+          NULL as location_photos,
+          NULL as admin_marketer_photos,
+          NULL as landmark_photos,
+          -- Admin name
+          CONCAT(admin.first_name, ' ', admin.last_name) as admin_name,
+          -- Biodata form details
+          mb.name as biodata_name,
+          mb.address as biodata_address,
+          mb.phone as biodata_phone,
+          mb.religion as biodata_religion,
+          mb.date_of_birth as biodata_dob,
+          mb.marital_status as biodata_marital_status,
+          mb.state_of_origin as biodata_state_origin,
+          mb.state_of_residence as biodata_state_residence,
+          mb.mothers_maiden_name as biodata_mothers_maiden,
+          mb.school_attended as biodata_school,
+          mb.means_of_identification as biodata_id_type,
+          mb.id_document_url as biodata_id_document,
+          mb.last_place_of_work as biodata_work_place,
+          mb.job_description as biodata_job_desc,
+          mb.reason_for_quitting as biodata_quit_reason,
+          mb.medical_condition as biodata_medical,
+          mb.next_of_kin_name as biodata_kin_name,
+          mb.next_of_kin_phone as biodata_kin_phone,
+          mb.next_of_kin_address as biodata_kin_address,
+          mb.next_of_kin_relationship as biodata_kin_relationship,
+          mb.bank_name as biodata_bank_name,
+          mb.account_name as biodata_account_name,
+          mb.account_number as biodata_account_number,
+          mb.passport_photo_url as biodata_passport_photo,
+          mb.created_at as biodata_submitted_at
         FROM verification_submissions vs
         JOIN users u ON vs.marketer_id = u.id
+        LEFT JOIN users admin ON vs.admin_id = admin.id
+        LEFT JOIN (
+          SELECT DISTINCT ON (marketer_unique_id) *
+          FROM marketer_biodata
+          ORDER BY marketer_unique_id, created_at DESC
+        ) mb ON u.unique_id = mb.marketer_unique_id
         WHERE vs.admin_id = $1
         ORDER BY vs.updated_at DESC
       `;
       
-      submissionsResult = await pool.query(simpleQuery, [adminId]);
-      console.log(`✅ Fallback query found ${submissionsResult.rows.length} submissions`);
+      submissionsResult = await pool.query(basicQuery, [adminId]);
+      console.log(`✅ Basic query found ${submissionsResult.rows.length} submissions`);
+      
+      if (submissionsResult.rows.length > 0) {
+        console.log('🔍 Basic query first submission:', {
+          marketer_id: submissionsResult.rows[0].marketer_id,
+          marketer_name: submissionsResult.rows[0].marketer_name,
+          bio_submitted: submissionsResult.rows[0].bio_submitted,
+          guarantor_submitted: submissionsResult.rows[0].guarantor_submitted,
+          commitment_submitted: submissionsResult.rows[0].commitment_submitted
+        });
+      }
+      
+      // Now try to get guarantor and commitment form data for each submission
+      for (let i = 0; i < submissionsResult.rows.length; i++) {
+        const submission = submissionsResult.rows[i];
+        
+        // Try to get guarantor form data
+        try {
+          const guarantorQuery = `
+            SELECT 
+              is_candidate_well_known as guarantor_well_known,
+              relationship as guarantor_relationship,
+              known_duration as guarantor_known_duration,
+              occupation as guarantor_occupation,
+              id_document_url as guarantor_id_document,
+              passport_photo_url as guarantor_passport_photo,
+              signature_url as guarantor_signature,
+              created_at as guarantor_submitted_at,
+              -- Additional fields for frontend compatibility
+              NULL as guarantor_means_of_identification,
+              NULL as guarantor_full_name,
+              NULL as guarantor_email,
+              NULL as guarantor_phone,
+              NULL as guarantor_home_address,
+              NULL as guarantor_office_address,
+              NULL as candidate_name
+            FROM marketer_guarantor_form 
+            WHERE marketer_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+          `;
+          
+          const guarantorResult = await pool.query(guarantorQuery, [submission.marketer_id]);
+          console.log(`🔍 Guarantor query result for marketer ${submission.marketer_id}:`, guarantorResult.rows.length, 'rows');
+          
+          if (guarantorResult.rows.length > 0) {
+            const guarantorData = guarantorResult.rows[0];
+            console.log(`📋 Guarantor data found:`, guarantorData);
+            submissionsResult.rows[i] = {
+              ...submission,
+              ...guarantorData
+            };
+            console.log(`✅ Added guarantor data for marketer ${submission.marketer_id}`);
+          } else {
+            // Add null values for guarantor fields
+            submissionsResult.rows[i] = {
+              ...submission,
+              guarantor_well_known: null,
+              guarantor_relationship: null,
+              guarantor_known_duration: null,
+              guarantor_occupation: null,
+              guarantor_id_document: null,
+              guarantor_passport_photo: null,
+              guarantor_signature: null,
+              guarantor_submitted_at: null,
+              guarantor_means_of_identification: null,
+              guarantor_full_name: null,
+              guarantor_email: null,
+              guarantor_phone: null,
+              guarantor_home_address: null,
+              guarantor_office_address: null,
+              candidate_name: null
+            };
+          }
+        } catch (guarantorError) {
+          console.log(`⚠️  Guarantor table not available for marketer ${submission.marketer_id}`);
+          // Add null values for guarantor fields
+          submissionsResult.rows[i] = {
+            ...submission,
+            guarantor_well_known: null,
+            guarantor_relationship: null,
+            guarantor_known_duration: null,
+            guarantor_occupation: null,
+            guarantor_id_document: null,
+            guarantor_passport_photo: null,
+            guarantor_signature: null,
+            guarantor_submitted_at: null,
+            guarantor_means_of_identification: null,
+            guarantor_full_name: null,
+            guarantor_email: null,
+            guarantor_phone: null,
+            guarantor_home_address: null,
+            guarantor_office_address: null,
+            candidate_name: null
+          };
+        }
+        
+        // Try to get commitment form data
+        try {
+          const commitmentQuery = `
+            SELECT 
+              promise_accept_false_documents as commitment_false_docs,
+              promise_not_request_irrelevant_info as commitment_irrelevant_info,
+              promise_not_charge_customer_fees as commitment_no_fees,
+              promise_not_modify_contract_info as commitment_no_modify,
+              promise_not_sell_unapproved_phones as commitment_approved_phones,
+              promise_not_make_unofficial_commitment as commitment_no_unofficial,
+              promise_not_operate_customer_account as commitment_no_operate_account,
+              promise_accept_fraud_firing as commitment_fraud_firing,
+              promise_not_share_company_info as commitment_no_share_info,
+              promise_ensure_loan_recovery as commitment_loan_recovery,
+              promise_abide_by_system as commitment_abide_system,
+              direct_sales_rep_name as commitment_rep_name,
+              direct_sales_rep_signature_url as commitment_rep_signature,
+              date_signed as commitment_date_signed,
+              created_at as commitment_submitted_at
+            FROM marketer_commitment_form 
+            WHERE marketer_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+          `;
+          
+          const commitmentResult = await pool.query(commitmentQuery, [submission.marketer_id]);
+          console.log(`🔍 Commitment query result for marketer ${submission.marketer_id}:`, commitmentResult.rows.length, 'rows');
+          
+          if (commitmentResult.rows.length > 0) {
+            const commitmentData = commitmentResult.rows[0];
+            console.log(`📋 Commitment data found:`, commitmentData);
+            submissionsResult.rows[i] = {
+              ...submissionsResult.rows[i],
+              ...commitmentData
+            };
+            console.log(`✅ Added commitment data for marketer ${submission.marketer_id}`);
+          } else {
+            // Add null values for commitment fields
+            submissionsResult.rows[i] = {
+              ...submissionsResult.rows[i],
+              commitment_false_docs: null,
+              commitment_irrelevant_info: null,
+              commitment_no_fees: null,
+              commitment_no_modify: null,
+              commitment_approved_phones: null,
+              commitment_no_unofficial: null,
+              commitment_no_operate_account: null,
+              commitment_fraud_firing: null,
+              commitment_no_share_info: null,
+              commitment_loan_recovery: null,
+              commitment_abide_system: null,
+              commitment_rep_name: null,
+              commitment_rep_signature: null,
+              commitment_date_signed: null,
+              commitment_submitted_at: null
+            };
+          }
+        } catch (commitmentError) {
+          console.log(`⚠️  Commitment table not available for marketer ${submission.marketer_id}`);
+          // Add null values for commitment fields
+          submissionsResult.rows[i] = {
+            ...submissionsResult.rows[i],
+            commitment_false_docs: null,
+            commitment_irrelevant_info: null,
+            commitment_no_fees: null,
+            commitment_no_modify: null,
+            commitment_approved_phones: null,
+            commitment_no_unofficial: null,
+            commitment_no_operate_account: null,
+            commitment_fraud_firing: null,
+            commitment_no_share_info: null,
+            commitment_loan_recovery: null,
+            commitment_abide_system: null,
+            commitment_rep_name: null,
+            commitment_rep_signature: null,
+            commitment_date_signed: null,
+            commitment_submitted_at: null
+          };
+        }
+      }
+      
+      console.log(`✅ Enhanced fallback query completed for ${submissionsResult.rows.length} submissions`);
     }
 
     // Get assigned admins for filter dropdown
@@ -2554,13 +2798,13 @@ async function getVerificationStatus(req, res, next) {
         superadmin_user.last_name as superadmin_last_name,
         superadmin_user.email as superadmin_email,
         
-        -- Admin verification details
-        avd.admin_verification_date,
-        avd.verification_notes,
-        avd.location_photo_url,
-        avd.admin_marketer_photo_url,
-        avd.landmark_description,
-        avd.additional_documents,
+        -- Admin verification details (with fallback for missing table)
+        NULL as admin_verification_date,
+        NULL as verification_notes,
+        NULL as location_photo_url,
+        NULL as admin_marketer_photo_url,
+        NULL as landmark_description,
+        NULL as additional_documents,
         
         -- Workflow logs will be fetched separately
         NULL as last_action,
@@ -2573,7 +2817,6 @@ async function getVerificationStatus(req, res, next) {
       JOIN users u ON vs.marketer_id = u.id
       LEFT JOIN users admin_user ON vs.admin_id = admin_user.id
       LEFT JOIN users superadmin_user ON vs.super_admin_id = superadmin_user.id
-      LEFT JOIN admin_verification_details avd ON vs.id = avd.verification_submission_id
       WHERE vs.id = $1
       ORDER BY vs.updated_at DESC
       LIMIT 1
@@ -3853,6 +4096,77 @@ const getAdminAssignmentInfo = async (req, res, next) => {
   }
 };
 
+// Simple endpoint to get raw form data for debugging
+const getRawFormData = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    console.log(`🔍 Getting raw form data for admin ${adminId}`);
+    
+    // Get all marketers assigned to this admin
+    const marketersResult = await pool.query(`
+      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email
+      FROM users u 
+      WHERE u.admin_id = $1 AND u.role = 'Marketer'
+    `, [adminId]);
+    
+    console.log(`📊 Found ${marketersResult.rows.length} marketers`);
+    
+    const formData = [];
+    
+    for (const marketer of marketersResult.rows) {
+      console.log(`🔍 Processing marketer: ${marketer.first_name} ${marketer.last_name} (ID: ${marketer.id})`);
+      
+      // Get biodata
+      const biodataResult = await pool.query(`
+        SELECT * FROM marketer_biodata 
+        WHERE marketer_unique_id = $1 
+        ORDER BY created_at DESC LIMIT 1
+      `, [marketer.unique_id]);
+      
+      // Get guarantor form
+      const guarantorResult = await pool.query(`
+        SELECT * FROM marketer_guarantor_form 
+        WHERE marketer_id = $1 
+        ORDER BY created_at DESC LIMIT 1
+      `, [marketer.id]);
+      
+      console.log(`🔍 Guarantor query for marketer ${marketer.id}:`, guarantorResult.rows.length, 'rows');
+      
+      // Get commitment form
+      const commitmentResult = await pool.query(`
+        SELECT * FROM marketer_commitment_form 
+        WHERE marketer_id = $1 
+        ORDER BY created_at DESC LIMIT 1
+      `, [marketer.id]);
+      
+      console.log(`🔍 Commitment query for marketer ${marketer.id}:`, commitmentResult.rows.length, 'rows');
+      
+      formData.push({
+        marketer: marketer,
+        biodata: biodataResult.rows[0] || null,
+        guarantor: guarantorResult.rows[0] || null,
+        commitment: commitmentResult.rows[0] || null
+      });
+      
+      console.log(`📋 Marketer ${marketer.first_name}:`, {
+        biodata: biodataResult.rows.length,
+        guarantor: guarantorResult.rows.length,
+        commitment: commitmentResult.rows.length
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: formData,
+      message: `Found ${formData.length} marketers with form data`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting raw form data:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitBiodata,
   submitGuarantor,
@@ -3881,5 +4195,6 @@ module.exports = {
   approveAdminSuperadmin,
   getAdminAssignmentInfo,
   fixUserFormFlags,
+  getRawFormData,
 };
 

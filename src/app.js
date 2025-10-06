@@ -8,6 +8,9 @@ const session       = require('express-session');
 const path          = require('path');
 // Redis temporarily disabled for local development
 
+// Import startup migration
+const runStartupMigration = require('../startup_migration');
+
 // ——— Express app
 const app = express();
 app.set('trust proxy', 1);

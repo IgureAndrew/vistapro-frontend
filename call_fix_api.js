@@ -1,41 +1,48 @@
 const axios = require('axios');
-
-// API endpoint
-const API_URL = 'https://vistapro-backend.onrender.com/api/verification/fix-all-user-flags';
-
-// You'll need to replace this with a valid MasterAdmin token
-const MASTER_ADMIN_TOKEN = 'YOUR_MASTER_ADMIN_TOKEN_HERE';
+require('dotenv').config();
 
 async function callFixAPI() {
   try {
-    console.log('🔧 Calling fix-all-user-flags API endpoint...');
+    console.log('🔧 Calling production fix API...');
     
-    const response = await axios.post(API_URL, {}, {
-      headers: {
-        'Authorization': `Bearer ${MASTER_ADMIN_TOKEN}`,
-        'Content-Type': 'application/json'
+    // You'll need to get a valid MasterAdmin token
+    // For now, we'll use a placeholder - you'll need to replace this with actual token
+    const token = process.env.MASTER_ADMIN_TOKEN || 'your-master-admin-token-here';
+    
+    if (token === 'your-master-admin-token-here') {
+      console.log('❌ Please set MASTER_ADMIN_TOKEN environment variable with a valid MasterAdmin token');
+      console.log('💡 You can get a token by logging in as MasterAdmin and checking the browser network tab');
+      return;
+    }
+    
+    const response = await axios.post(
+      'https://vistapro-backend.onrender.com/api/verification/run-complete-fix',
+      {},
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 300000 // 5 minutes timeout
       }
-    });
+    );
     
     console.log('✅ API call successful!');
     console.log('📊 Summary:', response.data.summary);
     console.log('📋 Results:', response.data.results);
     
   } catch (error) {
-    console.error('❌ API call failed:', error.response?.data || error.message);
+    console.error('❌ Error calling fix API:', error.response?.data || error.message);
+    
+    if (error.response?.status === 401) {
+      console.log('🔑 Authentication failed. Please check your MasterAdmin token.');
+    } else if (error.response?.status === 403) {
+      console.log('🚫 Access denied. Please ensure you have MasterAdmin role.');
+    } else if (error.code === 'ECONNREFUSED') {
+      console.log('🌐 Connection refused. Please check if the backend is running.');
+    }
   }
 }
 
-// Instructions for the user
-console.log('📝 To fix the production data:');
-console.log('1. Get a MasterAdmin token from the production system');
-console.log('2. Replace YOUR_MASTER_ADMIN_TOKEN_HERE with the actual token');
-console.log('3. Run: node call_fix_api.js');
-console.log('');
-console.log('Or call the API directly using Postman/curl:');
-console.log(`POST ${API_URL}`);
-console.log('Headers: Authorization: Bearer YOUR_MASTER_ADMIN_TOKEN');
-console.log('Body: {}');
-
-// Uncomment the line below after setting the token
-// callFixAPI();
+// Run the API call
+callFixAPI();
