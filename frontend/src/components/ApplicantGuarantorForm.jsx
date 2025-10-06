@@ -55,10 +55,16 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    console.log('🔍 Guarantor form handleSubmit called', { loading, submitted });
+    
     // Prevent double submission or resubmission
-    if (loading || submitted) return;
+    if (loading || submitted) {
+      console.log('🚫 Form submission blocked:', { loading, submitted });
+      return;
+    }
     
     // Show confirmation dialog
+    console.log('✅ Showing confirmation dialog');
     setShowConfirmDialog(true);
   };
 
@@ -484,7 +490,10 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <button
             type="button"
-            onClick={() => setShowConfirmDialog(true)}
+            onClick={() => {
+              console.log('🔍 Guarantor submit button clicked', { loading, submitted });
+              setShowConfirmDialog(true);
+            }}
             disabled={loading || submitted}
             className="w-full text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             style={{ backgroundColor: submitted ? '#10b981' : '#f59e0b' }}
