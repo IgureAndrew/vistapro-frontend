@@ -400,7 +400,7 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
 
       {/* Progress Alert Dialog */}
       {showProgressAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div className="flex items-center space-x-3 mb-4">
               <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
