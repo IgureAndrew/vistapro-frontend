@@ -2115,8 +2115,43 @@ const getSubmissionsForAdmin = async (req, res, next) => {
     `;
     
     console.log(`📊 Executing submissions query for admin ${adminId}...`);
-    const submissionsResult = await pool.query(submissionsQuery, [adminId]);
-    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+    
+    let submissionsResult;
+    try {
+      submissionsResult = await pool.query(submissionsQuery, [adminId]);
+      console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+    } catch (queryError) {
+      console.error(`❌ Complex query error for admin ${adminId}:`, queryError);
+      console.log(`🔄 Falling back to simple query...`);
+      
+      // Fallback to simple query
+      const simpleQuery = `
+        SELECT 
+          vs.id as submission_id,
+          vs.submission_status,
+          vs.created_at as submission_created_at,
+          vs.updated_at as last_updated,
+          u.id as marketer_id,
+          u.unique_id as marketer_unique_id,
+          u.first_name as marketer_first_name,
+          u.last_name as marketer_last_name,
+          u.email as marketer_email,
+          u.phone as marketer_phone,
+          u.location as marketer_location,
+          u.bio_submitted,
+          u.guarantor_submitted,
+          u.commitment_submitted,
+          u.overall_verification_status,
+          CONCAT(u.first_name, ' ', u.last_name) as marketer_name
+        FROM verification_submissions vs
+        JOIN users u ON vs.marketer_id = u.id
+        WHERE vs.admin_id = $1
+        ORDER BY vs.updated_at DESC
+      `;
+      
+      submissionsResult = await pool.query(simpleQuery, [adminId]);
+      console.log(`✅ Fallback query found ${submissionsResult.rows.length} submissions`);
+    }
 
     // Get assigned admins for filter dropdown
     const assignedAdminsQuery = `
