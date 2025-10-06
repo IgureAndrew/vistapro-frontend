@@ -769,30 +769,23 @@ const submitGuarantor = async (req, res, next) => {
     }
 
     const insertQuery = `
-      INSERT INTO guarantor_employment_form (
-        marketer_unique_id, is_candidate_known, relationship,
-        known_duration, occupation, means_of_identification,
-        identification_file_url, guarantor_full_name,
-        guarantor_home_address, guarantor_office_address,
-        guarantor_email, guarantor_phone, candidate_name,
-        signature_url, created_at, updated_at
+      INSERT INTO marketer_guarantor_form (
+        marketer_id, is_candidate_well_known, relationship,
+        known_duration, occupation,
+        id_document_url, passport_photo_url, signature_url,
+        created_at, updated_at
       ) VALUES (
-        $1, $2, $3,
-        $4, $5, $6,
-        $7, $8,
-        $9, $10,
-        $11, $12, $13,
-        $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        (SELECT id FROM users WHERE unique_id = $1), $2, $3,
+        $4, $5,
+        $6, $7, $8,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       RETURNING *;
     `;
     const values = [
       marketerUniqueId, is_candidate_known, relationship,
-      known_duration, occupation, means_of_identification,
-      identificationFileUrl, guarantor_full_name,
-      guarantor_home_address, guarantor_office_address,
-      guarantor_email, guarantor_phone,
-      candidate_name || null, signatureUrl
+      known_duration, occupation,
+      identificationFileUrl, identificationFileUrl, signatureUrl
     ];
 
     let result;
@@ -949,10 +942,10 @@ const submitCommitment = async (req, res, next) => {
 
     const parseBool = val => (val?.toLowerCase() === "yes");
     const insertQuery = `
-      INSERT INTO direct_sales_commitment_form (
-        marketer_unique_id,
+      INSERT INTO marketer_commitment_form (
+        marketer_id,
         promise_accept_false_documents,
-        promise_not_request_unrelated_info,
+        promise_not_request_irrelevant_info,
         promise_not_charge_customer_fees,
         promise_not_modify_contract_info,
         promise_not_sell_unapproved_phones,
@@ -967,7 +960,7 @@ const submitCommitment = async (req, res, next) => {
         date_signed,
         created_at, updated_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+        (SELECT id FROM users WHERE unique_id = $1),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
       )
       RETURNING *;
     `;
@@ -2132,8 +2125,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         FROM marketer_biodata
         ORDER BY marketer_unique_id, created_at DESC
       ) mb ON u.unique_id = mb.marketer_unique_id
-      LEFT JOIN guarantor_employment_form mgf ON u.unique_id = mgf.marketer_unique_id
-      LEFT JOIN direct_sales_commitment_form mcf ON u.unique_id = mcf.marketer_unique_id
+      LEFT JOIN marketer_guarantor_form mgf ON u.id = mgf.marketer_id
+      LEFT JOIN marketer_commitment_form mcf ON u.id = mcf.marketer_id
       WHERE vs.admin_id = $1
       ORDER BY vs.updated_at DESC
     `;
@@ -2274,8 +2267,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               NULL as guarantor_home_address,
               NULL as guarantor_office_address,
               NULL as candidate_name
-            FROM guarantor_employment_form 
-            WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1)
+            FROM marketer_guarantor_form 
+            WHERE marketer_id = $1
             ORDER BY created_at DESC
             LIMIT 1
           `;
@@ -2354,8 +2347,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               direct_sales_rep_signature_url as commitment_rep_signature,
               date_signed as commitment_date_signed,
               created_at as commitment_submitted_at
-            FROM direct_sales_commitment_form 
-            WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1)
+            FROM marketer_commitment_form 
+            WHERE marketer_id = $1
             ORDER BY created_at DESC
             LIMIT 1
           `;
