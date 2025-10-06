@@ -2075,23 +2075,17 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mb.passport_photo_url as biodata_passport_photo,
         mb.created_at as biodata_submitted_at,
         -- Guarantor form data
-        mgf.is_candidate_known as guarantor_well_known,
+        mgf.is_candidate_well_known as guarantor_well_known,
         mgf.relationship as guarantor_relationship,
         mgf.known_duration as guarantor_known_duration,
         mgf.occupation as guarantor_occupation,
-        mgf.means_of_identification as guarantor_means_of_identification,
-        mgf.guarantor_full_name as guarantor_full_name,
-        mgf.guarantor_home_address as guarantor_home_address,
-        mgf.guarantor_office_address as guarantor_office_address,
-        mgf.guarantor_email as guarantor_email,
-        mgf.guarantor_phone as guarantor_phone,
-        mgf.candidate_name as guarantor_candidate_name,
-        mgf.identification_file_url as guarantor_id_document,
+        mgf.id_document_url as guarantor_id_document,
+        mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
-        mcf.promise_not_request_unrelated_info as commitment_irrelevant_info,
+        mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
         mcf.promise_not_charge_customer_fees as commitment_no_fees,
         mcf.promise_not_modify_contract_info as commitment_no_modify,
         mcf.promise_not_sell_unapproved_phones as commitment_approved_phones,
@@ -2114,8 +2108,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         FROM marketer_biodata
         ORDER BY marketer_unique_id, created_at DESC
       ) mb ON u.unique_id = mb.marketer_unique_id
-      LEFT JOIN guarantor_employment_form mgf ON u.unique_id = mgf.marketer_unique_id
-      LEFT JOIN direct_sales_commitment_form mcf ON u.unique_id = mcf.marketer_unique_id
+      LEFT JOIN marketer_guarantor_form mgf ON u.id = mgf.marketer_id
+      LEFT JOIN marketer_commitment_form mcf ON u.id = mcf.marketer_id
       WHERE vs.admin_id = $1
       ORDER BY vs.updated_at DESC
     `;
