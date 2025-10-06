@@ -4,7 +4,7 @@ const { pool } = require("../config/database");
 const uploadToCloudinary = require("../utils/uploadToCloudinary"); // Helper to upload file buffers to Cloudinary
 const sendSocketNotification = require("../utils/sendSocketNotification");
 
-// Helper function to check if verification_submissions table exists
+// Helper function to check if verification_submissions table exists and create it if needed
 async function checkVerificationSubmissionsTable() {
   try {
     const tableCheck = await pool.query(`
@@ -14,9 +14,74 @@ async function checkVerificationSubmissionsTable() {
         AND table_name = 'verification_submissions'
       );
     `);
-    return tableCheck.rows[0].exists;
+    
+    if (tableCheck.rows[0].exists) {
+      console.log('✅ verification_submissions table exists');
+      return true;
+    }
+    
+    console.log('🔄 Creating verification_submissions table...');
+    
+    // Create the table
+    await pool.query(`
+      CREATE TABLE verification_submissions (
+        id SERIAL PRIMARY KEY,
+        marketer_id INTEGER NOT NULL,
+        admin_id INTEGER NOT NULL,
+        super_admin_id INTEGER NOT NULL,
+        submission_status VARCHAR(50) NOT NULL DEFAULT 'pending_admin_review',
+        admin_reviewed_at TIMESTAMP,
+        superadmin_reviewed_at TIMESTAMP,
+        masteradmin_approved_at TIMESTAMP,
+        rejection_reason TEXT,
+        rejected_by VARCHAR(50),
+        rejected_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // Add foreign key constraints
+    await pool.query(`
+      ALTER TABLE verification_submissions 
+      ADD CONSTRAINT fk_verification_marketer 
+      FOREIGN KEY (marketer_id) REFERENCES users(id);
+    `);
+    
+    await pool.query(`
+      ALTER TABLE verification_submissions 
+      ADD CONSTRAINT fk_verification_admin 
+      FOREIGN KEY (admin_id) REFERENCES users(id);
+    `);
+    
+    await pool.query(`
+      ALTER TABLE verification_submissions 
+      ADD CONSTRAINT fk_verification_superadmin 
+      FOREIGN KEY (super_admin_id) REFERENCES users(id);
+    `);
+    
+    // Create indexes
+    await pool.query(`
+      CREATE INDEX idx_verification_submissions_marketer ON verification_submissions(marketer_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_verification_submissions_admin ON verification_submissions(admin_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_verification_submissions_superadmin ON verification_submissions(super_admin_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_verification_submissions_status ON verification_submissions(submission_status);
+    `);
+    
+    console.log('✅ verification_submissions table created successfully');
+    return true;
+    
   } catch (error) {
-    console.error('Error checking verification_submissions table:', error);
+    console.error('❌ Error with verification_submissions table:', error);
     return false;
   }
 }
@@ -236,6 +301,9 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
  */
 const submitBiodata = async (req, res, next) => {
   try {
+    // Ensure verification_submissions table exists
+    await checkVerificationSubmissionsTable();
+    
     const marketerUniqueId = req.user.unique_id;
     
     // Check if biodata has already been submitted
@@ -453,6 +521,9 @@ const submitBiodata = async (req, res, next) => {
  */
 const submitGuarantor = async (req, res, next) => {
   try {
+    // Ensure verification_submissions table exists
+    await checkVerificationSubmissionsTable();
+    
     const {
       is_candidate_known, relationship, known_duration, occupation,
       means_of_identification, guarantor_full_name,
@@ -602,6 +673,9 @@ const submitGuarantor = async (req, res, next) => {
  */
 const submitCommitment = async (req, res, next) => {
   try {
+    // Ensure verification_submissions table exists
+    await checkVerificationSubmissionsTable();
+    
     console.log('🔍 Commitment form submission started');
     console.log('📋 Request body:', req.body);
     console.log('📁 Request file:', req.file ? 'File present' : 'No file');
