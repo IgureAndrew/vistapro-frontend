@@ -74,13 +74,32 @@ const AdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get(
-        `${API_URL}/api/verification/submissions/admin`,
+        `${API_URL}/api/admin/verification-submissions`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }
       );
+      
+      console.log('🔍 AdminSubmissionsNew API response:', response.data);
+      console.log('📊 Submissions data:', response.data.submissions);
+      
+      if (response.data.submissions && response.data.submissions.length > 0) {
+        console.log('📋 First submission details:', response.data.submissions[0]);
+        console.log('🔍 Guarantor fields:', {
+          guarantor_well_known: response.data.submissions[0].guarantor_well_known,
+          guarantor_relationship: response.data.submissions[0].guarantor_relationship,
+          guarantor_known_duration: response.data.submissions[0].guarantor_known_duration,
+          guarantor_occupation: response.data.submissions[0].guarantor_occupation
+        });
+        console.log('🔍 Commitment fields:', {
+          commitment_false_docs: response.data.submissions[0].commitment_false_docs,
+          commitment_irrelevant_info: response.data.submissions[0].commitment_irrelevant_info,
+          commitment_no_fees: response.data.submissions[0].commitment_no_fees
+        });
+      }
+      
       setSubmissions(response.data.submissions || []);
       setError(null);
     } catch (err) {
