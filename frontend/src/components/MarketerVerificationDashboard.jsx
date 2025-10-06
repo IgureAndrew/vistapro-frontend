@@ -327,6 +327,57 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     }
   };
 
+  // Get current verification stage for progress tracker
+  const getCurrentStage = () => {
+    if (!user) return 1;
+    
+    switch (user.overall_verification_status) {
+      case 'awaiting_admin_review':
+        return 2; // Admin Review
+      case 'awaiting_superadmin_validation':
+        return 3; // SuperAdmin Validation
+      case 'awaiting_masteradmin_approval':
+        return 4; // MasterAdmin Approval
+      case 'approved':
+        return 5; // All completed
+      default:
+        return 1; // Forms Submitted
+    }
+  };
+
+  // Get status display information
+  const getStatusDisplay = () => {
+    if (!user) return { title: 'Loading...', description: 'Please wait...' };
+    
+    switch (user.overall_verification_status) {
+      case 'awaiting_admin_review':
+        return {
+          title: 'Under Admin Review',
+          description: 'Your assigned Admin will review your forms and upload verification details. You will be notified when your verification progresses to the next stage.'
+        };
+      case 'awaiting_superadmin_validation':
+        return {
+          title: 'Under SuperAdmin Review',
+          description: 'Your Admin has reviewed your forms and sent them to SuperAdmin for validation. You will be notified when your verification progresses to the next stage.'
+        };
+      case 'awaiting_masteradmin_approval':
+        return {
+          title: 'Under MasterAdmin Review',
+          description: 'Your verification has been validated by SuperAdmin and is now under MasterAdmin review for final approval.'
+        };
+      case 'approved':
+        return {
+          title: 'Verification Complete',
+          description: 'Congratulations! Your verification has been approved and your dashboard is now unlocked.'
+        };
+      default:
+        return {
+          title: 'Under Admin Review',
+          description: 'Your assigned Admin will review your forms and upload verification details. You will be notified when your verification progresses to the next stage.'
+        };
+    }
+  };
+
   const verificationStatus = getVerificationStatus();
 
   return (
@@ -618,65 +669,52 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                   </div>
                 </div>
                 <h4 className="text-lg font-semibold text-blue-900 mb-2">
-                  Status: {user.overall_verification_status === 'awaiting_superadmin_validation' 
-                    ? 'Under SuperAdmin Review' 
-                    : user.overall_verification_status === 'awaiting_masteradmin_approval'
-                    ? 'Under MasterAdmin Review'
-                    : 'Under Admin Review'
-                  }
+                  Status: {getStatusDisplay().title}
                 </h4>
                 <p className="text-blue-700 text-sm">
-                  {user.overall_verification_status === 'awaiting_superadmin_validation' 
-                    ? 'Your Admin has reviewed your forms and sent them to SuperAdmin for validation. You will be notified when your verification progresses to the next stage.'
-                    : user.overall_verification_status === 'awaiting_masteradmin_approval'
-                    ? 'Your verification has been validated by SuperAdmin and is now under MasterAdmin review for final approval.'
-                    : 'Your assigned Admin will review your forms and upload verification details. You will be notified when your verification progresses to the next stage.'
-                  }
+                  {getStatusDisplay().description}
                 </p>
               </div>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-center space-x-8 text-sm text-gray-600">
+                  {/* Step 1: Forms Submitted - Always completed if user is in verification dashboard */}
                   <div className="flex items-center">
-                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
+                      getCurrentStage() >= 1 ? 'bg-green-500' : 'bg-gray-300'
+                    }`}>
                       1
                     </div>
                     <span>Forms Submitted</span>
                   </div>
+                  
+                  {/* Step 2: Admin Review */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
-                      user.overall_verification_status === 'awaiting_admin_review' 
-                        ? 'bg-blue-500' 
-                        : user.overall_verification_status === 'awaiting_superadmin_validation' || 
-                          user.overall_verification_status === 'awaiting_masteradmin_approval' ||
-                          user.overall_verification_status === 'approved'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                      getCurrentStage() === 2 ? 'bg-blue-500' : 
+                      getCurrentStage() > 2 ? 'bg-green-500' : 'bg-gray-300'
                     }`}>
                       2
                     </div>
                     <span>Admin Review</span>
                   </div>
+                  
+                  {/* Step 3: SuperAdmin Validation */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
-                      user.overall_verification_status === 'awaiting_superadmin_validation' 
-                        ? 'bg-blue-500' 
-                        : user.overall_verification_status === 'awaiting_masteradmin_approval' ||
-                          user.overall_verification_status === 'approved'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                      getCurrentStage() === 3 ? 'bg-blue-500' : 
+                      getCurrentStage() > 3 ? 'bg-green-500' : 'bg-gray-300'
                     }`}>
                       3
                     </div>
                     <span>SuperAdmin Validation</span>
                   </div>
+                  
+                  {/* Step 4: MasterAdmin Approval */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
-                      user.overall_verification_status === 'awaiting_masteradmin_approval' 
-                        ? 'bg-blue-500' 
-                        : user.overall_verification_status === 'approved'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                      getCurrentStage() === 4 ? 'bg-blue-500' : 
+                      getCurrentStage() > 4 ? 'bg-green-500' : 'bg-gray-300'
                     }`}>
                       4
                     </div>
