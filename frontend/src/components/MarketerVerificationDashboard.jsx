@@ -5,6 +5,7 @@ import io from 'socket.io-client';
 import ApplicantBiodataForm from './ApplicantBiodataForm';
 import ApplicantGuarantorForm from './ApplicantGuarantorForm';
 import ApplicantCommitmentForm from './ApplicantCommitmentForm';
+import VerificationNotifications from './VerificationNotifications';
 import FormStepper from './FormStepper';
 import ErrorBoundary from './ErrorBoundary';
 import api from '../api/';
@@ -498,6 +499,16 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Verification Notifications */}
+              <VerificationNotifications 
+                userRole="marketer"
+                userId={user?.id}
+                onNotificationClick={(notification) => {
+                  console.log('Verification notification clicked:', notification);
+                  // Handle notification click if needed
+                }}
+              />
+              
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">
                   {user.first_name} {user.last_name}
