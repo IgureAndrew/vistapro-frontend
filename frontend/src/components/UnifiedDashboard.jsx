@@ -79,7 +79,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
   // Check verification status for marketers
   useEffect(() => {
-    if (userRole === 'marketer' && user) {
+    if (userRole === 'marketer' && user && user.overall_verification_status !== undefined) {
       // Check if marketer is not verified
       const isNotVerified = !user.overall_verification_status || 
                            user.overall_verification_status !== 'approved';
@@ -161,6 +161,18 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   const roleBadge = getRoleBadge();
   const RoleBadgeIcon = roleBadge.icon;
 
+  // Show loading state while user data is being loaded
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Sidebar Component
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -190,7 +202,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           // Filter modules based on verification status for marketers
           let modulesToShow = roleConfig.modules;
           
-          if (userRole === 'marketer' && user && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+          if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
             // For unverified marketers, only show verification-related modules
             modulesToShow = roleConfig.modules.filter(module => 
               ['verification', 'account-settings'].includes(module.key)
@@ -307,7 +319,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                       {roleBadge.text}
                     </Badge>
                     {/* Verification Status for Marketers */}
-                    {userRole === 'marketer' && user && (!user.overall_verification_status || user.overall_verification_status !== 'approved') && (
+                    {userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved') && (
                       <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                         <Clock className="w-3 h-3 mr-1" />
                         Verification Required
@@ -402,7 +414,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
             <div className="w-full h-full">
               {/* Marketer Verification Check */}
-              {userRole === 'marketer' && user && (!user.overall_verification_status || user.overall_verification_status !== 'approved') ? (
+              {userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved') ? (
                 <MarketerVerificationDashboard />
               ) : userRole === 'masteradmin' ? (
                 <div className="p-3 sm:p-4 md:p-6">
