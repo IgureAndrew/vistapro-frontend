@@ -7,6 +7,8 @@ console.log('✅ Database config loaded');
 const http = require('http');
 const { initSocket } = require('./src/socket');
 console.log('✅ Socket config loaded');
+const runStartupMigration = require('./startup_migration');
+console.log('✅ Startup migration loaded');
 
 // Create an HTTP server from your Express app.
 const server = http.createServer(app);
@@ -45,7 +47,10 @@ const PORT = process.env.PORT || 5007;
 
 // Connect to the database and then start the HTTP server.
 connectDB()
-  .then(() => {
+  .then(async () => {
+    // Run startup migration to create missing tables
+    await runStartupMigration();
+    
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
