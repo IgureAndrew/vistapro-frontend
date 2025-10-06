@@ -424,7 +424,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                 
                 if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
                   console.log('✅ Showing MarketerVerificationDashboard');
-                  return <MarketerVerificationDashboard />;
+                  return <MarketerVerificationDashboard user={user} />;
                 } else if (userRole === 'masteradmin') {
                   console.log('✅ Showing MasterAdmin dashboard');
                   return (

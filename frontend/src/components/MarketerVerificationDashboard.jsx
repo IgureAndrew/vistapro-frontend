@@ -26,6 +26,17 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     { key: 'commitment', label: 'Commitment Form', component: ApplicantCommitmentForm }
   ];
 
+  // Update user state when prop changes
+  useEffect(() => {
+    if (initialUser) {
+      setUser(initialUser);
+    } else {
+      // If no user data, redirect to login
+      localStorage.removeItem('user');
+      navigate('/');
+    }
+  }, [initialUser, navigate]);
+
   // Logout function
   const handleLogout = async () => {
     try {
