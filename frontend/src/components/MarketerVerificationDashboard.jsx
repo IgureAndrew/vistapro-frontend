@@ -19,6 +19,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showProgressAlert, setShowProgressAlert] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
+  const [adminAssignment, setAdminAssignment] = useState(null);
+  const [loadingAssignment, setLoadingAssignment] = useState(false);
 
   const forms = [
     { key: 'biodata', label: 'Biodata Form', component: ApplicantBiodataForm },
@@ -141,6 +143,29 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
 
     checkFormStatus();
   }, []);
+
+  // Fetch admin assignment information
+  useEffect(() => {
+    const fetchAdminAssignment = async () => {
+      if (!user) return;
+      
+      try {
+        setLoadingAssignment(true);
+        const response = await api.get('/verification/admin-assignment');
+        
+        if (response.data.success) {
+          setAdminAssignment(response.data);
+          console.log('✅ Admin assignment loaded:', response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching admin assignment:', error);
+      } finally {
+        setLoadingAssignment(false);
+      }
+    };
+    
+    fetchAdminAssignment();
+  }, [user]);
 
   // Redirect if user is not a marketer or not assigned
   useEffect(() => {
@@ -722,6 +747,70 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                   </div>
                 </div>
               </div>
+              
+              {/* Admin Assignment Information */}
+              {adminAssignment && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                  <h5 className="text-sm font-semibold text-gray-700 mb-3">Verification Team</h5>
+                  <div className="space-y-3">
+                    {/* Admin Information */}
+                    {adminAssignment.admin ? (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            Admin: {adminAssignment.admin.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {adminAssignment.admin.email} • {adminAssignment.admin.location}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">
+                            Admin: Not assigned
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* SuperAdmin Information */}
+                    {adminAssignment.superadmin ? (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            SuperAdmin: {adminAssignment.superadmin.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {adminAssignment.superadmin.email} • {adminAssignment.superadmin.location}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">
+                            SuperAdmin: Not assigned
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -39,6 +39,7 @@ const {
   getVerificationStatus,
   sendToSuperAdmin,
   approveAdminSuperadmin,
+  getAdminAssignmentInfo,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -291,6 +292,14 @@ router.get(
   verifyToken,
   verifyRole(["Admin", "SuperAdmin", "MasterAdmin"]),
   getVerificationStatus
+);
+
+// Get admin assignment information for marketer
+router.get(
+  "/admin-assignment",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  getAdminAssignmentInfo
 );
 
 // Removed redundant success routes - main submission endpoints handle everything

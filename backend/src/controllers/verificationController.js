@@ -3489,6 +3489,98 @@ const approveAdminSuperadmin = async (req, res, next) => {
   }
 };
 
+/**
+ * getAdminAssignmentInfo
+ * Gets admin and superadmin assignment information for a marketer
+ */
+const getAdminAssignmentInfo = async (req, res, next) => {
+  try {
+    const marketerId = req.user.id;
+    
+    console.log('🔍 Getting admin assignment info for marketer:', marketerId);
+    
+    // Get marketer's admin and superadmin information
+    const query = `
+      SELECT 
+        m.id as marketer_id,
+        m.unique_id as marketer_unique_id,
+        m.first_name as marketer_first_name,
+        m.last_name as marketer_last_name,
+        m.admin_id,
+        m.super_admin_id,
+        -- Admin information
+        admin.id as admin_id,
+        admin.unique_id as admin_unique_id,
+        admin.first_name as admin_first_name,
+        admin.last_name as admin_last_name,
+        admin.email as admin_email,
+        admin.phone as admin_phone,
+        admin.location as admin_location,
+        -- SuperAdmin information
+        superadmin.id as superadmin_id,
+        superadmin.unique_id as superadmin_unique_id,
+        superadmin.first_name as superadmin_first_name,
+        superadmin.last_name as superadmin_last_name,
+        superadmin.email as superadmin_email,
+        superadmin.phone as superadmin_phone,
+        superadmin.location as superadmin_location
+      FROM users m
+      LEFT JOIN users admin ON m.admin_id = admin.id
+      LEFT JOIN users superadmin ON admin.super_admin_id = superadmin.id
+      WHERE m.id = $1 AND m.role = 'Marketer'
+    `;
+    
+    const result = await pool.query(query, [marketerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Marketer not found'
+      });
+    }
+    
+    const data = result.rows[0];
+    
+    // Format the response
+    const response = {
+      success: true,
+      marketer: {
+        id: data.marketer_id,
+        unique_id: data.marketer_unique_id,
+        name: `${data.marketer_first_name} ${data.marketer_last_name}`.trim()
+      },
+      admin: data.admin_id ? {
+        id: data.admin_id,
+        unique_id: data.admin_unique_id,
+        name: `${data.admin_first_name} ${data.admin_last_name}`.trim(),
+        email: data.admin_email,
+        phone: data.admin_phone,
+        location: data.admin_location
+      } : null,
+      superadmin: data.superadmin_id ? {
+        id: data.superadmin_id,
+        unique_id: data.superadmin_unique_id,
+        name: `${data.superadmin_first_name} ${data.superadmin_last_name}`.trim(),
+        email: data.superadmin_email,
+        phone: data.superadmin_phone,
+        location: data.superadmin_location
+      } : null
+    };
+    
+    console.log('✅ Admin assignment info retrieved:', {
+      marketer: response.marketer.name,
+      admin: response.admin?.name || 'Not assigned',
+      superadmin: response.superadmin?.name || 'Not assigned'
+    });
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ Error getting admin assignment info:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitBiodata,
   submitGuarantor,
@@ -3515,5 +3607,6 @@ module.exports = {
   getVerificationStatus,
   sendToSuperAdmin,
   approveAdminSuperadmin,
+  getAdminAssignmentInfo,
 };
 
