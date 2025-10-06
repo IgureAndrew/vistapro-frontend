@@ -2132,8 +2132,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         FROM marketer_biodata
         ORDER BY marketer_unique_id, created_at DESC
       ) mb ON u.unique_id = mb.marketer_unique_id
-      LEFT JOIN marketer_guarantor_form mgf ON u.id = mgf.marketer_id
-      LEFT JOIN marketer_commitment_form mcf ON u.id = mcf.marketer_id
+      LEFT JOIN guarantor_employment_form mgf ON u.unique_id = mgf.marketer_unique_id
+      LEFT JOIN direct_sales_commitment_form mcf ON u.unique_id = mcf.marketer_unique_id
       WHERE vs.admin_id = $1
       ORDER BY vs.updated_at DESC
     `;
@@ -2274,8 +2274,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               NULL as guarantor_home_address,
               NULL as guarantor_office_address,
               NULL as candidate_name
-            FROM marketer_guarantor_form 
-            WHERE marketer_id = $1
+            FROM guarantor_employment_form 
+            WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1)
             ORDER BY created_at DESC
             LIMIT 1
           `;
@@ -2354,8 +2354,8 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               direct_sales_rep_signature_url as commitment_rep_signature,
               date_signed as commitment_date_signed,
               created_at as commitment_submitted_at
-            FROM marketer_commitment_form 
-            WHERE marketer_id = $1
+            FROM direct_sales_commitment_form 
+            WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1)
             ORDER BY created_at DESC
             LIMIT 1
           `;
