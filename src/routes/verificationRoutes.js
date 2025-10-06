@@ -11,6 +11,7 @@ const upload = multer({ storage: memoryStorage });
 // Import authentication and role-verification middleware.
 const { verifyToken } = require("../middlewares/authMiddleware");
 const { verifyRole }  = require("../middlewares/roleMiddleware");
+const { pool } = require("../config/database");
 
 // Import all your controller functions
 const {
@@ -332,6 +333,145 @@ router.post(
         });
       }
     } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Fix all user form flags (utility endpoint for fixing all data)
+router.post(
+  "/fix-all-user-flags",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),
+  async (req, res, next) => {
+    try {
+      console.log('🔧 Starting to fix all user form flags via API...');
+      
+      // Get all marketers
+      const marketersResult = await pool.query(
+        'SELECT id, unique_id, first_name, last_name FROM users WHERE role = $1',
+        ['Marketer']
+      );
+      
+      console.log(`📊 Found ${marketersResult.rows.length} marketers to check`);
+      
+      let fixedCount = 0;
+      let errorCount = 0;
+      const results = [];
+      
+      for (const marketer of marketersResult.rows) {
+        try {
+          console.log(`\n🔍 Checking marketer: ${marketer.first_name} ${marketer.last_name} (${marketer.unique_id})`);
+          
+          // Check if forms actually exist in database
+          const biodataCheck = await pool.query(
+            'SELECT COUNT(*) as count FROM marketer_biodata WHERE marketer_unique_id = $1',
+            [marketer.unique_id]
+          );
+          
+          const guarantorCheck = await pool.query(
+            'SELECT COUNT(*) as count FROM marketer_guarantor_form WHERE marketer_id = $1',
+            [marketer.id]
+          );
+          
+          const commitmentCheck = await pool.query(
+            'SELECT COUNT(*) as count FROM marketer_commitment_form WHERE marketer_id = $1',
+            [marketer.id]
+          );
+          
+          const bioSubmitted = parseInt(biodataCheck.rows[0].count) > 0;
+          const guarantorSubmitted = parseInt(guarantorCheck.rows[0].count) > 0;
+          const commitmentSubmitted = parseInt(commitmentCheck.rows[0].count) > 0;
+          
+          // Get current user flags
+          const currentUserResult = await pool.query(
+            'SELECT bio_submitted, guarantor_submitted, commitment_submitted FROM users WHERE id = $1',
+            [marketer.id]
+          );
+          
+          const currentFlags = currentUserResult.rows[0];
+          
+          // Check if flags need updating
+          const needsUpdate = 
+            currentFlags.bio_submitted !== bioSubmitted ||
+            currentFlags.guarantor_submitted !== guarantorSubmitted ||
+            currentFlags.commitment_submitted !== commitmentSubmitted;
+          
+          if (needsUpdate) {
+            console.log(`🔄 Updating flags for ${marketer.first_name} ${marketer.last_name}...`);
+            
+            // Update user flags to match actual form existence
+            const updateResult = await pool.query(
+              `UPDATE users 
+               SET bio_submitted = $1, 
+                   guarantor_submitted = $2, 
+                   commitment_submitted = $3,
+                   updated_at = NOW()
+               WHERE id = $4
+               RETURNING *`,
+              [bioSubmitted, guarantorSubmitted, commitmentSubmitted, marketer.id]
+            );
+            
+            if (updateResult.rows.length > 0) {
+              console.log(`✅ Flags updated for ${marketer.first_name} ${marketer.last_name}`);
+              fixedCount++;
+              results.push({
+                marketer: `${marketer.first_name} ${marketer.last_name}`,
+                uniqueId: marketer.unique_id,
+                status: 'fixed',
+                oldFlags: currentFlags,
+                newFlags: { bioSubmitted, guarantorSubmitted, commitmentSubmitted }
+              });
+            } else {
+              console.log(`❌ Failed to update flags for ${marketer.first_name} ${marketer.last_name}`);
+              errorCount++;
+              results.push({
+                marketer: `${marketer.first_name} ${marketer.last_name}`,
+                uniqueId: marketer.unique_id,
+                status: 'error',
+                error: 'Update failed'
+              });
+            }
+          } else {
+            console.log(`✅ Flags already correct for ${marketer.first_name} ${marketer.last_name}`);
+            results.push({
+              marketer: `${marketer.first_name} ${marketer.last_name}`,
+              uniqueId: marketer.unique_id,
+              status: 'already_correct'
+            });
+          }
+          
+        } catch (error) {
+          console.error(`❌ Error processing marketer ${marketer.first_name} ${marketer.last_name}:`, error.message);
+          errorCount++;
+          results.push({
+            marketer: `${marketer.first_name} ${marketer.last_name}`,
+            uniqueId: marketer.unique_id,
+            status: 'error',
+            error: error.message
+          });
+        }
+      }
+      
+      console.log(`\n🎉 Fix completed!`);
+      console.log(`✅ Fixed: ${fixedCount} marketers`);
+      console.log(`❌ Errors: ${errorCount} marketers`);
+      console.log(`📊 Total processed: ${marketersResult.rows.length} marketers`);
+      
+      res.json({
+        success: true,
+        message: "All user form flags fix completed",
+        summary: {
+          total: marketersResult.rows.length,
+          fixed: fixedCount,
+          errors: errorCount,
+          alreadyCorrect: marketersResult.rows.length - fixedCount - errorCount
+        },
+        results: results
+      });
+      
+    } catch (error) {
+      console.error('❌ Error fixing all user form flags:', error);
       next(error);
     }
   }
