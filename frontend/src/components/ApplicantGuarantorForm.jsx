@@ -73,14 +73,19 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
     setShowConfirmDialog(false);
     
     // Use comprehensive validation
+    console.log('🔍 Validating guarantor form:', { formData, identificationFile, signatureFile });
     const { errors: validationErrors, isValid } = validateGuarantorForm(formData, identificationFile, signatureFile);
+    console.log('🔍 Validation result:', { validationErrors, isValid });
     
     // If there are validation errors, show them and stop submission
     if (!isValid) {
+      console.log('❌ Validation failed, showing errors:', validationErrors);
       setErrors(validationErrors);
       setLoading(false);
       return;
     }
+    
+    console.log('✅ Validation passed, proceeding with submission');
     
     const payload = new FormData();
     Object.entries(formData).forEach(([k, v]) => payload.append(k, v));
