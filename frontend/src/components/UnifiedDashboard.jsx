@@ -414,41 +414,56 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
             <div className="w-full h-full">
               {/* Marketer Verification Check */}
-              {userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved') ? (
-                <MarketerVerificationDashboard />
-              ) : userRole === 'masteradmin' ? (
-                <div className="p-3 sm:p-4 md:p-6">
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="mb-4 sm:mb-6">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                      <TabsTrigger value="users">Users</TabsTrigger>
-                      <TabsTrigger value="wallet">Wallet</TabsTrigger>
-                    </TabsList>
+              {(() => {
+                console.log('🔍 Verification check debug:', {
+                  userRole,
+                  user: !!user,
+                  verificationStatus: user?.overall_verification_status,
+                  shouldShowVerification: userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')
+                });
+                
+                if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+                  console.log('✅ Showing MarketerVerificationDashboard');
+                  return <MarketerVerificationDashboard />;
+                } else if (userRole === 'masteradmin') {
+                  console.log('✅ Showing MasterAdmin dashboard');
+                  return (
+                    <div className="p-3 sm:p-4 md:p-6">
+                      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsList className="mb-4 sm:mb-6">
+                          <TabsTrigger value="overview">Overview</TabsTrigger>
+                          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                          <TabsTrigger value="users">Users</TabsTrigger>
+                          <TabsTrigger value="wallet">Wallet</TabsTrigger>
+                        </TabsList>
 
-                    <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                          {getCurrentModuleComponent()}
+                        </TabsContent>
+
+                        <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
+                          <Performance userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+
+                        <TabsContent value="users" className="space-y-4 sm:space-y-6">
+                          <UsersManagement userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+
+                        <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
+                          <MasterAdminWallet userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  );
+                } else {
+                  console.log('✅ Showing other role dashboard');
+                  return (
+                    <div className="p-3 sm:p-4 md:p-6">
                       {getCurrentModuleComponent()}
-                    </TabsContent>
-
-                    <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
-                      <Performance userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
-                    </TabsContent>
-
-                    <TabsContent value="users" className="space-y-4 sm:space-y-6">
-                      <UsersManagement userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
-                    </TabsContent>
-
-                    <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
-                      <MasterAdminWallet userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              ) : (
-                /* Other Roles - Direct Module Rendering */
-                <div className="p-3 sm:p-4 md:p-6">
-                  {getCurrentModuleComponent()}
-          </div>
-              )}
+                    </div>
+                  );
+                }
+              })()}
           </div>
         </main>
         </div>
