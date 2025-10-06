@@ -699,6 +699,11 @@ const submitBiodata = async (req, res, next) => {
  */
 const submitGuarantor = async (req, res, next) => {
   try {
+    console.log('🔍 Guarantor form submission started');
+    console.log('📋 Request body:', req.body);
+    console.log('📁 Request files:', req.files);
+    console.log('👤 User:', req.user);
+    
     // Ensure verification_submissions table exists
     await checkVerificationSubmissionsTable();
     
@@ -788,13 +793,17 @@ const submitGuarantor = async (req, res, next) => {
       identificationFileUrl, identificationFileUrl, signatureUrl
     ];
 
+    console.log('📝 Inserting guarantor data:', { insertQuery, values });
+    
     let result;
     try {
       result = await pool.query(insertQuery, values);
+      console.log('✅ Guarantor form inserted successfully:', result.rows[0]);
     } catch (error) {
+      console.log('❌ Error inserting guarantor form:', error.message);
       if (error.code === "23505") {
         // example constraint name
-        if (error.constraint === "guarantor_employment_form_identification_file_key") {
+        if (error.constraint === "marketer_guarantor_form_identification_file_key") {
           return res.status(400).json({
             field: "identification_file",
             message: "That identification file has already been uploaded."
@@ -865,6 +874,7 @@ const submitCommitment = async (req, res, next) => {
     console.log('🔍 Commitment form submission started');
     console.log('📋 Request body:', req.body);
     console.log('📁 Request file:', req.file ? 'File present' : 'No file');
+    console.log('👤 User:', req.user);
     
     const {
       promise_accept_false_documents,
