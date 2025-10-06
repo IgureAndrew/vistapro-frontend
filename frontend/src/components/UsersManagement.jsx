@@ -26,20 +26,31 @@ const NIGERIAN_STATES = [
   "Taraba","Yobe","Zamfara","FCT"
 ];
 
-// Date formatting helper function
+// Date formatting helper function - FIXED TIMEZONE ISSUE
 const formatUserDate = (dateString) => {
   if (!dateString) return '-';
   
+  // Parse the date string and ensure it's treated as UTC
   const date = new Date(dateString);
+  
+  // Get current date in local timezone
   const now = new Date();
-  const diffTime = Math.abs(now - date);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Normalize both dates to start of day in local timezone for accurate day comparison
+  const dateLocal = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nowLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Calculate difference in days
+  const diffTime = nowLocal - dateLocal;
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
   // Show relative time for recent dates
+  if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-  if (diffDays < 365) return `${Math.ceil(diffDays / 30)} months ago`;
+  if (diffDays === -1) return 'Tomorrow'; // Handle edge case
+  if (diffDays > 1 && diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays >= 7 && diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+  if (diffDays >= 30 && diffDays < 365) return `${Math.ceil(diffDays / 30)} months ago`;
   
   // Show full date for older entries
   return date.toLocaleDateString('en-US', {
