@@ -415,16 +415,26 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const getCurrentStage = () => {
     if (!user) return 1;
     
+    console.log('🔍 getCurrentStage debug:', {
+      overall_verification_status: user.overall_verification_status,
+      user: user
+    });
+    
     switch (user.overall_verification_status) {
       case 'awaiting_admin_review':
+        console.log('✅ Status is awaiting_admin_review, returning stage 2');
         return 2; // Admin Review
       case 'awaiting_superadmin_validation':
+        console.log('✅ Status is awaiting_superadmin_validation, returning stage 3');
         return 3; // SuperAdmin Validation
       case 'awaiting_masteradmin_approval':
+        console.log('✅ Status is awaiting_masteradmin_approval, returning stage 4');
         return 4; // MasterAdmin Approval
       case 'approved':
+        console.log('✅ Status is approved, returning stage 5');
         return 5; // All completed
       default:
+        console.log('⚠️ Status is default case:', user.overall_verification_status, 'returning stage 1');
         return 1; // Forms Submitted
     }
   };
@@ -808,6 +818,10 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                       2
                     </div>
                     <span>Admin Review</span>
+                    {/* Debug info */}
+                    <span className="text-xs text-gray-400 ml-2">
+                      (stage: {getCurrentStage()}, status: {user?.overall_verification_status})
+                    </span>
                   </div>
                   
                   {/* Step 3: SuperAdmin Validation */}
