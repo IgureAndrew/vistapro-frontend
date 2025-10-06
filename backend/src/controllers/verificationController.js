@@ -4096,6 +4096,73 @@ const getAdminAssignmentInfo = async (req, res, next) => {
   }
 };
 
+// Simple endpoint to get raw form data for debugging
+const getRawFormData = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    console.log(`🔍 Getting raw form data for admin ${adminId}`);
+    
+    // Get all marketers assigned to this admin
+    const marketersResult = await pool.query(`
+      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email
+      FROM users u 
+      WHERE u.admin_id = $1 AND u.role = 'Marketer'
+    `, [adminId]);
+    
+    console.log(`📊 Found ${marketersResult.rows.length} marketers`);
+    
+    const formData = [];
+    
+    for (const marketer of marketersResult.rows) {
+      console.log(`🔍 Processing marketer: ${marketer.first_name} ${marketer.last_name} (ID: ${marketer.id})`);
+      
+      // Get biodata
+      const biodataResult = await pool.query(`
+        SELECT * FROM marketer_biodata 
+        WHERE marketer_unique_id = $1 
+        ORDER BY created_at DESC LIMIT 1
+      `, [marketer.unique_id]);
+      
+      // Get guarantor form
+      const guarantorResult = await pool.query(`
+        SELECT * FROM marketer_guarantor_form 
+        WHERE marketer_id = $1 
+        ORDER BY created_at DESC LIMIT 1
+      `, [marketer.id]);
+      
+      // Get commitment form
+      const commitmentResult = await pool.query(`
+        SELECT * FROM marketer_commitment_form 
+        WHERE marketer_id = $1 
+        ORDER BY created_at DESC LIMIT 1
+      `, [marketer.id]);
+      
+      formData.push({
+        marketer: marketer,
+        biodata: biodataResult.rows[0] || null,
+        guarantor: guarantorResult.rows[0] || null,
+        commitment: commitmentResult.rows[0] || null
+      });
+      
+      console.log(`📋 Marketer ${marketer.first_name}:`, {
+        biodata: biodataResult.rows.length,
+        guarantor: guarantorResult.rows.length,
+        commitment: commitmentResult.rows.length
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: formData,
+      message: `Found ${formData.length} marketers with form data`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting raw form data:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitBiodata,
   submitGuarantor,
@@ -4124,5 +4191,6 @@ module.exports = {
   approveAdminSuperadmin,
   getAdminAssignmentInfo,
   fixUserFormFlags,
+  getRawFormData,
 };
 

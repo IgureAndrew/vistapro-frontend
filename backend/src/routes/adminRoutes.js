@@ -6,6 +6,7 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 const { verifyRole } = require('../middlewares/roleMiddleware');
 // Note: Use the correct function name from your adminController.
 const { getAccount, updateAccount, updateAdminAccountSettings, registerDealer, registerMarketer, getDashboardSummary, getWalletSummary, getRecentActivities, getVerificationSubmissions, getAssignedMarketers, getAssignmentStats } = require('../controllers/adminController');
+const { getRawFormData } = require('../controllers/verificationController');
 
 // Configure Multer for file uploads (for profile image upload)
 const storage = multer.diskStorage({
@@ -47,5 +48,8 @@ router.get('/verification-submissions', verifyToken, verifyRole(['Admin']), getV
 // Assignment management endpoints
 router.get('/assigned-marketers', verifyToken, verifyRole(['Admin']), getAssignedMarketers);
 router.get('/assignment-stats', verifyToken, verifyRole(['Admin']), getAssignmentStats);
+
+// Debug endpoint for raw form data
+router.get('/raw-form-data', verifyToken, verifyRole(['Admin']), getRawFormData);
 
 module.exports = router;
