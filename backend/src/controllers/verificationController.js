@@ -2148,7 +2148,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
       console.error(`❌ Complex query error for admin ${adminId}:`, queryError);
       console.log(`🔄 Falling back to simple query...`);
       
-      // Fallback to simple query
+      // Fallback to simple query with form status
       const simpleQuery = `
         SELECT 
           vs.id as submission_id,
@@ -2166,9 +2166,29 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           u.guarantor_submitted,
           u.commitment_submitted,
           u.overall_verification_status,
-          CONCAT(u.first_name, ' ', u.last_name) as marketer_name
+          CONCAT(u.first_name, ' ', u.last_name) as marketer_name,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.phone,
+          u.location as marketer_address,
+          -- Form status fields
+          CASE WHEN u.bio_submitted THEN 'completed' ELSE 'not_submitted' END as biodata_status,
+          CASE WHEN u.guarantor_submitted THEN 'completed' ELSE 'not_submitted' END as guarantor_status,
+          CASE WHEN u.commitment_submitted THEN 'completed' ELSE 'not_submitted' END as commitment_status,
+          -- Check if all forms are submitted
+          (u.bio_submitted AND u.guarantor_submitted AND u.commitment_submitted) as all_forms_submitted,
+          -- Admin verification fields (with fallback for missing table)
+          NULL as admin_verification_date,
+          NULL as admin_verification_notes,
+          NULL as location_photos,
+          NULL as admin_marketer_photos,
+          NULL as landmark_photos,
+          -- Admin name
+          CONCAT(admin.first_name, ' ', admin.last_name) as admin_name
         FROM verification_submissions vs
         JOIN users u ON vs.marketer_id = u.id
+        LEFT JOIN users admin ON vs.admin_id = admin.id
         WHERE vs.admin_id = $1
         ORDER BY vs.updated_at DESC
       `;
