@@ -947,11 +947,11 @@ const getDashboardSummary = async (req, res, next) => {
       // Total Orders in current period
       pool.query('SELECT COUNT(*) AS total FROM orders WHERE created_at >= $1', [currentPeriodStart]),
       
-      // Pending Orders (all time) - using canceled as pending since there's no pending status
-      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'canceled'"),
+      // Pending Orders (all time) - orders awaiting Master Admin approval
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'pending'"),
       
       // Pending Orders in current period
-      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'canceled' AND created_at >= $1", [currentPeriodStart]),
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'pending' AND created_at >= $1", [currentPeriodStart]),
       
       // Confirmed Orders (all time)
       pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'released_confirmed'"),
@@ -997,7 +997,7 @@ const getDashboardSummary = async (req, res, next) => {
       pool.query('SELECT COUNT(*) AS total FROM orders WHERE created_at >= $1 AND created_at < $2', [previousPeriodStart, previousPeriodEnd]),
       
       // Pending Orders in previous period
-      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'canceled' AND created_at >= $1 AND created_at < $2", [previousPeriodStart, previousPeriodEnd]),
+      pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'pending' AND created_at >= $1 AND created_at < $2", [previousPeriodStart, previousPeriodEnd]),
       
       // Confirmed Orders in previous period
       pool.query("SELECT COUNT(*) AS total FROM orders WHERE status = 'released_confirmed' AND created_at >= $1 AND created_at < $2", [previousPeriodStart, previousPeriodEnd]),
