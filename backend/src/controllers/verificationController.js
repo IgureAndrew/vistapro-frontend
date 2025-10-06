@@ -288,7 +288,51 @@ const notifyAdminOfNewSubmission = async (marketerId) => {
 
     const admin = adminResult.rows[0];
 
-    // Create notification record
+    // Get admin's unique_id for notification
+    const adminUniqueIdResult = await pool.query(
+      'SELECT unique_id FROM users WHERE id = $1',
+      [submission.admin_id]
+    );
+    
+    if (adminUniqueIdResult.rows.length === 0) {
+      console.log(`⚠️ Admin unique_id not found for admin ${submission.admin_id}`);
+      return;
+    }
+    
+    const adminUniqueId = adminUniqueIdResult.rows[0].unique_id;
+    const message = `New verification submission from ${submission.first_name} ${submission.last_name} (${submission.marketer_email}) is awaiting your review.`;
+    
+    // Create notification record in the standard notifications table
+    await pool.query(
+      `INSERT INTO notifications (user_unique_id, message, created_at)
+       VALUES ($1, $2, NOW())`,
+      [adminUniqueId, message]
+    );
+    
+    // Send WebSocket notification to admin
+    const app = require('../server').app;
+    const io = app.get('socketio');
+    
+    if (io) {
+      io.to(adminUniqueId).emit('newNotification', {
+        message: message,
+        created_at: new Date().toISOString(),
+        is_read: false
+      });
+      
+      // Update notification count
+      const countResult = await pool.query(
+        `SELECT COUNT(*) AS unread FROM notifications WHERE user_unique_id = $1 AND NOT is_read`,
+        [adminUniqueId]
+      );
+      const unreadCount = Number(countResult.rows[0].unread);
+      
+      io.to(adminUniqueId).emit('notificationCount', { count: unreadCount });
+      
+      console.log(`🔔 Admin ${admin.first_name} ${admin.last_name} (${adminUniqueId}) notified about new verification submission`);
+    }
+    
+    // Also create verification_notifications record for detailed tracking
     await pool.query(
       `INSERT INTO verification_notifications (user_id, type, data, created_at)
        VALUES ($1, 'verification_assigned', $2, NOW())`,
@@ -376,6 +420,13 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
          SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
          FROM verification_submissions WHERE marketer_id = $1`,
         [marketerId]
+      );
+
+      // Notify marketer about status change
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'awaiting_admin_review', 
+        'All your verification forms have been submitted successfully! Your assigned Admin will now review your application.'
       );
 
       // Notify assigned admin about new verification submission
@@ -598,6 +649,13 @@ const submitBiodata = async (req, res, next) => {
       await checkAndUpdateWorkflowStatus(marketerId);
     }
 
+    // Notify marketer about biodata form submission
+    await notifyMarketerOfStatusChange(
+      marketerId, 
+      'pending_forms', 
+      'Biodata form submitted successfully! Please continue with the remaining forms.'
+    );
+
     res.status(201).json({
       message: "Biodata submitted successfully.",
       biodata: result.rows[0],
@@ -749,6 +807,13 @@ const submitGuarantor = async (req, res, next) => {
       // Check if all forms are completed and update workflow status
       await checkAndUpdateWorkflowStatus(marketerId);
     }
+
+    // Notify marketer about guarantor form submission
+    await notifyMarketerOfStatusChange(
+      marketerId, 
+      'pending_forms', 
+      'Guarantor form submitted successfully! Please continue with the remaining forms.'
+    );
 
     res.status(201).json({
       message: "Guarantor form submitted successfully.",
@@ -966,6 +1031,13 @@ const submitCommitment = async (req, res, next) => {
         req.app
       );
     }
+
+    // Notify marketer about commitment form submission
+    await notifyMarketerOfStatusChange(
+      marketerId, 
+      'pending_forms', 
+      'Commitment form submitted successfully! Please continue with the remaining forms.'
+    );
 
     console.log('✅ Commitment form submission completed successfully');
     res.status(201).json({
@@ -3189,7 +3261,51 @@ const notifySuperAdminOfNewSubmission = async (submissionId, superAdminId) => {
 
     const superAdmin = superAdminResult.rows[0];
 
-    // Create notification record
+    // Get SuperAdmin's unique_id for notification
+    const superAdminUniqueIdResult = await pool.query(
+      'SELECT unique_id FROM users WHERE id = $1',
+      [superAdminId]
+    );
+    
+    if (superAdminUniqueIdResult.rows.length === 0) {
+      console.log(`⚠️ SuperAdmin unique_id not found for superAdmin ${superAdminId}`);
+      return;
+    }
+    
+    const superAdminUniqueId = superAdminUniqueIdResult.rows[0].unique_id;
+    const message = `Admin has verified and sent submission from ${submission.first_name} ${submission.last_name} (${submission.marketer_email}) for your review.`;
+    
+    // Create notification record in the standard notifications table
+    await pool.query(
+      `INSERT INTO notifications (user_unique_id, message, created_at)
+       VALUES ($1, $2, NOW())`,
+      [superAdminUniqueId, message]
+    );
+    
+    // Send WebSocket notification to SuperAdmin
+    const app = require('../server').app;
+    const io = app.get('socketio');
+    
+    if (io) {
+      io.to(superAdminUniqueId).emit('newNotification', {
+        message: message,
+        created_at: new Date().toISOString(),
+        is_read: false
+      });
+      
+      // Update notification count
+      const countResult = await pool.query(
+        `SELECT COUNT(*) AS unread FROM notifications WHERE user_unique_id = $1 AND NOT is_read`,
+        [superAdminUniqueId]
+      );
+      const unreadCount = Number(countResult.rows[0].unread);
+      
+      io.to(superAdminUniqueId).emit('notificationCount', { count: unreadCount });
+      
+      console.log(`🔔 SuperAdmin ${superAdmin.first_name} ${superAdmin.last_name} (${superAdminUniqueId}) notified about verification submission from ${submission.first_name} ${submission.last_name}`);
+    }
+
+    // Also create verification_notifications record for detailed tracking
     await pool.query(
       `INSERT INTO verification_notifications (user_id, type, data, created_at)
        VALUES ($1, 'verification_sent_for_review', $2, NOW())`,
@@ -3206,8 +3322,6 @@ const notifySuperAdminOfNewSubmission = async (submissionId, superAdminId) => {
         })
       ]
     );
-
-    console.log(`✅ SuperAdmin ${superAdmin.first_name} ${superAdmin.last_name} (${superAdmin.email}) notified about verification submission from ${submission.first_name} ${submission.last_name}`);
 
   } catch (error) {
     console.error('Error notifying SuperAdmin of new submission:', error);
@@ -3311,6 +3425,22 @@ const notifyAdminOfStatusChange = async (adminUniqueId, message) => {
       message: message,
       timestamp: new Date().toISOString()
     });
+    
+    // Also send standard notification event
+    io.to(adminUniqueId).emit('newNotification', {
+      message: message,
+      created_at: new Date().toISOString(),
+      is_read: false
+    });
+    
+    // Update notification count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) AS unread FROM notifications WHERE user_unique_id = $1 AND NOT is_read`,
+      [adminUniqueId]
+    );
+    const unreadCount = Number(countResult.rows[0].unread);
+    
+    io.to(adminUniqueId).emit('notificationCount', { count: unreadCount });
 
     console.log(`✅ Admin ${adminUniqueId} notified about verification status change`);
 
@@ -3361,6 +3491,22 @@ const notifyMasterAdminOfNewSubmission = async (marketerFirstName, marketerLastN
         message: message,
         timestamp: new Date().toISOString()
       });
+      
+      // Also send standard notification event
+      io.to(masterAdmin.unique_id).emit('newNotification', {
+        message: message,
+        created_at: new Date().toISOString(),
+        is_read: false
+      });
+      
+      // Update notification count
+      const countResult = await pool.query(
+        `SELECT COUNT(*) AS unread FROM notifications WHERE user_unique_id = $1 AND NOT is_read`,
+        [masterAdmin.unique_id]
+      );
+      const unreadCount = Number(countResult.rows[0].unread);
+      
+      io.to(masterAdmin.unique_id).emit('notificationCount', { count: unreadCount });
 
       console.log(`✅ MasterAdmin ${masterAdmin.unique_id} notified about new verification submission`);
     }
