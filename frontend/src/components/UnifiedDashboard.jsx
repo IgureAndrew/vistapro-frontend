@@ -17,7 +17,8 @@ import {
   Crown,
   Shield,
   User as UserIcon,
-  Settings
+  Settings,
+  Clock
 } from 'lucide-react';
 import { getRoleConfig } from '../config/RoleConfig';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,6 +27,7 @@ import { getAvatarUrl, getUserInitials } from '../utils/avatarUtils';
 import Performance from './Performance';
 import UsersManagement from './UsersManagement';
 import MasterAdminWallet from './MasterAdminWallet';
+import MarketerVerificationDashboard from './MarketerVerificationDashboard';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
@@ -74,6 +76,23 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
     window.addEventListener('userUpdated', handleUserUpdate);
     return () => window.removeEventListener('userUpdated', handleUserUpdate);
   }, []);
+
+  // Check verification status for marketers
+  useEffect(() => {
+    if (userRole === 'marketer' && user) {
+      // Check if marketer is not verified
+      const isNotVerified = !user.overall_verification_status || 
+                           user.overall_verification_status !== 'approved';
+      
+      if (isNotVerified) {
+        console.log('🔒 Marketer not verified, showing verification dashboard');
+        // Don't redirect, just show verification dashboard instead
+        return;
+      } else {
+        console.log('✅ Marketer verified, showing full dashboard');
+      }
+    }
+  }, [userRole, user]);
 
   // Handle URL parameters for module navigation
   useEffect(() => {
@@ -167,29 +186,41 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {roleConfig.modules.map((module) => {
-          const Icon = module.icon;
-          const isActive = activeModule === module.key;
+        {(() => {
+          // Filter modules based on verification status for marketers
+          let modulesToShow = roleConfig.modules;
           
-          return (
-            <a
-              key={module.key}
-              href={getModuleUrl(module.key)}
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate(module.key);
-              }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="font-medium">{module.label}</span>
-            </a>
-          );
-        })}
+          if (userRole === 'marketer' && user && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+            // For unverified marketers, only show verification-related modules
+            modulesToShow = roleConfig.modules.filter(module => 
+              ['verification', 'account-settings'].includes(module.key)
+            );
+          }
+          
+          return modulesToShow.map((module) => {
+            const Icon = module.icon;
+            const isActive = activeModule === module.key;
+            
+            return (
+              <a
+                key={module.key}
+                href={getModuleUrl(module.key)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavigate(module.key);
+                }}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{module.label}</span>
+              </a>
+            );
+          });
+        })()}
       </nav>
 
       {/* User Info */}
@@ -270,10 +301,19 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                     {roleConfig.title}
                   </h1>
-                  <Badge className={`${roleBadge.color} mt-1 hidden sm:inline-flex`}>
-                    <RoleBadgeIcon className="w-3 h-3 mr-1" />
-                    {roleBadge.text}
-                  </Badge>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <Badge className={`${roleBadge.color} hidden sm:inline-flex`}>
+                      <RoleBadgeIcon className="w-3 h-3 mr-1" />
+                      {roleBadge.text}
+                    </Badge>
+                    {/* Verification Status for Marketers */}
+                    {userRole === 'marketer' && user && (!user.overall_verification_status || user.overall_verification_status !== 'approved') && (
+                      <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Verification Required
+                      </Badge>
+                    )}
+                  </div>
               </div>
             </div>
 
@@ -361,8 +401,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
             <div className="w-full h-full">
-              {/* MasterAdmin Special Tabs */}
-              {userRole === 'masteradmin' ? (
+              {/* Marketer Verification Check */}
+              {userRole === 'marketer' && user && (!user.overall_verification_status || user.overall_verification_status !== 'approved') ? (
+                <MarketerVerificationDashboard />
+              ) : userRole === 'masteradmin' ? (
                 <div className="p-3 sm:p-4 md:p-6">
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="mb-4 sm:mb-6">
