@@ -49,6 +49,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
 
   // Show progress notification on page load
   const showProgressNotification = () => {
+    if (!user) return;
+    
     const status = user.overall_verification_status;
     let message = '';
     
@@ -96,7 +98,7 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     }, 1000);
     
     return () => clearTimeout(timer);
-  }, [user.overall_verification_status]);
+  }, [user?.overall_verification_status]);
 
   // Check form status on component mount
   useEffect(() => {
@@ -245,7 +247,18 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     }
   };
 
-  if (!user || user.role !== 'Marketer' || !user.admin_id) {
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading verification dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role !== 'Marketer' || !user.admin_id) {
     return null;
   }
 
@@ -262,6 +275,10 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   }
 
   const getVerificationStatus = () => {
+    if (!user) {
+      return { status: 'pending', message: 'Loading...', color: 'yellow' };
+    }
+    
     if (user.overall_verification_status === 'approved') {
       return { status: 'approved', message: 'Verification Complete', color: 'green' };
     } else if (user.overall_verification_status === 'awaiting_masteradmin_approval') {
