@@ -78,11 +78,107 @@ async function checkVerificationSubmissionsTable() {
     `);
     
     console.log('✅ verification_submissions table created successfully');
+    
+    // Also create verification_workflow_logs table
+    await createVerificationWorkflowLogsTable();
+    
     return true;
     
   } catch (error) {
     console.error('❌ Error with verification_submissions table:', error);
     return false;
+  }
+}
+
+// Helper function to create verification_workflow_logs table
+async function createVerificationWorkflowLogsTable() {
+  try {
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'verification_workflow_logs'
+      );
+    `);
+    
+    if (tableCheck.rows[0].exists) {
+      console.log('✅ verification_workflow_logs table already exists');
+      return;
+    }
+    
+    console.log('🔄 Creating verification_workflow_logs table...');
+    
+    // Create the table
+    await pool.query(`
+      CREATE TABLE verification_workflow_logs (
+        id SERIAL PRIMARY KEY,
+        marketer_id INTEGER NOT NULL,
+        admin_id INTEGER,
+        super_admin_id INTEGER,
+        master_admin_id INTEGER,
+        action VARCHAR(100) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // Add foreign key constraints
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD CONSTRAINT fk_workflow_logs_marketer 
+      FOREIGN KEY (marketer_id) REFERENCES users(id);
+    `);
+    
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD CONSTRAINT fk_workflow_logs_admin 
+      FOREIGN KEY (admin_id) REFERENCES users(id);
+    `);
+    
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD CONSTRAINT fk_workflow_logs_superadmin 
+      FOREIGN KEY (super_admin_id) REFERENCES users(id);
+    `);
+    
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD CONSTRAINT fk_workflow_logs_masteradmin 
+      FOREIGN KEY (master_admin_id) REFERENCES users(id);
+    `);
+    
+    // Create indexes
+    await pool.query(`
+      CREATE INDEX idx_workflow_logs_marketer ON verification_workflow_logs(marketer_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_workflow_logs_admin ON verification_workflow_logs(admin_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_workflow_logs_superadmin ON verification_workflow_logs(super_admin_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_workflow_logs_masteradmin ON verification_workflow_logs(master_admin_id);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_workflow_logs_action ON verification_workflow_logs(action);
+    `);
+    
+    await pool.query(`
+      CREATE INDEX idx_workflow_logs_status ON verification_workflow_logs(status);
+    `);
+    
+    console.log('✅ verification_workflow_logs table created successfully');
+    
+  } catch (error) {
+    console.error('❌ Error creating verification_workflow_logs table:', error);
+    // Don't throw error, just log it
   }
 }
 
