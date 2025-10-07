@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Vistapro Backend API",
   "private": true,
+  "scripts": {
+    "start": "cd backend && npm start"
+  },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
