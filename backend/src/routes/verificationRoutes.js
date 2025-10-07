@@ -42,6 +42,7 @@ const {
   approveAdminSuperadmin,
   getAdminAssignmentInfo,
   fixUserFormFlags,
+  testFormSubmission,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -302,6 +303,14 @@ router.get(
   verifyToken,
   verifyRole(["Marketer"]),
   getAdminAssignmentInfo
+);
+
+// Test form submission status
+router.get(
+  "/test-form-submission",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  testFormSubmission
 );
 
 // Fix user form flags (utility endpoint for debugging)

@@ -3,8 +3,8 @@ services:
     name: vistapro-backend
     env: node
     plan: free
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,3 +12,4 @@ services:
         fromDatabase:
           name: vistapro-db
           property: connectionString
+    healthCheckPath: /api/health

@@ -4096,6 +4096,88 @@ const getAdminAssignmentInfo = async (req, res, next) => {
   }
 };
 
+// Test endpoint to check form submission status
+const testFormSubmission = async (req, res, next) => {
+  try {
+    const marketerId = req.user.id;
+    console.log(`🔍 Testing form submission for marketer ${marketerId}`);
+    
+    // Get user info
+    const userResult = await pool.query(`
+      SELECT id, unique_id, first_name, last_name, email, 
+             bio_submitted, guarantor_submitted, commitment_submitted,
+             overall_verification_status
+      FROM users WHERE id = $1
+    `, [marketerId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Check actual database records
+    const biodataResult = await pool.query(`
+      SELECT COUNT(*) as count, MAX(created_at) as latest
+      FROM marketer_biodata WHERE marketer_unique_id = $1
+    `, [user.unique_id]);
+    
+    const guarantorResult = await pool.query(`
+      SELECT COUNT(*) as count, MAX(created_at) as latest
+      FROM marketer_guarantor_form WHERE marketer_id = $1
+    `, [marketerId]);
+    
+    const commitmentResult = await pool.query(`
+      SELECT COUNT(*) as count, MAX(created_at) as latest
+      FROM marketer_commitment_form WHERE marketer_id = $1
+    `, [marketerId]);
+    
+    const result = {
+      success: true,
+      user: {
+        name: `${user.first_name} ${user.last_name}`,
+        email: user.email,
+        unique_id: user.unique_id
+      },
+      flags: {
+        bio_submitted: user.bio_submitted,
+        guarantor_submitted: user.guarantor_submitted,
+        commitment_submitted: user.commitment_submitted,
+        overall_status: user.overall_verification_status
+      },
+      database_records: {
+        biodata: {
+          count: parseInt(biodataResult.rows[0].count),
+          latest: biodataResult.rows[0].latest
+        },
+        guarantor: {
+          count: parseInt(guarantorResult.rows[0].count),
+          latest: guarantorResult.rows[0].latest
+        },
+        commitment: {
+          count: parseInt(commitmentResult.rows[0].count),
+          latest: commitmentResult.rows[0].latest
+        }
+      },
+      issues: []
+    };
+    
+    // Check for mismatches
+    if (user.guarantor_submitted && guarantorResult.rows[0].count === '0') {
+      result.issues.push('Guarantor flag is TRUE but no database record exists');
+    }
+    if (user.commitment_submitted && commitmentResult.rows[0].count === '0') {
+      result.issues.push('Commitment flag is TRUE but no database record exists');
+    }
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Error testing form submission:', error);
+    next(error);
+  }
+};
+
 // Simple endpoint to get raw form data for debugging
 const getRawFormData = async (req, res, next) => {
   try {
@@ -4130,12 +4212,16 @@ const getRawFormData = async (req, res, next) => {
         ORDER BY created_at DESC LIMIT 1
       `, [marketer.id]);
       
+      console.log(`🔍 Guarantor query for marketer ${marketer.id}:`, guarantorResult.rows.length, 'rows');
+      
       // Get commitment form
       const commitmentResult = await pool.query(`
         SELECT * FROM marketer_commitment_form 
         WHERE marketer_id = $1 
         ORDER BY created_at DESC LIMIT 1
       `, [marketer.id]);
+      
+      console.log(`🔍 Commitment query for marketer ${marketer.id}:`, commitmentResult.rows.length, 'rows');
       
       formData.push({
         marketer: marketer,
@@ -4192,5 +4278,6 @@ module.exports = {
   getAdminAssignmentInfo,
   fixUserFormFlags,
   getRawFormData,
+  testFormSubmission,
 };
 
