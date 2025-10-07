@@ -128,6 +128,15 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     const checkFormStatus = async () => {
       try {
         setIsLoading(true);
+        
+        // First, test the connection
+        try {
+          const connectionTest = await api.get('/verification/test-connection');
+          console.log('✅ Frontend-Backend connection test successful:', connectionTest.data);
+        } catch (connectionError) {
+          console.error('❌ Frontend-Backend connection test failed:', connectionError);
+        }
+        
         const response = await api.get('/verification/form-status');
         const formStatus = response.data;
         

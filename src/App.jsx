@@ -1,6 +1,6 @@
 // src/App.jsx
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
 import UnifiedDashboard from "./components/UnifiedDashboard";
 import PrivateRoute from "./components/PrivateRoute";
@@ -67,6 +67,8 @@ function App() {
             </PrivateRoute>
           }
         />
+        {/* Catch-all route for SPA routing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
