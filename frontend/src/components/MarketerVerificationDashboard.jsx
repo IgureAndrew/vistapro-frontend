@@ -141,6 +141,19 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setCurrentForm(form);
         setCompletedForms(completed);
         
+        // Also refresh user data to get latest verification status
+        try {
+          const userResponse = await api.get('/auth/me');
+          if (userResponse.data.success) {
+            const freshUserData = userResponse.data.user;
+            console.log('🔄 Refreshed user data:', freshUserData);
+            setUser(freshUserData);
+            localStorage.setItem('user', JSON.stringify(freshUserData));
+          }
+        } catch (userError) {
+          console.error('❌ Error refreshing user data:', userError);
+        }
+        
       } catch (error) {
         console.error('❌ Error fetching form status:', error);
         // Fallback to starting from form 1 if API fails
@@ -183,17 +196,22 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     
     const checkStatus = async () => {
       try {
-        const response = await api.get('/verification/form-status');
-        if (response.data.success) {
-          const currentStatus = response.data.overall_verification_status;
-          if (currentStatus && currentStatus !== user.overall_verification_status) {
-            console.log(`🔄 Status mismatch detected: UI=${user.overall_verification_status}, Server=${currentStatus}`);
-            const updated = {
-              ...user,
-              overall_verification_status: currentStatus,
-            };
-            setUser(updated);
-            localStorage.setItem("user", JSON.stringify(updated));
+        // Check form status
+        const formResponse = await api.get('/verification/form-status');
+        if (formResponse.data) {
+          const { form, completed } = determineStartingForm(formResponse.data);
+          setCurrentForm(form);
+          setCompletedForms(completed);
+        }
+        
+        // Check user status
+        const userResponse = await api.get('/auth/me');
+        if (userResponse.data.success) {
+          const freshUserData = userResponse.data.user;
+          if (freshUserData.overall_verification_status !== user.overall_verification_status) {
+            console.log(`🔄 Status mismatch detected: UI=${user.overall_verification_status}, Server=${freshUserData.overall_verification_status}`);
+            setUser(freshUserData);
+            localStorage.setItem("user", JSON.stringify(freshUserData));
           }
         }
       } catch (error) {
@@ -423,25 +441,36 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     
     console.log('🔍 getCurrentStage debug:', {
       overall_verification_status: user.overall_verification_status,
+      completedForms: completedForms,
       user: user
     });
     
-    switch (user.overall_verification_status) {
-      case 'awaiting_admin_review':
-        console.log('✅ Status is awaiting_admin_review, returning stage 2');
-        return 2; // Admin Review
-      case 'awaiting_superadmin_validation':
-        console.log('✅ Status is awaiting_superadmin_validation, returning stage 3');
-        return 3; // SuperAdmin Validation
-      case 'awaiting_masteradmin_approval':
-        console.log('✅ Status is awaiting_masteradmin_approval, returning stage 4');
-        return 4; // MasterAdmin Approval
-      case 'approved':
-        console.log('✅ Status is approved, returning stage 5');
-        return 5; // All completed
-      default:
-        console.log('⚠️ Status is default case:', user.overall_verification_status, 'returning stage 1');
-        return 1; // Forms Submitted
+    // Check if all forms are completed first
+    const allFormsCompleted = completedForms.length === forms.length;
+    
+    if (allFormsCompleted) {
+      // If all forms are completed, check the verification status
+      switch (user.overall_verification_status) {
+        case 'awaiting_admin_review':
+          console.log('✅ All forms completed, status is awaiting_admin_review, returning stage 2');
+          return 2; // Admin Review
+        case 'awaiting_superadmin_validation':
+          console.log('✅ All forms completed, status is awaiting_superadmin_validation, returning stage 3');
+          return 3; // SuperAdmin Validation
+        case 'awaiting_masteradmin_approval':
+          console.log('✅ All forms completed, status is awaiting_masteradmin_approval, returning stage 4');
+          return 4; // MasterAdmin Approval
+        case 'approved':
+          console.log('✅ All forms completed, status is approved, returning stage 5');
+          return 5; // All completed
+        default:
+          console.log('✅ All forms completed, but no verification status, returning stage 2');
+          return 2; // Admin Review (forms completed but no status yet)
+      }
+    } else {
+      // If forms are not completed, always show stage 1
+      console.log('⚠️ Forms not completed yet, returning stage 1. Completed forms:', completedForms);
+      return 1; // Forms Submitted
     }
   };
 

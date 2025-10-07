@@ -79,18 +79,32 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
   // Check verification status for marketers
   useEffect(() => {
-    if (userRole === 'marketer' && user && user.overall_verification_status !== undefined) {
-      // Check if marketer is not verified
-      const isNotVerified = !user.overall_verification_status || 
-                           user.overall_verification_status !== 'approved';
+    if (userRole === 'marketer' && user) {
+      // Always refresh user data for marketers to get latest verification status
+      const refreshUserData = async () => {
+        try {
+          const response = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              const freshUserData = data.user;
+              console.log('🔄 UnifiedDashboard: Refreshed user data:', freshUserData);
+              setUser(freshUserData);
+              localStorage.setItem('user', JSON.stringify(freshUserData));
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error refreshing user data in UnifiedDashboard:', error);
+        }
+      };
       
-      if (isNotVerified) {
-        console.log('🔒 Marketer not verified, showing verification dashboard');
-        // Don't redirect, just show verification dashboard instead
-        return;
-      } else {
-        console.log('✅ Marketer verified, showing full dashboard');
-      }
+      refreshUserData();
     }
   }, [userRole, user]);
 
