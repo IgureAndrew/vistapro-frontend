@@ -1,6 +1,6 @@
 const superAdminService = require('../services/superAdminService');
 const { pool } = require('../config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { getSuperAdminCommissionTransactions } = require('../services/walletService');
 
 const getSuperAdminTeamHierarchy = async (req, res) => {
