@@ -18,6 +18,7 @@ async function runStartupMigration() {
     
     // Check if tables exist
     const tablesToCheck = [
+      'marketer_biodata',
       'marketer_guarantor_form',
       'marketer_commitment_form', 
       'admin_verification_details'
