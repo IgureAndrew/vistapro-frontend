@@ -213,6 +213,13 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Scroll Indicator */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+          <p className="text-sm text-blue-700">
+            📋 <strong>Complete Form:</strong> Please scroll down to fill all required fields (4 sections total)
+          </p>
+        </div>
+        
         {/* Eligibility Notice */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start">
@@ -375,6 +382,7 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">3</span>
             Guarantor Personal Information
           </h3>
+          {console.log('🔍 Rendering Guarantor Personal Information Section')}
           
           <div className="space-y-4">
             {/* Full Name */}
@@ -449,16 +457,17 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
           />
         </div>
 
-            {/* Candidate Name (optional) */}
+            {/* Candidate Name */}
         <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Candidate Name (if any)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Candidate Name *</label>
           <input
             type="text"
             name="candidate_name"
             value={formData.candidate_name}
             onChange={handleChange}
+            required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                placeholder="Enter candidate's name (optional)"
+                placeholder="Enter candidate's name"
           />
             </div>
           </div>
@@ -470,6 +479,7 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">4</span>
             Guarantor Signature
           </h3>
+          {console.log('🔍 Rendering Signature Upload Section')}
           
           <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
           <input
