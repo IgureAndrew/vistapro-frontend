@@ -2138,14 +2138,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
-        -- Additional fields from database
-        mgf.means_of_identification as guarantor_means_of_identification,
-        mgf.guarantor_full_name as guarantor_full_name,
-        mgf.guarantor_email as guarantor_email,
-        mgf.guarantor_phone as guarantor_phone,
-        mgf.guarantor_home_address as guarantor_home_address,
-        mgf.guarantor_office_address as guarantor_office_address,
-        mgf.candidate_name as candidate_name,
+        -- Additional fields from database (with fallback for missing columns)
+        COALESCE(mgf.means_of_identification, 'N/A') as guarantor_means_of_identification,
+        COALESCE(mgf.guarantor_full_name, 'N/A') as guarantor_full_name,
+        COALESCE(mgf.guarantor_email, 'N/A') as guarantor_email,
+        COALESCE(mgf.guarantor_phone, 'N/A') as guarantor_phone,
+        COALESCE(mgf.guarantor_home_address, 'N/A') as guarantor_home_address,
+        COALESCE(mgf.guarantor_office_address, 'N/A') as guarantor_office_address,
+        COALESCE(mgf.candidate_name, 'N/A') as candidate_name,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
         mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
@@ -2296,7 +2296,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
       for (let i = 0; i < submissionsResult.rows.length; i++) {
         const submission = submissionsResult.rows[i];
         
-        // Try to get guarantor form data
+        // Try to get guarantor form data with enhanced query
         try {
           const guarantorQuery = `
             SELECT 
@@ -2308,14 +2308,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               passport_photo_url as guarantor_passport_photo,
               signature_url as guarantor_signature,
               created_at as guarantor_submitted_at,
-              -- Additional fields for frontend compatibility
-              NULL as guarantor_means_of_identification,
-              NULL as guarantor_full_name,
-              NULL as guarantor_email,
-              NULL as guarantor_phone,
-              NULL as guarantor_home_address,
-              NULL as guarantor_office_address,
-              NULL as candidate_name
+              -- Try to get additional fields, with fallback to 'N/A' if columns don't exist
+              COALESCE(means_of_identification, 'N/A') as guarantor_means_of_identification,
+              COALESCE(guarantor_full_name, 'N/A') as guarantor_full_name,
+              COALESCE(guarantor_email, 'N/A') as guarantor_email,
+              COALESCE(guarantor_phone, 'N/A') as guarantor_phone,
+              COALESCE(guarantor_home_address, 'N/A') as guarantor_home_address,
+              COALESCE(guarantor_office_address, 'N/A') as guarantor_office_address,
+              COALESCE(candidate_name, 'N/A') as candidate_name
             FROM marketer_guarantor_form 
             WHERE marketer_id = $1
             ORDER BY created_at DESC
@@ -2323,17 +2323,18 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           `;
           
           const guarantorResult = await pool.query(guarantorQuery, [submission.marketer_id]);
-          console.log(`🔍 Guarantor query result for marketer ${submission.marketer_id}:`, guarantorResult.rows.length, 'rows');
+          console.log(`🔍 Enhanced guarantor query result for marketer ${submission.marketer_id}:`, guarantorResult.rows.length, 'rows');
           
           if (guarantorResult.rows.length > 0) {
             const guarantorData = guarantorResult.rows[0];
-            console.log(`📋 Guarantor data found:`, guarantorData);
+            console.log(`📋 Enhanced guarantor data found:`, guarantorData);
             submissionsResult.rows[i] = {
               ...submission,
               ...guarantorData
             };
-            console.log(`✅ Added guarantor data for marketer ${submission.marketer_id}`);
+            console.log(`✅ Added enhanced guarantor data for marketer ${submission.marketer_id}`);
           } else {
+            console.log(`⚠️ No guarantor data found for marketer ${submission.marketer_id}`);
             // Add null values for guarantor fields
             submissionsResult.rows[i] = {
               ...submission,
@@ -2345,17 +2346,17 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               guarantor_passport_photo: null,
               guarantor_signature: null,
               guarantor_submitted_at: null,
-              guarantor_means_of_identification: null,
-              guarantor_full_name: null,
-              guarantor_email: null,
-              guarantor_phone: null,
-              guarantor_home_address: null,
-              guarantor_office_address: null,
-              candidate_name: null
+              guarantor_means_of_identification: 'N/A',
+              guarantor_full_name: 'N/A',
+              guarantor_email: 'N/A',
+              guarantor_phone: 'N/A',
+              guarantor_home_address: 'N/A',
+              guarantor_office_address: 'N/A',
+              candidate_name: 'N/A'
             };
           }
         } catch (guarantorError) {
-          console.log(`⚠️  Guarantor table not available for marketer ${submission.marketer_id}`);
+          console.log(`⚠️  Guarantor query error for marketer ${submission.marketer_id}:`, guarantorError.message);
           // Add null values for guarantor fields
           submissionsResult.rows[i] = {
             ...submission,
@@ -2367,13 +2368,13 @@ const getSubmissionsForAdmin = async (req, res, next) => {
             guarantor_passport_photo: null,
             guarantor_signature: null,
             guarantor_submitted_at: null,
-            guarantor_means_of_identification: null,
-            guarantor_full_name: null,
-            guarantor_email: null,
-            guarantor_phone: null,
-            guarantor_home_address: null,
-            guarantor_office_address: null,
-            candidate_name: null
+            guarantor_means_of_identification: 'N/A',
+            guarantor_full_name: 'N/A',
+            guarantor_email: 'N/A',
+            guarantor_phone: 'N/A',
+            guarantor_home_address: 'N/A',
+            guarantor_office_address: 'N/A',
+            candidate_name: 'N/A'
           };
         }
         

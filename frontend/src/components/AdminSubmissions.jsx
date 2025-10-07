@@ -43,6 +43,23 @@ export default function AdminSubmissions({ onNavigate }) {
       console.log('🔍 Admin submissions API response:', response.data);
       console.log('📊 Submissions data:', response.data.submissions);
       
+      // Debug each submission
+      if (response.data.submissions && response.data.submissions.length > 0) {
+        response.data.submissions.forEach((submission, index) => {
+          console.log(`📋 Submission ${index + 1}:`, {
+            marketer_name: `${submission.marketer_first_name} ${submission.marketer_last_name}`,
+            submission_status: submission.submission_status,
+            bio_submitted: submission.bio_submitted,
+            guarantor_submitted: submission.guarantor_submitted,
+            commitment_submitted: submission.commitment_submitted,
+            guarantor_well_known: submission.guarantor_well_known,
+            guarantor_relationship: submission.guarantor_relationship,
+            guarantor_means_of_identification: submission.guarantor_means_of_identification,
+            guarantor_full_name: submission.guarantor_full_name
+          });
+        });
+      }
+      
       if (response.data.submissions && response.data.submissions.length > 0) {
         console.log('📋 First submission details:', response.data.submissions[0]);
         console.log('🔍 Guarantor fields:', {
@@ -250,7 +267,9 @@ export default function AdminSubmissions({ onNavigate }) {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      {submission.submission_status === 'pending_admin_review' && (
+                      {(submission.submission_status === 'pending_admin_review' || 
+                        submission.submission_status === 'pending_marketer_forms' ||
+                        (submission.guarantor_submitted && submission.bio_submitted && submission.commitment_submitted)) && (
                         <button
                           onClick={() => handleUploadVerification(submission)}
                           className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
