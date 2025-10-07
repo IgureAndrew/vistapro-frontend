@@ -7,11 +7,6 @@
       "source": "/www.vistapro.ng/(.*)",
       "destination": "https://vistapro.ng/$1",
       "permanent": true
-    },
-    {
-      "source": "/dashboard/(.*)",
-      "destination": "/dashboard/$1",
-      "permanent": false
     }
   ],
   "rewrites": [

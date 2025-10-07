@@ -200,40 +200,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     fetchAdminAssignment();
   }, [user]);
 
-  // Periodic status check to ensure UI stays in sync
-  useEffect(() => {
-    if (!user) return;
-    
-    const checkStatus = async () => {
-      try {
-        // Check form status
-        const formResponse = await api.get('/verification/form-status');
-        if (formResponse.data) {
-          const { form, completed } = determineStartingForm(formResponse.data);
-          setCurrentForm(form);
-          setCompletedForms(completed);
-        }
-        
-        // Check user status
-        const userResponse = await api.get('/auth/me');
-        if (userResponse.data.success) {
-          const freshUserData = userResponse.data.user;
-          if (freshUserData.overall_verification_status !== user.overall_verification_status) {
-            console.log(`🔄 Status mismatch detected: UI=${user.overall_verification_status}, Server=${freshUserData.overall_verification_status}`);
-            setUser(freshUserData);
-            localStorage.setItem("user", JSON.stringify(freshUserData));
-          }
-        }
-      } catch (error) {
-        console.error('Error checking status:', error);
-      }
-    };
-    
-    // Check status every 30 seconds
-    const interval = setInterval(checkStatus, 30000);
-    
-    return () => clearInterval(interval);
-  }, [user]);
+  // Removed periodic status check to prevent redirect loops
+  // Status updates will be handled by WebSocket events and form submissions
 
   // Redirect if user is not a marketer or not assigned
   useEffect(() => {
@@ -349,11 +317,10 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setCurrentForm(form);
         setCompletedForms(completed);
         
-        // If all forms are completed, reload the page to show completion status
+        // If all forms are completed, show completion status without reloading
         if (completed.length === forms.length) {
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000); // Give user time to see completion
+          console.log('✅ All forms completed, showing completion status');
+          // Don't reload - just update the state
         }
       } catch (error) {
         console.error('❌ Error refreshing form status:', error);
@@ -361,9 +328,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         if (currentForm < forms.length) {
           setCurrentForm(currentForm + 1);
         } else {
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
+          console.log('✅ Forms completed, updating state without reload');
+          // Don't reload - just update the state
         }
       }
     }, 1500); // 1.5 second delay for success feedback
