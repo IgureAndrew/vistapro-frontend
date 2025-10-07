@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import api from "../api";
 import AlertDialog from "@/components/ui/alert-dialog";
 import FormStepper from "./FormStepper";
+import SuccessAnimation from "./SuccessAnimation";
 import { validateGuarantorForm, isValidPhone, isValidEmail } from '../utils/formValidation';
 
 const IDENTIFICATION_OPTIONS = [
@@ -29,7 +30,9 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
   const [signatureFile, setSignatureFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -52,10 +55,16 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Prevent double submission
-    if (loading) return;
+    console.log('🔍 Guarantor form handleSubmit called', { loading, submitted });
+    
+    // Prevent double submission or resubmission
+    if (loading || submitted) {
+      console.log('🚫 Form submission blocked:', { loading, submitted });
+      return;
+    }
     
     // Show confirmation dialog
+    console.log('✅ Showing confirmation dialog');
     setShowConfirmDialog(true);
   };
 
@@ -64,14 +73,19 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
     setShowConfirmDialog(false);
     
     // Use comprehensive validation
+    console.log('🔍 Validating guarantor form:', { formData, identificationFile, signatureFile });
     const { errors: validationErrors, isValid } = validateGuarantorForm(formData, identificationFile, signatureFile);
+    console.log('🔍 Validation result:', { validationErrors, isValid });
     
     // If there are validation errors, show them and stop submission
     if (!isValid) {
+      console.log('❌ Validation failed, showing errors:', validationErrors);
       setErrors(validationErrors);
       setLoading(false);
       return;
     }
+    
+    console.log('✅ Validation passed, proceeding with submission');
     
     const payload = new FormData();
     Object.entries(formData).forEach(([k, v]) => payload.append(k, v));
@@ -96,16 +110,21 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
         return;
       }
 
+      // Mark as submitted to prevent resubmission
+      setSubmitted(true);
+
       // Success - form submitted successfully
       setErrors({});
+      setShowSuccess(true);
 
       // Scroll to top for better UX
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
-      // advance stepper
+      // Call success callback immediately - ONLY on successful submission
       onSuccess?.();
 
-      // reset everything
+      // Reset form after success animation
+      setTimeout(() => {
       setFormData({
         is_candidate_known: "",
         relationship: "",
@@ -121,26 +140,51 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
       });
       setIdentificationFile(null);
       setSignatureFile(null);
+        setLoading(false);
+        setShowSuccess(false);
+      }, 1500); // 1.5 second delay for success animation
     } catch (err) {
+      setLoading(false);
       console.error('❌ Guarantor form submission error:', err);
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
       
-      let errorMessage = "Error submitting guarantor form. Please try again.";
+      // Parse specific error messages
+      let errorMessage = 'An unexpected error occurred. Please try again.';
       
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.field) {
-        errorMessage = `${err.response.data.field}: ${err.response.data.message}`;
-      } else if (err.response?.status === 500) {
-        errorMessage = "Server error occurred. Please try again or contact support if the problem persists.";
-      } else if (err.response?.status === 400) {
-        errorMessage = "Please check your form data and try again.";
-      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
-        errorMessage = "Network error. Please check your connection and try again.";
+      if (err.response?.data) {
+        const { field, message, error } = err.response.data;
+        
+        if (field && message) {
+          // Field-specific error
+          setErrors({ [field]: message });
+          return;
+        } else if (message) {
+          errorMessage = message;
+        } else if (error) {
+          errorMessage = error;
+        } else if (err.response.status === 500) {
+          errorMessage = 'Server error occurred. Please try again later.';
+        } else if (err.response.status === 400) {
+          errorMessage = 'Invalid data provided. Please check your inputs.';
+        } else if (err.response.status === 401) {
+          errorMessage = 'Session expired. Please login again.';
+        } else if (err.response.status === 403) {
+          errorMessage = 'You do not have permission to perform this action.';
+        } else if (err.response.status === 404) {
+          errorMessage = 'Service not found. Please contact support.';
+        } else if (err.response.status === 413) {
+          errorMessage = 'File too large. Please upload smaller files.';
+        } else if (err.response.status === 415) {
+          errorMessage = 'Invalid file type. Please upload valid image files.';
+        }
+      } else if (err.code === 'NETWORK_ERROR' || err.message === 'Network Error') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (err.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please try again.';
       }
       
       setErrors({ general: errorMessage });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -451,15 +495,25 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <button
             type="button"
-            onClick={() => setShowConfirmDialog(true)}
-            disabled={loading}
+            onClick={() => {
+              console.log('🔍 Guarantor submit button clicked', { loading, submitted });
+              setShowConfirmDialog(true);
+            }}
+            disabled={loading || submitted}
             className="w-full text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            style={{ backgroundColor: '#f59e0b' }}
+            style={{ backgroundColor: submitted ? '#10b981' : '#f59e0b' }}
           >
             {loading ? (
               <div className="flex items-center justify-center">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                 Submitting...
+              </div>
+            ) : submitted ? (
+              <div className="flex items-center justify-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Form Submitted Successfully
               </div>
             ) : (
               'Submit Guarantor Form'
@@ -477,6 +531,14 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             onCancel={() => setShowConfirmDialog(false)}
             variant="default"
           />
+
+          {/* Success Animation */}
+          {showSuccess && (
+            <SuccessAnimation 
+              message="Guarantor Form Submitted Successfully!" 
+              onComplete={() => setShowSuccess(false)}
+            />
+          )}
         </div>
       </form>
     </div>

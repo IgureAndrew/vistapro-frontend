@@ -5,6 +5,7 @@ import io from 'socket.io-client';
 import ApplicantBiodataForm from './ApplicantBiodataForm';
 import ApplicantGuarantorForm from './ApplicantGuarantorForm';
 import ApplicantCommitmentForm from './ApplicantCommitmentForm';
+import VerificationNotifications from './VerificationNotifications';
 import FormStepper from './FormStepper';
 import ErrorBoundary from './ErrorBoundary';
 import api from '../api/';
@@ -19,12 +20,27 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showProgressAlert, setShowProgressAlert] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
+  const [adminAssignment, setAdminAssignment] = useState(null);
+  const [loadingAssignment, setLoadingAssignment] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   const forms = [
     { key: 'biodata', label: 'Biodata Form', component: ApplicantBiodataForm },
     { key: 'guarantor', label: 'Guarantor Form', component: ApplicantGuarantorForm },
     { key: 'commitment', label: 'Commitment Form', component: ApplicantCommitmentForm }
   ];
+
+  // Update user state when prop changes
+  useEffect(() => {
+    if (initialUser) {
+      setUser(initialUser);
+    } else {
+      // If no user data, redirect to login
+      localStorage.removeItem('user');
+      navigate('/');
+    }
+  }, [initialUser, navigate]);
 
   // Logout function
   const handleLogout = async () => {
@@ -49,6 +65,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
 
   // Show progress notification on page load
   const showProgressNotification = () => {
+    if (!user) return;
+    
     const status = user.overall_verification_status;
     let message = '';
     
@@ -77,14 +95,21 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const determineStartingForm = (formStatus) => {
     const { biodata, guarantor, commitment } = formStatus.forms;
     
+    // Allow any form to be filled independently - no strict order required
+    const completed = [];
+    if (biodata) completed.push('biodata');
+    if (guarantor) completed.push('guarantor');
+    if (commitment) completed.push('commitment');
+    
+    // Start with the first incomplete form, or form 1 if all are complete
     if (!biodata) {
-      return { form: 1, completed: [] };
+      return { form: 1, completed };
     } else if (!guarantor) {
-      return { form: 2, completed: ['biodata'] };
+      return { form: 2, completed };
     } else if (!commitment) {
-      return { form: 3, completed: ['biodata', 'guarantor'] };
+      return { form: 3, completed };
     } else {
-      return { form: 1, completed: ['biodata', 'guarantor', 'commitment'] };
+      return { form: 1, completed };
     }
   };
 
@@ -96,7 +121,7 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     }, 1000);
     
     return () => clearTimeout(timer);
-  }, [user.overall_verification_status]);
+  }, [user?.overall_verification_status]);
 
   // Check form status on component mount
   useEffect(() => {
@@ -116,6 +141,19 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setCurrentForm(form);
         setCompletedForms(completed);
         
+        // Also refresh user data to get latest verification status
+        try {
+          const userResponse = await api.get('/auth/me');
+          if (userResponse.data.success) {
+            const freshUserData = userResponse.data.user;
+            console.log('🔄 Refreshed user data:', freshUserData);
+            setUser(freshUserData);
+            localStorage.setItem('user', JSON.stringify(freshUserData));
+          }
+        } catch (userError) {
+          console.error('❌ Error refreshing user data:', userError);
+        }
+        
       } catch (error) {
         console.error('❌ Error fetching form status:', error);
         // Fallback to starting from form 1 if API fails
@@ -128,6 +166,64 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
 
     checkFormStatus();
   }, []);
+
+  // Fetch admin assignment information
+  useEffect(() => {
+    const fetchAdminAssignment = async () => {
+      if (!user) return;
+      
+      try {
+        setLoadingAssignment(true);
+        const response = await api.get('/verification/admin-assignment');
+        
+        if (response.data.success) {
+          setAdminAssignment(response.data);
+          console.log('✅ Admin assignment loaded:', response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching admin assignment:', error);
+      } finally {
+        setLoadingAssignment(false);
+      }
+    };
+    
+    fetchAdminAssignment();
+  }, [user]);
+
+  // Periodic status check to ensure UI stays in sync
+  useEffect(() => {
+    if (!user) return;
+    
+    const checkStatus = async () => {
+      try {
+        // Check form status
+        const formResponse = await api.get('/verification/form-status');
+        if (formResponse.data) {
+          const { form, completed } = determineStartingForm(formResponse.data);
+          setCurrentForm(form);
+          setCompletedForms(completed);
+        }
+        
+        // Check user status
+        const userResponse = await api.get('/auth/me');
+        if (userResponse.data.success) {
+          const freshUserData = userResponse.data.user;
+          if (freshUserData.overall_verification_status !== user.overall_verification_status) {
+            console.log(`🔄 Status mismatch detected: UI=${user.overall_verification_status}, Server=${freshUserData.overall_verification_status}`);
+            setUser(freshUserData);
+            localStorage.setItem("user", JSON.stringify(freshUserData));
+          }
+        }
+      } catch (error) {
+        console.error('Error checking status:', error);
+      }
+    };
+    
+    // Check status every 30 seconds
+    const interval = setInterval(checkStatus, 30000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Redirect if user is not a marketer or not assigned
   useEffect(() => {
@@ -154,10 +250,24 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     
     // Register with socket
     socket.emit("register", user.unique_id);
+    
+    // Connection status handlers
+    socket.on("connect", () => {
+      console.log('🔗 WebSocket connected');
+      setSocketConnected(true);
+    });
+    
+    socket.on("disconnect", () => {
+      console.log('🔌 WebSocket disconnected');
+      setSocketConnected(false);
+    });
 
     // Listen for verification status changes
     socket.on("verificationStatusChanged", (data) => {
+      console.log('🔔 Received verification status change:', data);
       if (data.marketerUniqueId === user.unique_id) {
+        setIsUpdating(true);
+        
         const updated = {
           ...user,
           overall_verification_status: data.newStatus,
@@ -165,11 +275,19 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setUser(updated);
         localStorage.setItem("user", JSON.stringify(updated));
         console.log(`🔄 Verification status updated to: ${data.newStatus}`);
+        
+        // Show notification to user
+        setProgressMessage(data.message);
+        setShowProgressAlert(true);
+        
+        // Clear updating state after a short delay
+        setTimeout(() => setIsUpdating(false), 2000);
       }
     });
 
     // Listen for verification approval
     socket.on("verificationApproved", (data) => {
+      console.log('🎉 Received verification approval:', data);
       if (data.marketerUniqueId === user.unique_id) {
         const updated = {
           ...user,
@@ -178,6 +296,10 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
         setUser(updated);
         localStorage.setItem("user", JSON.stringify(updated));
         console.log(`✅ Verification approved!`);
+        
+        // Show success notification
+        setSuccessMessage(data.message || 'Your verification has been approved!');
+        setShowSuccessNotification(true);
       }
     });
 
@@ -238,19 +360,51 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   };
 
   const handleStepClick = (stepIndex, stepKey) => {
-    if (completedForms.includes(stepKey) || stepIndex === currentForm - 1) {
-      // Scroll to top when navigating between forms
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setCurrentForm(stepIndex + 1);
-    }
+    // Allow navigation to any form - no restrictions
+    // Scroll to top when navigating between forms
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCurrentForm(stepIndex + 1);
   };
 
-  if (!user || user.role !== 'Marketer' || !user.admin_id) {
-    return null;
+  if (!user) {
+    console.log('🔍 MarketerVerificationDashboard: No user data');
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading verification dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('🔍 MarketerVerificationDashboard: User data:', {
+    role: user.role,
+    admin_id: user.admin_id,
+    verificationStatus: user.overall_verification_status
+  });
+
+  if (user.role !== 'Marketer' || !user.admin_id) {
+    console.log('❌ MarketerVerificationDashboard: User not eligible - role:', user.role, 'admin_id:', user.admin_id);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Account Not Ready</h2>
+          <p className="text-gray-600 mb-4">
+            {user.role !== 'Marketer' ? 'Your account role is not set as Marketer.' : 'Your account is not assigned to an Admin yet.'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Please contact your administrator for assistance.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Show loading state while checking form status
   if (isLoading) {
+    console.log('🔍 MarketerVerificationDashboard: Loading form status...');
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -261,7 +415,13 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     );
   }
 
+  console.log('✅ MarketerVerificationDashboard: Rendering verification dashboard');
+
   const getVerificationStatus = () => {
+    if (!user) {
+      return { status: 'pending', message: 'Loading...', color: 'yellow' };
+    }
+    
     if (user.overall_verification_status === 'approved') {
       return { status: 'approved', message: 'Verification Complete', color: 'green' };
     } else if (user.overall_verification_status === 'awaiting_masteradmin_approval') {
@@ -272,6 +432,78 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
       return { status: 'pending', message: 'Awaiting Admin Review', color: 'yellow' };
     } else {
       return { status: 'pending', message: 'Verification Required', color: 'yellow' };
+    }
+  };
+
+  // Get current verification stage for progress tracker
+  const getCurrentStage = () => {
+    if (!user) return 1;
+    
+    console.log('🔍 getCurrentStage debug:', {
+      overall_verification_status: user.overall_verification_status,
+      completedForms: completedForms,
+      user: user
+    });
+    
+    // Check if all forms are completed first
+    const allFormsCompleted = completedForms.length === forms.length;
+    
+    if (allFormsCompleted) {
+      // If all forms are completed, check the verification status
+      switch (user.overall_verification_status) {
+        case 'awaiting_admin_review':
+          console.log('✅ All forms completed, status is awaiting_admin_review, returning stage 2');
+          return 2; // Admin Review
+        case 'awaiting_superadmin_validation':
+          console.log('✅ All forms completed, status is awaiting_superadmin_validation, returning stage 3');
+          return 3; // SuperAdmin Validation
+        case 'awaiting_masteradmin_approval':
+          console.log('✅ All forms completed, status is awaiting_masteradmin_approval, returning stage 4');
+          return 4; // MasterAdmin Approval
+        case 'approved':
+          console.log('✅ All forms completed, status is approved, returning stage 5');
+          return 5; // All completed
+        default:
+          console.log('✅ All forms completed, but no verification status, returning stage 2');
+          return 2; // Admin Review (forms completed but no status yet)
+      }
+    } else {
+      // If forms are not completed, always show stage 1
+      console.log('⚠️ Forms not completed yet, returning stage 1. Completed forms:', completedForms);
+      return 1; // Forms Submitted
+    }
+  };
+
+  // Get status display information
+  const getStatusDisplay = () => {
+    if (!user) return { title: 'Loading...', description: 'Please wait...' };
+    
+    switch (user.overall_verification_status) {
+      case 'awaiting_admin_review':
+        return {
+          title: 'Under Admin Review',
+          description: 'Your assigned Admin will review your forms and upload verification details. You will be notified when your verification progresses to the next stage.'
+        };
+      case 'awaiting_superadmin_validation':
+        return {
+          title: 'Under SuperAdmin Review',
+          description: 'Your Admin has reviewed your forms and sent them to SuperAdmin for validation. You will be notified when your verification progresses to the next stage.'
+        };
+      case 'awaiting_masteradmin_approval':
+        return {
+          title: 'Under MasterAdmin Review',
+          description: 'Your verification has been validated by SuperAdmin and is now under MasterAdmin review for final approval.'
+        };
+      case 'approved':
+        return {
+          title: 'Verification Complete',
+          description: 'Congratulations! Your verification has been approved and your dashboard is now unlocked.'
+        };
+      default:
+        return {
+          title: 'Under Admin Review',
+          description: 'Your assigned Admin will review your forms and upload verification details. You will be notified when your verification progresses to the next stage.'
+        };
     }
   };
 
@@ -312,6 +544,16 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Verification Notifications */}
+              <VerificationNotifications 
+                userRole="marketer"
+                userId={user?.id}
+                onNotificationClick={(notification) => {
+                  console.log('Verification notification clicked:', notification);
+                  // Handle notification click if needed
+                }}
+              />
+              
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">
                   {user.first_name} {user.last_name}
@@ -348,7 +590,7 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
 
       {/* Progress Alert Dialog */}
       {showProgressAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div className="flex items-center space-x-3 mb-4">
               <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -566,65 +808,73 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                   </div>
                 </div>
                 <h4 className="text-lg font-semibold text-blue-900 mb-2">
-                  Status: {user.overall_verification_status === 'awaiting_superadmin_validation' 
-                    ? 'Under SuperAdmin Review' 
-                    : user.overall_verification_status === 'awaiting_masteradmin_approval'
-                    ? 'Under MasterAdmin Review'
-                    : 'Under Admin Review'
-                  }
+                  Status: {getStatusDisplay().title}
                 </h4>
                 <p className="text-blue-700 text-sm">
-                  {user.overall_verification_status === 'awaiting_superadmin_validation' 
-                    ? 'Your Admin has reviewed your forms and sent them to SuperAdmin for validation. You will be notified when your verification progresses to the next stage.'
-                    : user.overall_verification_status === 'awaiting_masteradmin_approval'
-                    ? 'Your verification has been validated by SuperAdmin and is now under MasterAdmin review for final approval.'
-                    : 'Your assigned Admin will review your forms and upload verification details. You will be notified when your verification progresses to the next stage.'
-                  }
+                  {getStatusDisplay().description}
                 </p>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 relative">
+                {/* Real-time update indicator */}
+                {isUpdating && (
+                  <div className="absolute -top-2 -right-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center space-x-1 z-10">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>Updating...</span>
+                  </div>
+                )}
+                
+                {/* Connection status indicator */}
+                <div className="absolute -top-2 -left-2 flex items-center space-x-1">
+                  <div className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className="text-xs text-gray-500">
+                    {socketConnected ? 'Live' : 'Offline'}
+                  </span>
+                </div>
+                
                 <div className="flex items-center justify-center space-x-8 text-sm text-gray-600">
+                  
+                  {/* Step 1: Forms Submitted - Always completed if user is in verification dashboard */}
                   <div className="flex items-center">
-                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
+                      getCurrentStage() >= 1 ? 'bg-green-500' : 'bg-gray-300'
+                    }`}>
                       1
                     </div>
                     <span>Forms Submitted</span>
                   </div>
+                  
+                  {/* Step 2: Admin Review */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
-                      user.overall_verification_status === 'awaiting_admin_review' 
-                        ? 'bg-blue-500' 
-                        : user.overall_verification_status === 'awaiting_superadmin_validation' || 
-                          user.overall_verification_status === 'awaiting_masteradmin_approval' ||
-                          user.overall_verification_status === 'approved'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                      getCurrentStage() === 2 ? 'bg-blue-500' : 
+                      getCurrentStage() > 2 ? 'bg-green-500' : 'bg-gray-300'
                     }`}>
                       2
                     </div>
                     <span>Admin Review</span>
+                    {/* Debug info */}
+                    <span className="text-xs text-gray-400 ml-2">
+                      (stage: {getCurrentStage()}, status: {user?.overall_verification_status})
+                    </span>
                   </div>
+                  
+                  {/* Step 3: SuperAdmin Validation */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
-                      user.overall_verification_status === 'awaiting_superadmin_validation' 
-                        ? 'bg-blue-500' 
-                        : user.overall_verification_status === 'awaiting_masteradmin_approval' ||
-                          user.overall_verification_status === 'approved'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                      getCurrentStage() === 3 ? 'bg-blue-500' : 
+                      getCurrentStage() > 3 ? 'bg-green-500' : 'bg-gray-300'
                     }`}>
                       3
                     </div>
                     <span>SuperAdmin Validation</span>
                   </div>
+                  
+                  {/* Step 4: MasterAdmin Approval */}
                   <div className="flex items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs mr-2 ${
-                      user.overall_verification_status === 'awaiting_masteradmin_approval' 
-                        ? 'bg-blue-500' 
-                        : user.overall_verification_status === 'approved'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                      getCurrentStage() === 4 ? 'bg-blue-500' : 
+                      getCurrentStage() > 4 ? 'bg-green-500' : 'bg-gray-300'
                     }`}>
                       4
                     </div>
@@ -632,6 +882,70 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                   </div>
                 </div>
               </div>
+              
+              {/* Admin Assignment Information */}
+              {adminAssignment && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                  <h5 className="text-sm font-semibold text-gray-700 mb-3">Verification Team</h5>
+                  <div className="space-y-3">
+                    {/* Admin Information */}
+                    {adminAssignment.admin ? (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            Admin: {adminAssignment.admin.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {adminAssignment.admin.email} • {adminAssignment.admin.location}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">
+                            Admin: Not assigned
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* SuperAdmin Information */}
+                    {adminAssignment.superadmin ? (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            SuperAdmin: {adminAssignment.superadmin.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {adminAssignment.superadmin.email} • {adminAssignment.superadmin.location}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">
+                            SuperAdmin: Not assigned
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -34,16 +34,27 @@ const VerificationNotifications = ({
     setSocket(newSocket);
 
     // Listen for verification notifications
-    newSocket.on('verification_status_update', (data) => {
+    newSocket.on('verificationStatusChanged', (data) => {
       handleVerificationUpdate(data);
     });
 
-    newSocket.on('verification_reminder', (data) => {
-      handleVerificationReminder(data);
+    newSocket.on('verificationApproved', (data) => {
+      handleVerificationApproved(data);
     });
 
-    newSocket.on('verification_approved', (data) => {
-      handleVerificationApproved(data);
+    newSocket.on('newNotification', (data) => {
+      // Handle general notifications that might be verification-related
+      if (data.message && (
+        data.message.toLowerCase().includes('verification') ||
+        data.message.toLowerCase().includes('form') ||
+        data.message.toLowerCase().includes('admin') ||
+        data.message.toLowerCase().includes('approved')
+      )) {
+        handleVerificationUpdate({
+          status: 'general_update',
+          message: data.message
+        });
+      }
     });
 
     return () => {
@@ -102,17 +113,25 @@ const VerificationNotifications = ({
 
   // Helper functions
   const getVerificationMessage = (data) => {
+    // If we have a direct message, use it
+    if (data.message) {
+      return data.message;
+    }
+    
+    // Otherwise, use status-based messages
     switch (data.status) {
-      case 'physical_verification_pending':
-        return 'Physical verification is pending. Please wait for Admin to visit.';
-      case 'physical_verification_completed':
-        return 'Physical verification completed. Awaiting phone verification.';
-      case 'phone_verification_pending':
-        return 'Phone verification is pending. SuperAdmin will call you soon.';
-      case 'phone_verification_completed':
-        return 'Phone verification completed. Awaiting MasterAdmin approval.';
-      case 'masteradmin_approval_pending':
-        return 'Awaiting MasterAdmin approval. You will be notified soon.';
+      case 'awaiting_admin_review':
+        return 'Your verification forms have been submitted and are awaiting Admin review.';
+      case 'awaiting_superadmin_validation':
+        return 'Your verification has been reviewed by Admin and is now under SuperAdmin validation.';
+      case 'awaiting_masteradmin_approval':
+        return 'Your verification has been validated by SuperAdmin and is awaiting MasterAdmin approval.';
+      case 'approved':
+        return 'Congratulations! Your verification has been approved.';
+      case 'rejected':
+        return 'Your verification requires additional information. Please contact your Admin.';
+      case 'general_update':
+        return data.message || 'Verification status updated.';
       default:
         return 'Verification status updated.';
     }

@@ -70,6 +70,13 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
     onClose();
   };
 
+  // Generate URL for navigation links
+  const getModuleUrl = (key) => {
+    // For SPA routing, we need to include the module as a URL parameter
+    const currentPath = window.location.pathname;
+    return `${currentPath}?module=${key}`;
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -124,9 +131,13 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
               const isActive = activeModule === item.key;
               
               return (
-                <button
+                <a
                   key={item.key}
-                  onClick={() => handleItemClick(item.key)}
+                  href={getModuleUrl(item.key)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleItemClick(item.key);
+                  }}
                   className={`flex flex-col items-center p-4 rounded-2xl transition-all duration-200 ${
                     isActive 
                       ? 'bg-[#f59e0b] text-white shadow-lg' 
@@ -135,7 +146,7 @@ const MobileBottomSheet = ({ isOpen, onClose, user, activeModule, setActiveModul
                 >
                   <Icon className="w-6 h-6 mb-2" />
                   <span className="text-sm font-medium">{item.label}</span>
-                </button>
+                </a>
               );
             })}
           </div>

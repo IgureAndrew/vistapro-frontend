@@ -168,7 +168,8 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         // Process the simplified backend data to create descriptions
         const processedActivities = (data.activities || []).map(activity => ({
           ...activity,
-          description: generateActivityDescription(activity)
+          description: generateActivityDescription(activity),
+          timestamp: activity.created_at // Map created_at to timestamp for consistency
         }));
         
         setRecentActivity(processedActivities);
@@ -232,35 +233,39 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
 
   // Helper function to generate activity descriptions from simplified backend data
   const generateActivityDescription = (activity) => {
-    const { activity_type, entity_type, entity_unique_id } = activity;
+    const { activity_type, entity_type, entity_unique_id, actor_name, entity_display_name } = activity;
+    
+    // Use entity_display_name if available (includes user's full name), otherwise use entity_unique_id
+    const displayName = entity_display_name || entity_unique_id;
+    const actor = actor_name || 'System';
     
     switch (activity_type) {
       case 'Create User':
-        return `Created ${entity_type} ${entity_unique_id}`;
+        return `${actor} created ${entity_type} ${displayName}`;
       case 'Update User':
-        return `Updated ${entity_type} ${entity_unique_id}`;
+        return `${actor} updated ${entity_type} ${displayName}`;
       case 'Delete User':
-        return `Deleted ${entity_type} ${entity_unique_id}`;
+        return `${actor} deleted ${entity_type} ${displayName}`;
       case 'Lock User':
-        return `Locked ${entity_type} ${entity_unique_id}`;
+        return `${actor} locked ${entity_type} ${displayName}`;
       case 'Unlock User':
-        return `Unlocked ${entity_type} ${entity_unique_id}`;
+        return `${actor} unlocked ${entity_type} ${displayName}`;
       case 'Assign Marketers to Admin':
-        return `Assigned marketers to Admin ${entity_unique_id}`;
+        return `${actor} assigned marketers to Admin ${displayName}`;
       case 'Assign Admins to Super Admin':
-        return `Assigned admins to Super Admin ${entity_unique_id}`;
+        return `${actor} assigned admins to Super Admin ${displayName}`;
       case 'Unassign Marketers from Admin':
-        return `Unassigned marketers from Admin ${entity_unique_id}`;
+        return `${actor} unassigned marketers from Admin ${displayName}`;
       case 'Unassign Admins from Super Admin':
-        return `Unassigned admins from Super Admin ${entity_unique_id}`;
+        return `${actor} unassigned admins from Super Admin ${displayName}`;
       case 'Update Profile':
-        return `Updated profile`;
+        return `${actor} updated profile`;
       case 'Register Master Admin':
-        return `Registered new Master Admin ${entity_unique_id}`;
+        return `${actor} registered new Master Admin ${displayName}`;
       case 'Register Super Admin':
-        return `Registered new Super Admin ${entity_unique_id}`;
+        return `${actor} registered new Super Admin ${displayName}`;
       default:
-        return `${activity_type} ${entity_type} ${entity_unique_id}`;
+        return `${actor} performed ${activity_type} on ${entity_type} ${displayName}`;
     }
   };
 
@@ -271,12 +276,29 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
       if (isNaN(date.getTime())) {
         return 'Invalid Date';
       }
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      
+      const now = new Date();
+      const diffInSeconds = Math.floor((now - date) / 1000);
+      
+      // Show relative time for recent activities
+      if (diffInSeconds < 60) {
+        return 'Just now';
+      } else if (diffInSeconds < 3600) {
+        return `${Math.floor(diffInSeconds / 60)}m ago`;
+      } else if (diffInSeconds < 86400) {
+        return `${Math.floor(diffInSeconds / 3600)}h ago`;
+      } else if (diffInSeconds < 604800) { // 7 days
+        return `${Math.floor(diffInSeconds / 86400)}d ago`;
+      } else {
+        // For older activities, show full date and time
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+      }
     } catch (error) {
       console.error('Error formatting date:', error);
       return 'Invalid Date';
@@ -303,7 +325,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalUsers,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalUsers, stats.previousTotalUsers, cardIcons[0]),
+        ...computeChange(stats.currentPeriodUsers, stats.previousTotalUsers, cardIcons[0]),
       },
       {
         icon: cardIcons[1],
@@ -312,7 +334,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalPendingOrders,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalPendingOrders, stats.previousPendingOrders, cardIcons[1]),
+        ...computeChange(stats.currentPeriodPendingOrders, stats.previousPendingOrders, cardIcons[1]),
       },
       {
         icon: cardIcons[2],
@@ -321,7 +343,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalConfirmedOrders,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalConfirmedOrders, stats.previousConfirmedOrders, cardIcons[2]),
+        ...computeChange(stats.currentPeriodConfirmedOrders, stats.previousConfirmedOrders, cardIcons[2]),
       },
       {
         icon: cardIcons[3],
@@ -330,7 +352,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalSales,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalSales, stats.previousSales, cardIcons[3]),
+        ...computeChange(stats.currentPeriodSales, stats.previousSales, cardIcons[3]),
       },
       {
         icon: cardIcons[4],
@@ -339,7 +361,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalAvailableProducts,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalAvailableProducts, stats.previousAvailableProducts, cardIcons[4]),
+        ...computeChange(stats.currentPeriodAvailableProducts, stats.previousAvailableProducts, cardIcons[4]),
       },
       {
         icon: cardIcons[5],
@@ -348,7 +370,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.pendingVerification,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.pendingVerification, stats.previousPendingVerification, cardIcons[5]),
+        ...computeChange(stats.currentPeriodPendingVerification, stats.previousPendingVerification, cardIcons[5]),
       },
       {
         icon: cardIcons[6],
@@ -357,7 +379,7 @@ export default function MasterAdminOverview({ onNavigate, isDarkMode = false }) 
         rawValue: stats.totalPickupStocks,
         iconBg: "bg-gray-100",
         iconColor: "text-gray-600",
-        ...computeChange(stats.totalPickupStocks, stats.previousPickupStocks, cardIcons[6]),
+        ...computeChange(stats.currentPeriodPickupStocks, stats.previousPickupStocks, cardIcons[6]),
       },
     ];
   }, [stats]);

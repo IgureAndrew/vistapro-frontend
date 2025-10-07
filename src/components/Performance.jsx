@@ -39,14 +39,25 @@ export default function Performance() {
     totalSales: 0
   })
 
-  // Load performance data
+  // Load performance data with timeout handling
   const loadPerformanceData = async () => {
     setLoading(true)
     setError(null)
     
     try {
-      // Fetch performance data using the new unified API
-      const performanceRes = await performanceApiService.getPerformanceOverview()
+      console.log('🚀 Loading performance data...')
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 20000) // 20 second timeout
+      })
+      
+      // Race between the API call and timeout
+      const performanceRes = await Promise.race([
+        performanceApiService.getPerformanceOverview(),
+        timeoutPromise
+      ])
+      
       const performanceData = performanceRes.data.data
       
       const marketers = performanceData.marketers || []
@@ -55,7 +66,12 @@ export default function Performance() {
       const summary = performanceData.summary || {}
       
       // Debug: Log what we're getting from the API
-      console.log('Performance data:', performanceData)
+      console.log('✅ Performance data loaded successfully:', {
+        marketers: marketers.length,
+        admins: admins.length,
+        superadmins: superadmins.length,
+        summary
+      })
 
       // Set performance data - new system provides calculated performance
       setMarketersPerformance(marketers)
@@ -72,8 +88,30 @@ export default function Performance() {
       })
 
     } catch (err) {
-      console.error('Failed to load performance data:', err)
-      setError('Unable to load performance data. Please check your connection and try again.')
+      console.error('❌ Failed to load performance data:', err)
+      
+      // Handle different types of errors
+      if (err.message === 'Request timeout') {
+        setError('Performance data is taking too long to load. Please try refreshing the page.')
+      } else if (err.response?.status === 408) {
+        setError('The server is taking too long to process your request. Please try again.')
+      } else if (err.response?.status === 500) {
+        setError('Server error occurred while loading performance data. Please try again later.')
+      } else {
+        setError('Unable to load performance data. Please check your connection and try again.')
+      }
+      
+      // Set fallback data to prevent empty state
+      setMarketersPerformance([])
+      setAdminsPerformance([])
+      setSuperadminsPerformance([])
+      setSummaryMetrics({
+        totalMarketers: 0,
+        totalAdmins: 0,
+        totalSuperAdmins: 0,
+        totalOrders: 0,
+        totalSales: 0
+      })
     } finally {
       setLoading(false)
     }
@@ -114,14 +152,19 @@ export default function Performance() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center text-red-600">
-          <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">Unable to load performance data</p>
-          <p className="text-sm text-muted-foreground mt-2">There was an issue fetching the performance metrics. Please try again.</p>
-          <Button onClick={loadPerformanceData} className="mt-4">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Try Again
-          </Button>
+        <div className="text-center max-w-md">
+          <div className="text-orange-500 text-6xl mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Performance Data Unavailable</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <div className="space-y-2">
+            <Button onClick={loadPerformanceData} variant="outline" className="w-full">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+            <p className="text-sm text-gray-500">
+              If the problem persists, please contact support or try again later.
+            </p>
+          </div>
         </div>
       </div>
     )

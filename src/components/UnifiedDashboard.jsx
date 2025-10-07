@@ -17,12 +17,17 @@ import {
   Crown,
   Shield,
   User as UserIcon,
-  Settings
+  Settings,
+  Clock
 } from 'lucide-react';
 import { getRoleConfig } from '../config/RoleConfig';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationBell from './NotificationBell';
 import { getAvatarUrl, getUserInitials } from '../utils/avatarUtils';
+import Performance from './Performance';
+import UsersManagement from './UsersManagement';
+import MasterAdminWallet from './MasterAdminWallet';
+import MarketerVerificationDashboard from './MarketerVerificationDashboard';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
@@ -72,6 +77,54 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
     return () => window.removeEventListener('userUpdated', handleUserUpdate);
   }, []);
 
+  // Check verification status for marketers
+  useEffect(() => {
+    if (userRole === 'marketer' && user) {
+      // Always refresh user data for marketers to get latest verification status
+      const refreshUserData = async () => {
+        try {
+          const response = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              const freshUserData = data.user;
+              console.log('🔄 UnifiedDashboard: Refreshed user data:', freshUserData);
+              setUser(freshUserData);
+              localStorage.setItem('user', JSON.stringify(freshUserData));
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error refreshing user data in UnifiedDashboard:', error);
+        }
+      };
+      
+      refreshUserData();
+    }
+  }, [userRole, user]);
+
+  // Handle URL parameters for module navigation
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const moduleParam = urlParams.get('module');
+    
+    if (moduleParam) {
+      // Check if the module exists in the current role's configuration
+      const moduleExists = roleConfig.modules.some(module => module.key === moduleParam);
+      if (moduleExists) {
+        setActiveModule(moduleParam);
+        // Clean up the URL by removing the parameter
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [roleConfig.modules]);
+
   // Dark mode toggle using custom ThemeProvider
   const toggleDarkMode = () => {
     toggleTheme();
@@ -87,6 +140,14 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   const handleNavigate = (moduleKey) => {
     setActiveModule(moduleKey);
     setSidebarOpen(false); // Close mobile sidebar
+  };
+
+  // Generate URL for navigation links
+  const getModuleUrl = (moduleKey) => {
+    // For SPA routing, we need to include the module as a URL parameter or hash
+    // This allows the dashboard to load and then navigate to the specific module
+    const currentPath = window.location.pathname;
+    return `${currentPath}?module=${moduleKey}`;
   };
 
   // Get current module component
@@ -114,6 +175,18 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   const roleBadge = getRoleBadge();
   const RoleBadgeIcon = roleBadge.icon;
 
+  // Show loading state while user data is being loaded
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Sidebar Component
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -121,7 +194,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3">
           <img
-            src="/assets/logo/vistapro logo-01.png"
+            src="/assets/logo/vistapro-logo-new.png"
             alt="VistaPro Logo"
             className="h-10 w-auto"
           />
@@ -139,25 +212,41 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {roleConfig.modules.map((module) => {
-          const Icon = module.icon;
-          const isActive = activeModule === module.key;
+        {(() => {
+          // Filter modules based on verification status for marketers
+          let modulesToShow = roleConfig.modules;
           
-          return (
-            <button
-              key={module.key}
-              onClick={() => handleNavigate(module.key)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="font-medium">{module.label}</span>
-            </button>
-          );
-        })}
+          if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+            // For unverified marketers, only show verification-related modules
+            modulesToShow = roleConfig.modules.filter(module => 
+              ['verification', 'account-settings'].includes(module.key)
+            );
+          }
+          
+          return modulesToShow.map((module) => {
+            const Icon = module.icon;
+            const isActive = activeModule === module.key;
+            
+            return (
+              <a
+                key={module.key}
+                href={getModuleUrl(module.key)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavigate(module.key);
+                }}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{module.label}</span>
+              </a>
+            );
+          });
+        })()}
       </nav>
 
       {/* User Info */}
@@ -238,10 +327,19 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                     {roleConfig.title}
                   </h1>
-                  <Badge className={`${roleBadge.color} mt-1 hidden sm:inline-flex`}>
-                    <RoleBadgeIcon className="w-3 h-3 mr-1" />
-                    {roleBadge.text}
-                  </Badge>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <Badge className={`${roleBadge.color} hidden sm:inline-flex`}>
+                      <RoleBadgeIcon className="w-3 h-3 mr-1" />
+                      {roleBadge.text}
+                    </Badge>
+                    {/* Verification Status for Marketers */}
+                    {userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved') && (
+                      <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Verification Required
+                      </Badge>
+                    )}
+                  </div>
               </div>
             </div>
 
@@ -329,40 +427,57 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
             <div className="w-full h-full">
-              {/* MasterAdmin Special Tabs */}
-              {userRole === 'masteradmin' ? (
-                <div className="p-3 sm:p-4 md:p-6">
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="mb-4 sm:mb-6">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                      <TabsTrigger value="users">Users</TabsTrigger>
-                      <TabsTrigger value="wallet">Wallet</TabsTrigger>
-                    </TabsList>
+              {/* Marketer Verification Check */}
+              {(() => {
+                console.log('🔍 Verification check debug:', {
+                  userRole,
+                  user: !!user,
+                  verificationStatus: user?.overall_verification_status,
+                  shouldShowVerification: userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')
+                });
+                
+                if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+                  console.log('✅ Showing MarketerVerificationDashboard');
+                  return <MarketerVerificationDashboard user={user} />;
+                } else if (userRole === 'masteradmin') {
+                  console.log('✅ Showing MasterAdmin dashboard');
+                  return (
+                    <div className="p-3 sm:p-4 md:p-6">
+                      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsList className="mb-4 sm:mb-6">
+                          <TabsTrigger value="overview">Overview</TabsTrigger>
+                          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                          <TabsTrigger value="users">Users</TabsTrigger>
+                          <TabsTrigger value="wallet">Wallet</TabsTrigger>
+                        </TabsList>
 
-                    <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                          {getCurrentModuleComponent()}
+                        </TabsContent>
+
+                        <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
+                          <Performance userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+
+                        <TabsContent value="users" className="space-y-4 sm:space-y-6">
+                          <UsersManagement userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+
+                        <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
+                          <MasterAdminWallet userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  );
+                } else {
+                  console.log('✅ Showing other role dashboard');
+                  return (
+                    <div className="p-3 sm:p-4 md:p-6">
                       {getCurrentModuleComponent()}
-                    </TabsContent>
-
-                    <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
-                      <div className="text-gray-500 dark:text-gray-400">Analytics content coming soon...</div>
-                    </TabsContent>
-
-                    <TabsContent value="users" className="space-y-4 sm:space-y-6">
-                      <div className="text-gray-500 dark:text-gray-400">Users management coming soon...</div>
-                    </TabsContent>
-
-                    <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
-                      <div className="text-gray-500 dark:text-gray-400">Wallet management coming soon...</div>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              ) : (
-                /* Other Roles - Direct Module Rendering */
-                <div className="p-3 sm:p-4 md:p-6">
-                  {getCurrentModuleComponent()}
-          </div>
-              )}
+                    </div>
+                  );
+                }
+              })()}
           </div>
         </main>
         </div>

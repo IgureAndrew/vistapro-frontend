@@ -67,6 +67,14 @@ const NavigationSystem = ({
     } else {
       setActiveModule(key);
     }
+  };
+
+  // Generate URL for navigation links
+  const getModuleUrl = (key) => {
+    // For SPA routing, we need to include the module as a URL parameter
+    const currentPath = window.location.pathname;
+    return `${currentPath}?module=${key}`;
+  };
     if (isMobile || isTablet) {
       setSidebarOpen(false);
     }
@@ -101,19 +109,22 @@ const NavigationSystem = ({
             const isActive = activeModule === module.key;
             
             return (
-              <Button
+              <a
                 key={module.key}
-                variant={isActive ? "default" : "ghost"}
-                className={`w-full justify-start ${
+                href={getModuleUrl(module.key)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavClick(module.key);
+                }}
+                className={`w-full flex items-center justify-start px-3 py-2 rounded-md transition-colors ${
                   isActive 
                     ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
-                onClick={() => handleNavClick(module.key)}
               >
                 <Icon className="mr-3 h-5 w-5" />
                 {module.label}
-              </Button>
+              </a>
             );
           })}
         </nav>
