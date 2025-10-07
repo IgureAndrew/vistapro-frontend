@@ -242,9 +242,9 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
       return;
     }
 
-    // If user is verified, redirect to full dashboard
+    // If user is verified, show success message instead of redirecting
     if (user.overall_verification_status === 'approved') {
-      navigate('/dashboard/marketer');
+      console.log('✅ User is verified, showing success state');
       return;
     }
 

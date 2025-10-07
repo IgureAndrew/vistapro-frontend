@@ -77,10 +77,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
     return () => window.removeEventListener('userUpdated', handleUserUpdate);
   }, []);
 
-  // Check verification status for marketers
+  // Check verification status for marketers (only on initial load)
   useEffect(() => {
-    if (userRole === 'marketer' && user) {
-      // Always refresh user data for marketers to get latest verification status
+    if (userRole === 'marketer' && user && !user.overall_verification_status) {
+      // Only refresh user data if verification status is missing
       const refreshUserData = async () => {
         try {
           const response = await fetch('/api/auth/me', {
@@ -106,7 +106,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
       
       refreshUserData();
     }
-  }, [userRole, user]);
+  }, [userRole]); // Removed user from dependencies to prevent loops
 
   // Handle URL parameters for module navigation
   useEffect(() => {
@@ -182,6 +182,18 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // For marketers, show loading if verification status is being determined
+  if (userRole === 'marketer' && user.overall_verification_status === undefined) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Checking verification status...</p>
         </div>
       </div>
     );
