@@ -2122,7 +2122,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mb.account_number as biodata_account_number,
         mb.passport_photo_url as biodata_passport_photo,
         mb.created_at as biodata_submitted_at,
-        -- Guarantor form data
+        -- Guarantor form data (new structure)
         mgf.is_candidate_well_known as guarantor_well_known,
         mgf.relationship as guarantor_relationship,
         mgf.known_duration as guarantor_known_duration,
@@ -2131,6 +2131,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
+        -- Additional fields for compatibility
+        NULL as guarantor_means_of_identification,
+        NULL as guarantor_full_name,
+        NULL as guarantor_email,
+        NULL as guarantor_phone,
+        NULL as guarantor_home_address,
+        NULL as guarantor_office_address,
+        NULL as candidate_name,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
         mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
@@ -2269,7 +2277,11 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           marketer_name: submissionsResult.rows[0].marketer_name,
           bio_submitted: submissionsResult.rows[0].bio_submitted,
           guarantor_submitted: submissionsResult.rows[0].guarantor_submitted,
-          commitment_submitted: submissionsResult.rows[0].commitment_submitted
+          commitment_submitted: submissionsResult.rows[0].commitment_submitted,
+          guarantor_well_known: submissionsResult.rows[0].guarantor_well_known,
+          guarantor_relationship: submissionsResult.rows[0].guarantor_relationship,
+          guarantor_known_duration: submissionsResult.rows[0].guarantor_known_duration,
+          guarantor_occupation: submissionsResult.rows[0].guarantor_occupation
         });
       }
       
