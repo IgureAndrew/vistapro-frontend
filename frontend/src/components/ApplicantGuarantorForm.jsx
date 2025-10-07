@@ -337,10 +337,9 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
         </div>
 
             {/* ID file upload */}
-        {formData.means_of_identification && (
           <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload your {formData.means_of_identification} image *
+                  Upload your {formData.means_of_identification || 'identification'} image *
             </label>
                 <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
                   <label htmlFor="guarantor-id-upload" className="cursor-pointer block">
@@ -367,7 +366,6 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
                   </label>
                 </div>
               </div>
-            )}
           </div>
         </div>
 
@@ -515,8 +513,11 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
           <button
             type="button"
             onClick={() => {
-              console.log('🔍 Guarantor submit button clicked', { loading, submitted });
+              console.log('🔍 Guarantor submit button clicked', { loading, submitted, showConfirmDialog });
+              console.log('🔍 Form data before confirmation:', formData);
+              console.log('🔍 Files before confirmation:', { identificationFile, signatureFile });
               setShowConfirmDialog(true);
+              console.log('🔍 Set showConfirmDialog to true');
             }}
             disabled={loading || submitted}
             className="w-full text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
@@ -546,10 +547,17 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             message="Are you sure you want to submit the Guarantor Form? This action cannot be undone."
             confirmText="Submit Form"
             cancelText="Cancel"
-            onConfirm={handleConfirmSubmit}
-            onCancel={() => setShowConfirmDialog(false)}
+            onConfirm={() => {
+              console.log('🔍 AlertDialog onConfirm called');
+              handleConfirmSubmit();
+            }}
+            onCancel={() => {
+              console.log('🔍 AlertDialog onCancel called');
+              setShowConfirmDialog(false);
+            }}
             variant="default"
           />
+          {console.log('🔍 AlertDialog render state:', { showConfirmDialog, open: showConfirmDialog })}
 
           {/* Success Animation */}
           {showSuccess && (
