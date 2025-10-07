@@ -4,20 +4,20 @@
   "description": "Vistapro Backend API",
   "main": "backend/start.js",
   "scripts": {
-    "start": "node backend/start.js",
+    "start": "cd backend && npm start",
     "install": "cd backend && npm install",
     "build": "cd backend && npm install",
-    "postinstall": "cd backend && npm install",
-    "heroku-postbuild": "cd backend && npm install"
+    "postinstall": "cd backend && npm install"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/IgureAndrew/vistapro-backend.git"
   },
-  "keywords": ["vistapro", "backend", "api"],
+  "keywords": ["node", "express", "postgresql", "vistapro"],
   "author": "Vistapro Team",
   "license": "MIT"
 }
