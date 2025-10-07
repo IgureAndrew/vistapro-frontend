@@ -2138,14 +2138,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
-        -- Additional fields from database (new structure)
-        mgf.means_of_identification as guarantor_means_of_identification,
-        mgf.guarantor_full_name as guarantor_full_name,
-        mgf.guarantor_email as guarantor_email,
-        mgf.guarantor_phone as guarantor_phone,
-        mgf.guarantor_home_address as guarantor_home_address,
-        mgf.guarantor_office_address as guarantor_office_address,
-        mgf.candidate_name as candidate_name,
+        -- Additional fields from database (new structure with fallback for old data)
+        COALESCE(mgf.means_of_identification, 'Not provided') as guarantor_means_of_identification,
+        COALESCE(mgf.guarantor_full_name, 'Not provided') as guarantor_full_name,
+        COALESCE(mgf.guarantor_email, 'Not provided') as guarantor_email,
+        COALESCE(mgf.guarantor_phone, 'Not provided') as guarantor_phone,
+        COALESCE(mgf.guarantor_home_address, 'Not provided') as guarantor_home_address,
+        COALESCE(mgf.guarantor_office_address, 'Not provided') as guarantor_office_address,
+        COALESCE(mgf.candidate_name, 'Not provided') as candidate_name,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
         mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
@@ -2308,14 +2308,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               passport_photo_url as guarantor_passport_photo,
               signature_url as guarantor_signature,
               created_at as guarantor_submitted_at,
-              -- New structure fields
-              means_of_identification as guarantor_means_of_identification,
-              guarantor_full_name as guarantor_full_name,
-              guarantor_email as guarantor_email,
-              guarantor_phone as guarantor_phone,
-              guarantor_home_address as guarantor_home_address,
-              guarantor_office_address as guarantor_office_address,
-              candidate_name as candidate_name
+              -- New structure fields with fallback for old data
+              COALESCE(means_of_identification, 'Not provided') as guarantor_means_of_identification,
+              COALESCE(guarantor_full_name, 'Not provided') as guarantor_full_name,
+              COALESCE(guarantor_email, 'Not provided') as guarantor_email,
+              COALESCE(guarantor_phone, 'Not provided') as guarantor_phone,
+              COALESCE(guarantor_home_address, 'Not provided') as guarantor_home_address,
+              COALESCE(guarantor_office_address, 'Not provided') as guarantor_office_address,
+              COALESCE(candidate_name, 'Not provided') as candidate_name
             FROM marketer_guarantor_form 
             WHERE marketer_id = $1
             ORDER BY created_at DESC
@@ -2335,7 +2335,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
             console.log(`✅ Added enhanced guarantor data for marketer ${submission.marketer_id}`);
           } else {
             console.log(`⚠️ No guarantor data found for marketer ${submission.marketer_id}`);
-            // Add null values for guarantor fields
+            // Add fallback values for guarantor fields
             submissionsResult.rows[i] = {
               ...submission,
               guarantor_well_known: null,
@@ -2346,18 +2346,18 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               guarantor_passport_photo: null,
               guarantor_signature: null,
               guarantor_submitted_at: null,
-              guarantor_means_of_identification: null,
-              guarantor_full_name: null,
-              guarantor_email: null,
-              guarantor_phone: null,
-              guarantor_home_address: null,
-              guarantor_office_address: null,
-              candidate_name: null
+              guarantor_means_of_identification: 'Not provided',
+              guarantor_full_name: 'Not provided',
+              guarantor_email: 'Not provided',
+              guarantor_phone: 'Not provided',
+              guarantor_home_address: 'Not provided',
+              guarantor_office_address: 'Not provided',
+              candidate_name: 'Not provided'
             };
           }
         } catch (guarantorError) {
           console.log(`⚠️  Guarantor query error for marketer ${submission.marketer_id}:`, guarantorError.message);
-          // Add null values for guarantor fields
+          // Add fallback values for guarantor fields
           submissionsResult.rows[i] = {
             ...submission,
             guarantor_well_known: null,
@@ -2368,13 +2368,13 @@ const getSubmissionsForAdmin = async (req, res, next) => {
             guarantor_passport_photo: null,
             guarantor_signature: null,
             guarantor_submitted_at: null,
-            guarantor_means_of_identification: null,
-            guarantor_full_name: null,
-            guarantor_email: null,
-            guarantor_phone: null,
-            guarantor_home_address: null,
-            guarantor_office_address: null,
-            candidate_name: null
+            guarantor_means_of_identification: 'Not provided',
+            guarantor_full_name: 'Not provided',
+            guarantor_email: 'Not provided',
+            guarantor_phone: 'Not provided',
+            guarantor_home_address: 'Not provided',
+            guarantor_office_address: 'Not provided',
+            candidate_name: 'Not provided'
           };
         }
         

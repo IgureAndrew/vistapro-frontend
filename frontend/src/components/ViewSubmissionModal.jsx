@@ -269,31 +269,45 @@ const ViewSubmissionModal = ({ isOpen, onClose, submission }) => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Means of Identification</label>
-                  <p className="text-gray-900">{submission.guarantor_means_of_identification || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.guarantor_means_of_identification === 'Not provided' ? 'N/A' : submission.guarantor_means_of_identification || 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Guarantor Full Name</label>
-                  <p className="text-gray-900">{submission.guarantor_full_name || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.guarantor_full_name === 'Not provided' ? 'N/A' : submission.guarantor_full_name || 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Guarantor Email</label>
-                  <p className="text-gray-900">{submission.guarantor_email || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.guarantor_email === 'Not provided' ? 'N/A' : submission.guarantor_email || 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Guarantor Phone</label>
-                  <p className="text-gray-900">{submission.guarantor_phone || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.guarantor_phone === 'Not provided' ? 'N/A' : submission.guarantor_phone || 'N/A'}
+                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-gray-500">Guarantor Home Address</label>
-                  <p className="text-gray-900">{submission.guarantor_home_address || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.guarantor_home_address === 'Not provided' ? 'N/A' : submission.guarantor_home_address || 'N/A'}
+                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-gray-500">Guarantor Office Address</label>
-                  <p className="text-gray-900">{submission.guarantor_office_address || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.guarantor_office_address === 'Not provided' ? 'N/A' : submission.guarantor_office_address || 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Candidate Name</label>
-                  <p className="text-gray-900">{submission.guarantor_candidate_name || 'N/A'}</p>
+                  <p className="text-gray-900">
+                    {submission.candidate_name === 'Not provided' ? 'N/A' : submission.candidate_name || 'N/A'}
+                  </p>
                 </div>
                 {submission.guarantor_id_document && (
                   <div className="md:col-span-2">
