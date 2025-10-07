@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd frontend && pnpm install --frozen-lockfile && pnpm run build",
+  "buildCommand": "cd frontend && pnpm install && pnpm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "cd frontend && pnpm install --frozen-lockfile --registry https://registry.npmjs.org/",
+  "installCommand": "cd frontend && pnpm install --registry https://registry.npmjs.org/",
   "redirects": [
     {
       "source": "/www.vistapro.ng/(.*)",
