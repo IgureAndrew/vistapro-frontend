@@ -311,4 +311,114 @@ router.post('/reset-bayo-guarantor', async (req, res) => {
   }
 });
 
+// Fix verification_workflow_logs table structure
+router.post('/fix-workflow-logs', async (req, res) => {
+  try {
+    console.log('🔍 Starting verification_workflow_logs table fix...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Check current table structure
+    const tableInfo = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'verification_workflow_logs' 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position;
+    `);
+    
+    console.log('📋 Current table structure:');
+    tableInfo.rows.forEach(row => {
+      console.log(`  - ${row.column_name}: ${row.data_type} (nullable: ${row.is_nullable})`);
+    });
+    
+    // Check if verification_submission_id column exists
+    const hasVerificationSubmissionId = tableInfo.rows.some(row => row.column_name === 'verification_submission_id');
+    
+    if (hasVerificationSubmissionId) {
+      await pool.end();
+      return res.status(200).json({
+        success: true,
+        message: 'verification_submission_id column already exists',
+        tableStructure: tableInfo.rows
+      });
+    }
+    
+    console.log('🔄 Adding verification_submission_id column...');
+    
+    // Add the missing column
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD COLUMN verification_submission_id INTEGER;
+    `);
+    
+    console.log('✅ Added verification_submission_id column');
+    
+    // Check if we need to populate the column with data
+    const countResult = await pool.query('SELECT COUNT(*) FROM verification_workflow_logs');
+    const totalRows = parseInt(countResult.rows[0].count);
+    
+    let updatedRows = 0;
+    if (totalRows > 0) {
+      console.log(`🔄 Found ${totalRows} existing rows, attempting to populate verification_submission_id...`);
+      
+      // Try to populate the column by matching with verification_submissions table
+      const updateResult = await pool.query(`
+        UPDATE verification_workflow_logs 
+        SET verification_submission_id = vs.id
+        FROM verification_submissions vs
+        WHERE verification_workflow_logs.marketer_id = vs.marketer_id
+        AND verification_workflow_logs.verification_submission_id IS NULL;
+      `);
+      
+      updatedRows = updateResult.rowCount;
+      console.log(`✅ Updated ${updatedRows} rows with verification_submission_id`);
+    }
+    
+    // Add foreign key constraint
+    console.log('🔄 Adding foreign key constraint...');
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD CONSTRAINT fk_workflow_verification_submission 
+      FOREIGN KEY (verification_submission_id) REFERENCES verification_submissions(id) ON DELETE CASCADE;
+    `);
+    console.log('✅ Added foreign key constraint');
+    
+    // Add index
+    console.log('🔄 Adding index...');
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_workflow_submission 
+      ON verification_workflow_logs(verification_submission_id);
+    `);
+    console.log('✅ Added index');
+    
+    await pool.end();
+    
+    res.status(200).json({
+      success: true,
+      message: 'verification_workflow_logs table structure fixed successfully!',
+      changes: {
+        addedColumn: 'verification_submission_id',
+        updatedRows: updatedRows,
+        totalRows: totalRows,
+        addedConstraint: 'fk_workflow_verification_submission',
+        addedIndex: 'idx_workflow_submission'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fixing verification_workflow_logs table:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fix verification_workflow_logs table structure.', 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router;
