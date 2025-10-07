@@ -4,7 +4,7 @@
   "description": "Vistapro Backend API",
   "private": true,
   "scripts": {
-    "start": "cd backend && node start.js"
+    "start": "cd backend && npm start"
   },
   "engines": {
     "node": ">=18.0.0",
