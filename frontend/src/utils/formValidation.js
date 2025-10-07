@@ -118,6 +118,11 @@ export const validateBiodataForm = (formData, passportPhoto, identificationFile)
 export const validateGuarantorForm = (formData, identificationFile, signatureFile) => {
   const errors = {};
   
+  // Debug: Log the form data
+  console.log('🔍 validateGuarantorForm - formData:', formData);
+  console.log('🔍 validateGuarantorForm - identificationFile:', identificationFile);
+  console.log('🔍 validateGuarantorForm - signatureFile:', signatureFile);
+  
   // Required fields validation
   const requiredFields = [
     'is_candidate_known', 'relationship', 'known_duration', 'occupation',
@@ -126,7 +131,10 @@ export const validateGuarantorForm = (formData, identificationFile, signatureFil
   ];
   
   requiredFields.forEach(field => {
-    if (!isRequired(formData[field])) {
+    const value = formData[field];
+    const isValid = isRequired(value);
+    console.log(`🔍 Field ${field}: "${value}" - Valid: ${isValid}`);
+    if (!isValid) {
       errors[field] = `${field.replace('_', ' ')} is required`;
     }
   });
@@ -142,24 +150,35 @@ export const validateGuarantorForm = (formData, identificationFile, signatureFil
   }
   
   // File validation
+  console.log('🔍 File validation - identificationFile:', identificationFile);
+  console.log('🔍 File validation - signatureFile:', signatureFile);
+  
   if (!identificationFile) {
+    console.log('❌ Missing identification file');
     errors.identification_file = 'Identification file is required';
   } else {
+    console.log('✅ Identification file present:', identificationFile.name, identificationFile.size, identificationFile.type);
     if (!isValidFileSize(identificationFile, 10)) {
+      console.log('❌ Identification file too large');
       errors.identification_file = 'Identification file must be less than 10MB';
     }
     if (!isValidFileType(identificationFile)) {
+      console.log('❌ Identification file wrong type');
       errors.identification_file = 'Identification file must be PNG or JPG format';
     }
   }
   
   if (!signatureFile) {
+    console.log('❌ Missing signature file');
     errors.signature_file = 'Signature is required';
   } else {
+    console.log('✅ Signature file present:', signatureFile.name, signatureFile.size, signatureFile.type);
     if (!isValidFileSize(signatureFile, 10)) {
+      console.log('❌ Signature file too large');
       errors.signature_file = 'Signature must be less than 10MB';
     }
     if (!isValidFileType(signatureFile)) {
+      console.log('❌ Signature file wrong type');
       errors.signature_file = 'Signature must be PNG or JPG format';
     }
   }
