@@ -216,7 +216,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           // Filter modules based on verification status for marketers
           let modulesToShow = roleConfig.modules;
           
-          if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+          if (userRole === 'marketer' && user && (user.overall_verification_status === null || user.overall_verification_status === undefined || user.overall_verification_status !== 'approved')) {
             // For unverified marketers, only show verification-related modules
             modulesToShow = roleConfig.modules.filter(module => 
               ['verification', 'account-settings'].includes(module.key)
@@ -333,7 +333,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                       {roleBadge.text}
                     </Badge>
                     {/* Verification Status for Marketers */}
-                    {userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved') && (
+                    {userRole === 'marketer' && user && (user.overall_verification_status === null || user.overall_verification_status === undefined || user.overall_verification_status !== 'approved') && (
                       <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                         <Clock className="w-3 h-3 mr-1" />
                         Verification Required
@@ -436,7 +436,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   shouldShowVerification: userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')
                 });
                 
-                if (userRole === 'marketer' && user && user.overall_verification_status !== undefined && (!user.overall_verification_status || user.overall_verification_status !== 'approved')) {
+                if (userRole === 'marketer' && user && (user.overall_verification_status === null || user.overall_verification_status === undefined || user.overall_verification_status !== 'approved')) {
                   console.log('✅ Showing MarketerVerificationDashboard');
                   return <MarketerVerificationDashboard user={user} />;
                 } else if (userRole === 'masteradmin') {
