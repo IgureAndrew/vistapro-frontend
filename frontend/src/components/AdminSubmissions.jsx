@@ -18,6 +18,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import api from '../api';
+import AdminVerificationUploadModal from './AdminVerificationUploadModal';
 
 export default function AdminSubmissions({ onNavigate }) {
   const [submissions, setSubmissions] = useState([]);
@@ -27,6 +28,8 @@ export default function AdminSubmissions({ onNavigate }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationSubmission, setVerificationSubmission] = useState(null);
 
   // Load submissions on component mount
   useEffect(() => {
@@ -78,6 +81,17 @@ export default function AdminSubmissions({ onNavigate }) {
 
   const handleViewSubmission = (submission) => {
     setSelectedSubmission(submission);
+  };
+
+  const handleUploadVerification = (submission) => {
+    setVerificationSubmission(submission);
+    setShowVerificationModal(true);
+  };
+
+  const handleVerificationSuccess = () => {
+    setShowVerificationModal(false);
+    setVerificationSubmission(null);
+    loadSubmissions(); // Reload submissions to show updated status
   };
 
   const handleScheduleVisit = async (submissionId) => {
@@ -236,6 +250,15 @@ export default function AdminSubmissions({ onNavigate }) {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
+                      {submission.submission_status === 'pending_admin_review' && (
+                        <button
+                          onClick={() => handleUploadVerification(submission)}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                          title="Upload Verification"
+                        >
+                          <Upload className="w-4 h-4" />
+                        </button>
+                      )}
                       
                       <button
                         onClick={() => handleDownloadDocuments(submission.id)}
@@ -310,6 +333,16 @@ export default function AdminSubmissions({ onNavigate }) {
           submission={selectedSubmission}
           onClose={() => setSelectedSubmission(null)}
           onScheduleVisit={handleScheduleVisit}
+        />
+      )}
+
+      {/* Admin Verification Upload Modal */}
+      {showVerificationModal && verificationSubmission && (
+        <AdminVerificationUploadModal
+          isOpen={showVerificationModal}
+          onClose={() => setShowVerificationModal(false)}
+          submission={verificationSubmission}
+          onSuccess={handleVerificationSuccess}
         />
       )}
     </div>
@@ -448,28 +481,48 @@ function GuarantorContent({ data }) {
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Guarantor Information</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Name</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorName || 'N/A'}</p>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Phone</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorPhone || 'N/A'}</p>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Address</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorAddress || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Well Known</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_well_known ? 'Yes' : 'No'}</p>
         </div>
         <div>
           <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Relationship</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorRelationship || 'N/A'}</p>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_relationship || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Known Duration (Years)</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_known_duration || 'N/A'}</p>
         </div>
         <div>
           <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Occupation</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorOccupation || 'N/A'}</p>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_occupation || 'N/A'}</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Employer</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorEmployer || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Means of Identification</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_means_of_identification || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Full Name</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_full_name || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Email</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_email || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Phone</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_phone || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Home Address</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_home_address || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Office Address</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_office_address || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Candidate Name</label>
+          <p className="text-gray-900 dark:text-white">{data?.candidate_name || 'N/A'}</p>
         </div>
       </div>
     </div>
