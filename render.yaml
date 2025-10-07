@@ -3,7 +3,7 @@ services:
     name: vistapro-backend
     env: node
     plan: free
-    buildCommand: npm run build:backend
+    buildCommand: npm install --legacy-peer-deps && cd backend && npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
