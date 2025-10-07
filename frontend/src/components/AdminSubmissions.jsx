@@ -36,7 +36,7 @@ export default function AdminSubmissions({ onNavigate }) {
   const loadSubmissions = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/verification-submissions');
+      const response = await api.get('/verification/submissions/admin');
       console.log('🔍 Admin submissions API response:', response.data);
       console.log('📊 Submissions data:', response.data.submissions);
       

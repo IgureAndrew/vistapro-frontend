@@ -74,7 +74,7 @@ const AdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get(
-        `${API_URL}/api/admin/verification-submissions`,
+        `${API_URL}/api/verification/submissions/admin`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
