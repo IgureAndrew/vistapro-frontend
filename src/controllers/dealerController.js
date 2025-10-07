@@ -1,6 +1,6 @@
 // src/controllers/dealerController.js
 const { pool } = require('../config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 /**
  * getAccount - Retrieves current dealer's account info (standardized).

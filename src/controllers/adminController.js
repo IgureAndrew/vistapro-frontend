@@ -1,5 +1,5 @@
 // src/controllers/adminController.js
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../config/database');
 const { createUser } = require('../models/userModel');
 const { logAudit } = require('../utils/auditLogger');

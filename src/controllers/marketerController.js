@@ -1,5 +1,5 @@
 // src/controllers/marketerController.js
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../config/database');
 const {
   creditMarketerCommission,

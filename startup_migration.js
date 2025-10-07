@@ -18,9 +18,12 @@ async function runStartupMigration() {
     
     // Check if tables exist
     const tablesToCheck = [
+      'marketer_biodata',
       'marketer_guarantor_form',
       'marketer_commitment_form', 
-      'admin_verification_details'
+      'admin_verification_details',
+      'verification_submissions',
+      'verification_workflow_logs'
     ];
     
     let missingTables = [];
@@ -194,6 +197,94 @@ async function runStartupMigration() {
         }
         
         console.log('✅ admin_verification_details table created');
+      }
+      
+      // Create verification_submissions table
+      if (missingTables.includes('verification_submissions')) {
+        console.log('📋 Creating verification_submissions table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS verification_submissions (
+            id SERIAL PRIMARY KEY,
+            marketer_id INTEGER NOT NULL,
+            admin_id INTEGER NOT NULL,
+            super_admin_id INTEGER NOT NULL,
+            submission_status VARCHAR(50) NOT NULL DEFAULT 'pending_admin_review',
+            admin_reviewed_at TIMESTAMP,
+            superadmin_reviewed_at TIMESTAMP,
+            masteradmin_approved_at TIMESTAMP,
+            rejection_reason TEXT,
+            rejected_by VARCHAR(50),
+            rejected_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        
+        // Add foreign key constraints
+        try {
+          await pool.query(`
+            ALTER TABLE verification_submissions 
+            ADD CONSTRAINT fk_verification_marketer 
+            FOREIGN KEY (marketer_id) REFERENCES users(id) ON DELETE CASCADE;
+          `);
+        } catch (error) {
+          if (error.code !== '42710') {
+            console.log('⚠️  Could not add foreign key constraint for verification_submissions');
+          }
+        }
+        
+        // Create indexes
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_verification_marketer ON verification_submissions(marketer_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_verification_admin ON verification_submissions(admin_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_verification_status ON verification_submissions(submission_status);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for verification_submissions');
+        }
+        
+        console.log('✅ verification_submissions table created');
+      }
+      
+      // Create verification_workflow_logs table
+      if (missingTables.includes('verification_workflow_logs')) {
+        console.log('📋 Creating verification_workflow_logs table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS verification_workflow_logs (
+            id SERIAL PRIMARY KEY,
+            marketer_id INTEGER NOT NULL,
+            admin_id INTEGER,
+            super_admin_id INTEGER,
+            master_admin_id INTEGER,
+            action VARCHAR(100) NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        
+        // Add foreign key constraints
+        try {
+          await pool.query(`
+            ALTER TABLE verification_workflow_logs 
+            ADD CONSTRAINT fk_workflow_logs_marketer 
+            FOREIGN KEY (marketer_id) REFERENCES users(id) ON DELETE CASCADE;
+          `);
+        } catch (error) {
+          if (error.code !== '42710') {
+            console.log('⚠️  Could not add foreign key constraint for verification_workflow_logs');
+          }
+        }
+        
+        // Create indexes
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_workflow_logs_marketer ON verification_workflow_logs(marketer_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_workflow_logs_action ON verification_workflow_logs(action);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_workflow_logs_status ON verification_workflow_logs(status);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for verification_workflow_logs');
+        }
+        
+        console.log('✅ verification_workflow_logs table created');
       }
       
       console.log('🎉 Startup migration completed successfully!');

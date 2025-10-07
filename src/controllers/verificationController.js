@@ -469,16 +469,18 @@ const submitBiodata = async (req, res, next) => {
     
     const marketerUniqueId = req.user.unique_id;
     
-    // Check if biodata has already been submitted
+    // Check if biodata has already been submitted (check actual database record)
     const existingBiodata = await pool.query(
-      'SELECT id FROM marketer_biodata WHERE marketer_unique_id = $1',
+      'SELECT id, created_at FROM marketer_biodata WHERE marketer_unique_id = $1',
       [marketerUniqueId]
     );
     
     if (existingBiodata.rows.length > 0) {
+      const submissionDate = new Date(existingBiodata.rows[0].created_at).toLocaleDateString();
       return res.status(400).json({
-        message: "Biodata form has already been submitted. You cannot submit it again.",
-        error: "Duplicate submission not allowed"
+        message: `Biodata form has already been submitted on ${submissionDate}. You cannot submit it again.`,
+        error: "Duplicate submission not allowed",
+        submittedAt: existingBiodata.rows[0].created_at
       });
     }
     
@@ -538,30 +540,7 @@ const submitBiodata = async (req, res, next) => {
       }
     }
 
-    // Check if biodata form has already been submitted
-    const checkResult = await pool.query(
-      "SELECT bio_submitted, guarantor_submitted, commitment_submitted FROM users WHERE unique_id = $1",
-      [marketerUniqueId]
-    );
-    
-    if (checkResult.rows[0]?.bio_submitted) {
-      const user = checkResult.rows[0];
-      let message = "Biodata form has already been submitted. ";
-      
-      if (!user.guarantor_submitted && !user.commitment_submitted) {
-        message += "Please proceed to fill the Guarantor Form.";
-      } else if (!user.commitment_submitted) {
-        message += "Please proceed to fill the Commitment Form.";
-      } else {
-        message += "All forms have been submitted and are under review.";
-      }
-      
-      return res.status(400).json({ 
-        field: null, 
-        message: message,
-        nextStep: user.guarantor_submitted ? (user.commitment_submitted ? 'completed' : 'commitment') : 'guarantor'
-      });
-    }
+    // Note: Duplicate check is already performed above by checking actual database record
 
     const dob = date_of_birth === "" ? null : date_of_birth;
     const insertQuery = `
@@ -765,12 +744,20 @@ const submitGuarantor = async (req, res, next) => {
       return res.status(400).json({ field: null, message: "Marketer Unique ID is missing." });
     }
 
-    const checkResult = await pool.query(
-      "SELECT guarantor_submitted FROM users WHERE unique_id = $1",
-      [marketerUniqueId]
+    // Check if guarantor form has already been submitted (check actual database record)
+    const existingGuarantor = await pool.query(
+      'SELECT id, created_at FROM marketer_guarantor_form WHERE marketer_id = $1',
+      [req.user.id]
     );
-    if (checkResult.rows[0]?.guarantor_submitted) {
-      return res.status(400).json({ field: null, message: "Guarantor form has already been submitted." });
+    
+    if (existingGuarantor.rows.length > 0) {
+      const submissionDate = new Date(existingGuarantor.rows[0].created_at).toLocaleDateString();
+      return res.status(400).json({ 
+        field: null, 
+        message: `Guarantor form has already been submitted on ${submissionDate}. You cannot submit it again.`,
+        error: "Duplicate submission not allowed",
+        submittedAt: existingGuarantor.rows[0].created_at
+      });
     }
 
     const insertQuery = `
@@ -937,16 +924,19 @@ const submitCommitment = async (req, res, next) => {
 
     console.log('👤 Marketer Unique ID:', marketerUniqueId);
 
-    // Check if commitment form has already been submitted
-    const checkResult = await pool.query(
-      "SELECT commitment_submitted, bio_submitted, guarantor_submitted FROM users WHERE unique_id = $1",
-      [marketerUniqueId]
+    // Check if commitment form has already been submitted (check actual database record)
+    const existingCommitment = await pool.query(
+      'SELECT id, created_at FROM marketer_commitment_form WHERE marketer_id = $1',
+      [req.user.id]
     );
     
-    if (checkResult.rows[0]?.commitment_submitted) {
+    if (existingCommitment.rows.length > 0) {
+      const submissionDate = new Date(existingCommitment.rows[0].created_at).toLocaleDateString();
       return res.status(400).json({ 
         field: null, 
-        message: "Commitment form has already been submitted. All forms are now under review." 
+        message: `Commitment form has already been submitted on ${submissionDate}. You cannot submit it again.`,
+        error: "Duplicate submission not allowed",
+        submittedAt: existingCommitment.rows[0].created_at
       });
     }
 
@@ -2559,7 +2549,10 @@ const getFormStatus = async (req, res, next) => {
   try {
     const marketerUniqueId = req.user.unique_id;
     
-    const result = await pool.query(
+    const marketerId = req.user.id;
+    
+    // Get user info
+    const userResult = await pool.query(
       `SELECT 
         bio_submitted, 
         guarantor_submitted, 
@@ -2571,25 +2564,52 @@ const getFormStatus = async (req, res, next) => {
       [marketerUniqueId]
     );
     
-    if (result.rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
     
-    const user = result.rows[0];
+    const user = userResult.rows[0];
+    
+    // Check actual database records instead of just user flags
+    const biodataResult = await pool.query(
+      'SELECT COUNT(*) as count FROM marketer_biodata WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    const guarantorResult = await pool.query(
+      'SELECT COUNT(*) as count FROM marketer_guarantor_form WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    const commitmentResult = await pool.query(
+      'SELECT COUNT(*) as count FROM marketer_commitment_form WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    // Use actual database records to determine form status
+    const actualBiodataSubmitted = parseInt(biodataResult.rows[0].count) > 0;
+    const actualGuarantorSubmitted = parseInt(guarantorResult.rows[0].count) > 0;
+    const actualCommitmentSubmitted = parseInt(commitmentResult.rows[0].count) > 0;
+    
+    console.log('📊 Form status check:', {
+      user: marketerUniqueId,
+      flags: { bio: user.bio_submitted, guarantor: user.guarantor_submitted, commitment: user.commitment_submitted },
+      actual: { bio: actualBiodataSubmitted, guarantor: actualGuarantorSubmitted, commitment: actualCommitmentSubmitted }
+    });
     
     res.status(200).json({
       forms: {
-        biodata: user.bio_submitted,
-        guarantor: user.guarantor_submitted,
-        commitment: user.commitment_submitted
+        biodata: actualBiodataSubmitted,
+        guarantor: actualGuarantorSubmitted,
+        commitment: actualCommitmentSubmitted
       },
       status: {
         verification: user.overall_verification_status,
         locked: user.locked
       },
-      nextStep: user.bio_submitted 
-        ? (user.guarantor_submitted 
-          ? (user.commitment_submitted ? 'completed' : 'commitment')
+      nextStep: actualBiodataSubmitted 
+        ? (actualGuarantorSubmitted 
+          ? (actualCommitmentSubmitted ? 'completed' : 'commitment')
           : 'guarantor')
         : 'biodata'
     });
@@ -4096,6 +4116,88 @@ const getAdminAssignmentInfo = async (req, res, next) => {
   }
 };
 
+// Test endpoint to check form submission status
+const testFormSubmission = async (req, res, next) => {
+  try {
+    const marketerId = req.user.id;
+    console.log(`🔍 Testing form submission for marketer ${marketerId}`);
+    
+    // Get user info
+    const userResult = await pool.query(`
+      SELECT id, unique_id, first_name, last_name, email, 
+             bio_submitted, guarantor_submitted, commitment_submitted,
+             overall_verification_status
+      FROM users WHERE id = $1
+    `, [marketerId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Check actual database records
+    const biodataResult = await pool.query(`
+      SELECT COUNT(*) as count, MAX(created_at) as latest
+      FROM marketer_biodata WHERE marketer_unique_id = $1
+    `, [user.unique_id]);
+    
+    const guarantorResult = await pool.query(`
+      SELECT COUNT(*) as count, MAX(created_at) as latest
+      FROM marketer_guarantor_form WHERE marketer_id = $1
+    `, [marketerId]);
+    
+    const commitmentResult = await pool.query(`
+      SELECT COUNT(*) as count, MAX(created_at) as latest
+      FROM marketer_commitment_form WHERE marketer_id = $1
+    `, [marketerId]);
+    
+    const result = {
+      success: true,
+      user: {
+        name: `${user.first_name} ${user.last_name}`,
+        email: user.email,
+        unique_id: user.unique_id
+      },
+      flags: {
+        bio_submitted: user.bio_submitted,
+        guarantor_submitted: user.guarantor_submitted,
+        commitment_submitted: user.commitment_submitted,
+        overall_status: user.overall_verification_status
+      },
+      database_records: {
+        biodata: {
+          count: parseInt(biodataResult.rows[0].count),
+          latest: biodataResult.rows[0].latest
+        },
+        guarantor: {
+          count: parseInt(guarantorResult.rows[0].count),
+          latest: guarantorResult.rows[0].latest
+        },
+        commitment: {
+          count: parseInt(commitmentResult.rows[0].count),
+          latest: commitmentResult.rows[0].latest
+        }
+      },
+      issues: []
+    };
+    
+    // Check for mismatches
+    if (user.guarantor_submitted && guarantorResult.rows[0].count === '0') {
+      result.issues.push('Guarantor flag is TRUE but no database record exists');
+    }
+    if (user.commitment_submitted && commitmentResult.rows[0].count === '0') {
+      result.issues.push('Commitment flag is TRUE but no database record exists');
+    }
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Error testing form submission:', error);
+    next(error);
+  }
+};
+
 // Simple endpoint to get raw form data for debugging
 const getRawFormData = async (req, res, next) => {
   try {
@@ -4196,5 +4298,6 @@ module.exports = {
   getAdminAssignmentInfo,
   fixUserFormFlags,
   getRawFormData,
+  testFormSubmission,
 };
 
