@@ -2138,14 +2138,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
-        -- Additional fields from database (with fallback for missing columns)
-        COALESCE(mgf.means_of_identification, 'N/A') as guarantor_means_of_identification,
-        COALESCE(mgf.guarantor_full_name, 'N/A') as guarantor_full_name,
-        COALESCE(mgf.guarantor_email, 'N/A') as guarantor_email,
-        COALESCE(mgf.guarantor_phone, 'N/A') as guarantor_phone,
-        COALESCE(mgf.guarantor_home_address, 'N/A') as guarantor_home_address,
-        COALESCE(mgf.guarantor_office_address, 'N/A') as guarantor_office_address,
-        COALESCE(mgf.candidate_name, 'N/A') as candidate_name,
+        -- Additional fields from database (new structure)
+        mgf.means_of_identification as guarantor_means_of_identification,
+        mgf.guarantor_full_name as guarantor_full_name,
+        mgf.guarantor_email as guarantor_email,
+        mgf.guarantor_phone as guarantor_phone,
+        mgf.guarantor_home_address as guarantor_home_address,
+        mgf.guarantor_office_address as guarantor_office_address,
+        mgf.candidate_name as candidate_name,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
         mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
@@ -2308,14 +2308,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               passport_photo_url as guarantor_passport_photo,
               signature_url as guarantor_signature,
               created_at as guarantor_submitted_at,
-              -- Try to get additional fields, with fallback to 'N/A' if columns don't exist
-              COALESCE(means_of_identification, 'N/A') as guarantor_means_of_identification,
-              COALESCE(guarantor_full_name, 'N/A') as guarantor_full_name,
-              COALESCE(guarantor_email, 'N/A') as guarantor_email,
-              COALESCE(guarantor_phone, 'N/A') as guarantor_phone,
-              COALESCE(guarantor_home_address, 'N/A') as guarantor_home_address,
-              COALESCE(guarantor_office_address, 'N/A') as guarantor_office_address,
-              COALESCE(candidate_name, 'N/A') as candidate_name
+              -- New structure fields
+              means_of_identification as guarantor_means_of_identification,
+              guarantor_full_name as guarantor_full_name,
+              guarantor_email as guarantor_email,
+              guarantor_phone as guarantor_phone,
+              guarantor_home_address as guarantor_home_address,
+              guarantor_office_address as guarantor_office_address,
+              candidate_name as candidate_name
             FROM marketer_guarantor_form 
             WHERE marketer_id = $1
             ORDER BY created_at DESC
@@ -2346,13 +2346,13 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               guarantor_passport_photo: null,
               guarantor_signature: null,
               guarantor_submitted_at: null,
-              guarantor_means_of_identification: 'N/A',
-              guarantor_full_name: 'N/A',
-              guarantor_email: 'N/A',
-              guarantor_phone: 'N/A',
-              guarantor_home_address: 'N/A',
-              guarantor_office_address: 'N/A',
-              candidate_name: 'N/A'
+              guarantor_means_of_identification: null,
+              guarantor_full_name: null,
+              guarantor_email: null,
+              guarantor_phone: null,
+              guarantor_home_address: null,
+              guarantor_office_address: null,
+              candidate_name: null
             };
           }
         } catch (guarantorError) {
@@ -2368,13 +2368,13 @@ const getSubmissionsForAdmin = async (req, res, next) => {
             guarantor_passport_photo: null,
             guarantor_signature: null,
             guarantor_submitted_at: null,
-            guarantor_means_of_identification: 'N/A',
-            guarantor_full_name: 'N/A',
-            guarantor_email: 'N/A',
-            guarantor_phone: 'N/A',
-            guarantor_home_address: 'N/A',
-            guarantor_office_address: 'N/A',
-            candidate_name: 'N/A'
+            guarantor_means_of_identification: null,
+            guarantor_full_name: null,
+            guarantor_email: null,
+            guarantor_phone: null,
+            guarantor_home_address: null,
+            guarantor_office_address: null,
+            candidate_name: null
           };
         }
         

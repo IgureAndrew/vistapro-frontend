@@ -522,7 +522,9 @@ const ViewSubmissionModal = ({ isOpen, onClose, submission }) => {
             >
               Close
             </button>
-            {submission.submission_status === 'pending_admin_review' && submission.all_forms_submitted && (
+            {(submission.submission_status === 'pending_admin_review' || 
+              submission.submission_status === 'pending_marketer_forms' ||
+              (submission.bio_submitted && submission.guarantor_submitted && submission.commitment_submitted)) && (
               <button
                 onClick={() => {
                   onClose();
