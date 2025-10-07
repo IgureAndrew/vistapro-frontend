@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd frontend && pnpm install && pnpm run build",
+  "buildCommand": "cd frontend && npm install --legacy-peer-deps && npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "cd frontend && pnpm install --registry https://registry.npmjs.org/",
+  "installCommand": "cd frontend && npm install --legacy-peer-deps",
   "redirects": [
     {
       "source": "/www.vistapro.ng/(.*)",
