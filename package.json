@@ -1,13 +1,28 @@
 {
-  "name": "vistapro-backend",
+  "name": "vistapro",
   "version": "1.0.0",
-  "description": "Vistapro Backend API",
+  "description": "Vistapro - Phone Distribution Management Platform",
   "private": true,
   "scripts": {
-    "start": "cd backend && npm start"
+    "start": "cd backend && node start.js",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm install",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
-  }
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
 }
