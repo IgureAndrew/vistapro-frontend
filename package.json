@@ -12,7 +12,8 @@
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
   },
   "dependencies": {
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
