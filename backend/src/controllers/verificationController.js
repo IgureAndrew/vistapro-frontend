@@ -693,6 +693,34 @@ const submitGuarantor = async (req, res, next) => {
       guarantor_email, guarantor_phone, candidate_name
     } = req.body;
 
+    // Validate and convert known_duration to integer
+    let parsedKnownDuration;
+    if (known_duration) {
+      // If it's already a number, use it
+      if (typeof known_duration === 'number') {
+        parsedKnownDuration = known_duration;
+      } else {
+        // If it's a string, try to extract the number
+        const match = known_duration.toString().match(/(\d+)/);
+        if (match) {
+          parsedKnownDuration = parseInt(match[1], 10);
+        } else {
+          return res.status(400).json({
+            field: "known_duration",
+            message: "Please enter a valid number of years (e.g., 4, 5, 3)"
+          });
+        }
+      }
+      
+      // Validate minimum duration (3 years)
+      if (parsedKnownDuration < 3) {
+        return res.status(400).json({
+          field: "known_duration",
+          message: "You must have known the candidate for at least 3 years"
+        });
+      }
+    }
+
     let identificationFileUrl = null;
     let signatureUrl = null;
     
@@ -776,7 +804,7 @@ const submitGuarantor = async (req, res, next) => {
     `;
     const values = [
       marketerUniqueId, is_candidate_known, relationship,
-      known_duration, occupation,
+      parsedKnownDuration, occupation,
       identificationFileUrl, identificationFileUrl, signatureUrl
     ];
 

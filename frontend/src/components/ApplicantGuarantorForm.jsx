@@ -87,8 +87,24 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
     
     console.log('✅ Validation passed, proceeding with submission');
     
+    // Parse known_duration to extract just the number
+    const processedFormData = { ...formData };
+    if (processedFormData.known_duration) {
+      // Extract number from string like "4 years" or "3 years 6 months"
+      const match = processedFormData.known_duration.match(/(\d+)/);
+      if (match) {
+        processedFormData.known_duration = parseInt(match[1], 10);
+        console.log('🔢 Parsed known_duration:', processedFormData.known_duration);
+      } else {
+        console.error('❌ Could not parse known_duration:', processedFormData.known_duration);
+        setErrors({ known_duration: 'Please enter a valid number of years' });
+        setLoading(false);
+        return;
+      }
+    }
+    
     const payload = new FormData();
-    Object.entries(formData).forEach(([k, v]) => payload.append(k, v));
+    Object.entries(processedFormData).forEach(([k, v]) => payload.append(k, v));
     if (formData.means_of_identification && identificationFile) {
       payload.append("identification_file", identificationFile);
     }
@@ -270,8 +286,11 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             onChange={handleChange}
             required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                placeholder="e.g., 5 years, 3 years 6 months"
+                placeholder="e.g., 4 years, 5 years, 3 years 6 months"
           />
+          <p className="text-xs text-gray-500 mt-1">
+            Enter the number of years (minimum 3). You can include additional text like "4 years" or just "4".
+          </p>
         </div>
 
             {/* Occupation */}
