@@ -793,19 +793,26 @@ const submitGuarantor = async (req, res, next) => {
         marketer_id, is_candidate_well_known, relationship,
         known_duration, occupation,
         id_document_url, passport_photo_url, signature_url,
-        created_at, updated_at
+        means_of_identification, guarantor_full_name, guarantor_email,
+        guarantor_phone, guarantor_home_address, guarantor_office_address,
+        candidate_name, created_at, updated_at
       ) VALUES (
         (SELECT id FROM users WHERE unique_id = $1), $2, $3,
         $4, $5,
         $6, $7, $8,
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        $9, $10, $11,
+        $12, $13, $14,
+        $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       RETURNING *;
     `;
     const values = [
       marketerUniqueId, is_candidate_known, relationship,
       parsedKnownDuration, occupation,
-      identificationFileUrl, identificationFileUrl, signatureUrl
+      identificationFileUrl, identificationFileUrl, signatureUrl,
+      means_of_identification, guarantor_full_name, guarantor_email,
+      guarantor_phone, guarantor_home_address, guarantor_office_address,
+      candidate_name
     ];
 
     console.log('📝 Inserting guarantor data:', { insertQuery, values });
@@ -2131,14 +2138,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
-        -- Additional fields for compatibility
-        NULL as guarantor_means_of_identification,
-        NULL as guarantor_full_name,
-        NULL as guarantor_email,
-        NULL as guarantor_phone,
-        NULL as guarantor_home_address,
-        NULL as guarantor_office_address,
-        NULL as candidate_name,
+        -- Additional fields from database
+        mgf.means_of_identification as guarantor_means_of_identification,
+        mgf.guarantor_full_name as guarantor_full_name,
+        mgf.guarantor_email as guarantor_email,
+        mgf.guarantor_phone as guarantor_phone,
+        mgf.guarantor_home_address as guarantor_home_address,
+        mgf.guarantor_office_address as guarantor_office_address,
+        mgf.candidate_name as candidate_name,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
         mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
