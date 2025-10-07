@@ -95,14 +95,21 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const determineStartingForm = (formStatus) => {
     const { biodata, guarantor, commitment } = formStatus.forms;
     
+    // Allow any form to be filled independently - no strict order required
+    const completed = [];
+    if (biodata) completed.push('biodata');
+    if (guarantor) completed.push('guarantor');
+    if (commitment) completed.push('commitment');
+    
+    // Start with the first incomplete form, or form 1 if all are complete
     if (!biodata) {
-      return { form: 1, completed: [] };
+      return { form: 1, completed };
     } else if (!guarantor) {
-      return { form: 2, completed: ['biodata'] };
+      return { form: 2, completed };
     } else if (!commitment) {
-      return { form: 3, completed: ['biodata', 'guarantor'] };
+      return { form: 3, completed };
     } else {
-      return { form: 1, completed: ['biodata', 'guarantor', 'commitment'] };
+      return { form: 1, completed };
     }
   };
 
@@ -335,11 +342,10 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   };
 
   const handleStepClick = (stepIndex, stepKey) => {
-    if (completedForms.includes(stepKey) || stepIndex === currentForm - 1) {
-      // Scroll to top when navigating between forms
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setCurrentForm(stepIndex + 1);
-    }
+    // Allow navigation to any form - no restrictions
+    // Scroll to top when navigating between forms
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCurrentForm(stepIndex + 1);
   };
 
   if (!user) {
