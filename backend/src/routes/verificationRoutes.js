@@ -43,6 +43,7 @@ const {
   getAdminAssignmentInfo,
   fixUserFormFlags,
   testFormSubmission,
+  resetAllForms,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -311,6 +312,45 @@ router.get(
   verifyToken,
   verifyRole(["Marketer"]),
   testFormSubmission
+);
+
+// Test endpoint to verify frontend-backend connection
+router.get(
+  "/test-connection",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  async (req, res) => {
+    try {
+      const user = req.user;
+      res.status(200).json({
+        success: true,
+        message: "Frontend-Backend connection successful",
+        user: {
+          id: user.id,
+          unique_id: user.unique_id,
+          role: user.role,
+          first_name: user.first_name,
+          last_name: user.last_name
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Test connection error:', error);
+      res.status(500).json({
+        success: false,
+        message: "Connection test failed",
+        error: error.message
+      });
+    }
+  }
+);
+
+// Reset all forms for a marketer (for testing/fresh start)
+router.post(
+  "/reset-all-forms",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  resetAllForms
 );
 
 // Fix user form flags (utility endpoint for debugging)

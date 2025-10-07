@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, FileText, Clock, User, AlertCircle, LogOut } from 'lucide-react';
+import { CheckCircle, FileText, Clock, User, AlertCircle, LogOut, RefreshCw } from 'lucide-react';
 import io from 'socket.io-client';
 import ApplicantBiodataForm from './ApplicantBiodataForm';
 import ApplicantGuarantorForm from './ApplicantGuarantorForm';
@@ -22,6 +22,8 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
   const [progressMessage, setProgressMessage] = useState('');
   const [adminAssignment, setAdminAssignment] = useState(null);
   const [loadingAssignment, setLoadingAssignment] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
 
@@ -60,6 +62,31 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       navigate('/');
+    }
+  };
+
+  const handleResetAllForms = async () => {
+    try {
+      setResetting(true);
+      console.log('🔄 Resetting all forms...');
+      
+      const response = await api.post('/verification/reset-all-forms');
+      
+      if (response.data.success) {
+        console.log('✅ All forms reset successfully');
+        
+        // Refresh the page to start fresh
+        window.location.reload();
+      } else {
+        console.error('❌ Reset failed:', response.data.message);
+        alert('Failed to reset forms. Please try again.');
+      }
+    } catch (error) {
+      console.error('❌ Error resetting forms:', error);
+      alert('Error resetting forms. Please try again.');
+    } finally {
+      setResetting(false);
+      setShowResetConfirm(false);
     }
   };
 
@@ -128,6 +155,15 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
     const checkFormStatus = async () => {
       try {
         setIsLoading(true);
+        
+        // First, test the connection
+        try {
+          const connectionTest = await api.get('/verification/test-connection');
+          console.log('✅ Frontend-Backend connection test successful:', connectionTest.data);
+        } catch (connectionError) {
+          console.error('❌ Frontend-Backend connection test failed:', connectionError);
+        }
+        
         const response = await api.get('/verification/form-status');
         const formStatus = response.data;
         
@@ -564,6 +600,14 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                 <User className="h-4 w-4 text-gray-600" />
               </div>
               <button
+                onClick={() => setShowResetConfirm(true)}
+                className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors duration-200"
+                title="Reset All Forms"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span className="hidden sm:inline">Reset</span>
+              </button>
+              <button
                 onClick={handleLogout}
                 className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                 title="Logout"
@@ -605,6 +649,39 @@ const MarketerVerificationDashboard = ({ user: initialUser }) => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
               >
                 Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Dialog */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <RefreshCw className="h-5 w-5 text-orange-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Reset All Forms</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to reset all forms? This will delete all your submitted data and you'll need to start the verification process from the beginning.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors duration-200"
+                disabled={resetting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetAllForms}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 disabled:opacity-50"
+                disabled={resetting}
+              >
+                {resetting ? 'Resetting...' : 'Reset All Forms'}
               </button>
             </div>
           </div>

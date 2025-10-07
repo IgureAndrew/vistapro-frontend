@@ -622,20 +622,6 @@ const submitBiodata = async (req, res, next) => {
       return next(error);
     }
 
-    // Mark flag true
-    const updatedUserResult = await pool.query(
-      "UPDATE users SET bio_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
-      [marketerUniqueId]
-    );
-    
-    if (updatedUserResult.rows.length === 0) {
-      console.error('❌ Failed to update user bio_submitted flag - user not found');
-      return res.status(500).json({
-        message: "Failed to update user status. Please try again.",
-        error: "User update failed"
-      });
-    }
-
     // Get marketer's ID and admin_id for workflow
     const marketerInfo = await pool.query(
       'SELECT id, admin_id FROM users WHERE unique_id = $1',
@@ -650,19 +636,33 @@ const submitBiodata = async (req, res, next) => {
       
       // Check if all forms are completed and update workflow status
       await checkAndUpdateWorkflowStatus(marketerId);
+      
+      // Only mark as submitted if all workflow logic succeeds
+      const updatedUserResult = await pool.query(
+        "UPDATE users SET bio_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
+        [marketerUniqueId]
+      );
+      
+      if (updatedUserResult.rows.length === 0) {
+        console.error('❌ Failed to update user bio_submitted flag - user not found');
+        return res.status(500).json({
+          message: "Failed to update user status. Please try again.",
+          error: "User update failed"
+        });
+      }
+      
+      // Notify marketer about biodata form submission
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'pending_forms', 
+        'Biodata form submitted successfully! Please continue with the remaining forms.'
+      );
     }
-
-    // Notify marketer about biodata form submission
-    await notifyMarketerOfStatusChange(
-      marketerId, 
-      'pending_forms', 
-      'Biodata form submitted successfully! Please continue with the remaining forms.'
-    );
 
     res.status(201).json({
       message: "Biodata submitted successfully.",
       biodata: result.rows[0],
-      updatedUser: updatedUserResult.rows[0],
+      updatedUser: marketerInfo.rows.length > 0 ? (await pool.query("SELECT * FROM users WHERE unique_id = $1", [marketerUniqueId])).rows[0] : null,
     });
   } catch (error) {
     next(error);
@@ -781,7 +781,7 @@ const submitGuarantor = async (req, res, next) => {
     ];
 
     console.log('📝 Inserting guarantor data:', { insertQuery, values });
-    
+
     let result;
     try {
       result = await pool.query(insertQuery, values);
@@ -800,19 +800,6 @@ const submitGuarantor = async (req, res, next) => {
       return next(error);
     }
 
-    const updatedUserResult = await pool.query(
-      "UPDATE users SET guarantor_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
-      [marketerUniqueId]
-    );
-    
-    if (updatedUserResult.rows.length === 0) {
-      console.error('❌ Failed to update user guarantor_submitted flag - user not found');
-      return res.status(500).json({
-        message: "Failed to update user status. Please try again.",
-        error: "User update failed"
-      });
-    }
-
     // Get marketer's ID and admin_id for workflow
     const marketerInfo = await pool.query(
       'SELECT id, admin_id FROM users WHERE unique_id = $1',
@@ -827,19 +814,33 @@ const submitGuarantor = async (req, res, next) => {
       
       // Check if all forms are completed and update workflow status
       await checkAndUpdateWorkflowStatus(marketerId);
+      
+      // Only mark as submitted if all workflow logic succeeds
+      const updatedUserResult = await pool.query(
+        "UPDATE users SET guarantor_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
+        [marketerUniqueId]
+      );
+      
+      if (updatedUserResult.rows.length === 0) {
+        console.error('❌ Failed to update user guarantor_submitted flag - user not found');
+        return res.status(500).json({
+          message: "Failed to update user status. Please try again.",
+          error: "User update failed"
+        });
+      }
+      
+      // Notify marketer about guarantor form submission
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'pending_forms', 
+        'Guarantor form submitted successfully! Please continue with the remaining forms.'
+      );
     }
-
-    // Notify marketer about guarantor form submission
-    await notifyMarketerOfStatusChange(
-      marketerId, 
-      'pending_forms', 
-      'Guarantor form submitted successfully! Please continue with the remaining forms.'
-    );
 
     res.status(201).json({
       message: "Guarantor form submitted successfully.",
       guarantor: result.rows[0],
-      updatedUser: updatedUserResult.rows[0],
+      updatedUser: marketerInfo.rows.length > 0 ? (await pool.query("SELECT * FROM users WHERE unique_id = $1", [marketerUniqueId])).rows[0] : null,
     });
   } catch (error) {
     next(error);
@@ -1012,22 +1013,6 @@ const submitCommitment = async (req, res, next) => {
       return next(error);
     }
 
-    console.log('🔄 Updating user commitment_submitted flag...');
-    const updatedUserResult = await pool.query(
-      "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
-      [marketerUniqueId]
-    );
-    
-    if (updatedUserResult.rows.length === 0) {
-      console.error('❌ Failed to update user commitment_submitted flag - user not found');
-      return res.status(500).json({
-        message: "Failed to update user status. Please try again.",
-        error: "User update failed"
-      });
-    }
-    
-    console.log('✅ User commitment_submitted flag updated successfully');
-
     // Get marketer's ID and admin_id for workflow
     console.log('🔍 Getting marketer info for workflow...');
     const marketerInfo = await pool.query(
@@ -1046,7 +1031,23 @@ const submitCommitment = async (req, res, next) => {
       // Check if all forms are completed and update workflow status
       console.log('🔄 Checking workflow status...');
       await checkAndUpdateWorkflowStatus(marketerId);
-    }
+      
+      // Only mark as submitted if all workflow logic succeeds
+      console.log('🔄 Updating user commitment_submitted flag...');
+      const updatedUserResult = await pool.query(
+        "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
+        [marketerUniqueId]
+      );
+      
+      if (updatedUserResult.rows.length === 0) {
+        console.error('❌ Failed to update user commitment_submitted flag - user not found');
+        return res.status(500).json({
+          message: "Failed to update user status. Please try again.",
+          error: "User update failed"
+        });
+      }
+      
+      console.log('✅ User commitment_submitted flag updated successfully');
 
     console.log('🔍 Getting final form status...');
     const { bio_submitted, guarantor_submitted, commitment_submitted } =
@@ -1063,21 +1064,22 @@ const submitCommitment = async (req, res, next) => {
         marketerUniqueId,
         "All your forms have been submitted successfully. Your submission is under review and your dashboard is unlocked.",
         req.app
+        );
+      }
+
+      // Notify marketer about commitment form submission
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'pending_forms', 
+        'Commitment form submitted successfully! Please continue with the remaining forms.'
       );
     }
-
-    // Notify marketer about commitment form submission
-    await notifyMarketerOfStatusChange(
-      marketerId, 
-      'pending_forms', 
-      'Commitment form submitted successfully! Please continue with the remaining forms.'
-    );
 
     console.log('✅ Commitment form submission completed successfully');
     res.status(201).json({
       message: "Commitment form submitted successfully.",
       commitment: result.rows[0],
-      updatedUser: updatedUserResult.rows[0]
+      updatedUser: marketerInfo.rows.length > 0 ? (await pool.query("SELECT * FROM users WHERE unique_id = $1", [marketerUniqueId])).rows[0] : null
     });
   } catch (error) {
     console.error('❌ Commitment form submission error:', {
@@ -2136,7 +2138,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
     let submissionsResult;
     try {
       submissionsResult = await pool.query(submissionsQuery, [adminId]);
-      console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
       
       if (submissionsResult.rows.length > 0) {
         console.log('🔍 First submission data:', {
@@ -4269,6 +4271,68 @@ const getRawFormData = async (req, res, next) => {
   }
 };
 
+// Reset all forms for a marketer (for testing/fresh start)
+const resetAllForms = async (req, res, next) => {
+  try {
+    const marketerUniqueId = req.user.unique_id;
+    const marketerId = req.user.id;
+    
+    console.log(`🔄 Resetting all forms for marketer ${marketerUniqueId} (ID: ${marketerId})`);
+    
+    // Reset user flags
+    await pool.query(
+      `UPDATE users SET 
+        bio_submitted = FALSE,
+        guarantor_submitted = FALSE,
+        commitment_submitted = FALSE,
+        overall_verification_status = NULL,
+        updated_at = NOW()
+       WHERE unique_id = $1`,
+      [marketerUniqueId]
+    );
+    
+    // Delete form records
+    await pool.query(
+      'DELETE FROM marketer_biodata WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    await pool.query(
+      'DELETE FROM marketer_guarantor_form WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    await pool.query(
+      'DELETE FROM direct_sales_commitment_form WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    // Delete verification submission records
+    await pool.query(
+      'DELETE FROM verification_submissions WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    // Delete workflow logs
+    await pool.query(
+      'DELETE FROM verification_workflow_logs WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    console.log(`✅ All forms reset for marketer ${marketerUniqueId}`);
+    
+    res.json({
+      success: true,
+      message: "All forms have been reset successfully. You can now start the verification process from the beginning.",
+      resetAt: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resetting forms:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitBiodata,
   submitGuarantor,
@@ -4299,5 +4363,6 @@ module.exports = {
   fixUserFormFlags,
   getRawFormData,
   testFormSubmission,
+  resetAllForms,
 };
 
