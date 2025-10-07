@@ -208,6 +208,7 @@ app.use('/api/stock',          require('./routes/stockupdateRoutes'));
 app.use('/api/verification',   require('./routes/verificationRoutes'));
 app.use('/api/enhanced-verification', require('./routes/enhancedVerificationRoutes'));
 // app.use('/api/verification-workflow', require('./routes/verificationWorkflowRoutes')); // DISABLED - conflicting with main verification system
+app.use('/api/emergency',      require('./routes/emergencyRoutes'));
 app.use('/api/notifications',  require('./routes/notificationRoutes'));
 app.use('/api/wallets',        require('./routes/walletRoutes'));
 app.use('/api/messages',       require('./routes/messageRoutes'));
