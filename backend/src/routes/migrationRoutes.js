@@ -233,4 +233,82 @@ router.get('/check-bayo-data', async (req, res) => {
   }
 });
 
+// Reset Bayo Lawal's guarantor form to allow refill
+router.post('/reset-bayo-guarantor', async (req, res) => {
+  try {
+    console.log('🔄 Resetting Bayo Lawal guarantor form...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Find Bayo Lawal's user ID
+    const userQuery = `
+      SELECT id, unique_id, first_name, last_name, email 
+      FROM users 
+      WHERE (first_name ILIKE '%bayo%' AND last_name ILIKE '%lawal%') OR email = 'lawal@gmail.com'
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `;
+    
+    const userResult = await pool.query(userQuery);
+    
+    if (userResult.rows.length === 0) {
+      await pool.end();
+      return res.status(404).json({
+        success: false,
+        message: 'Bayo Lawal not found'
+      });
+    }
+    
+    const bayo = userResult.rows[0];
+    console.log(`👤 Found Bayo Lawal: ${bayo.first_name} ${bayo.last_name} (ID: ${bayo.id})`);
+    
+    // Delete existing guarantor form data
+    const deleteQuery = `
+      DELETE FROM marketer_guarantor_form 
+      WHERE marketer_id = $1;
+    `;
+    
+    const deleteResult = await pool.query(deleteQuery, [bayo.id]);
+    console.log(`🗑️ Deleted ${deleteResult.rowCount} guarantor form records for Bayo`);
+    
+    // Update verification status to allow form refill
+    const updateStatusQuery = `
+      UPDATE users 
+      SET overall_verification_status = NULL 
+      WHERE id = $1;
+    `;
+    
+    const updateResult = await pool.query(updateStatusQuery, [bayo.id]);
+    console.log(`🔄 Updated verification status for Bayo`);
+    
+    await pool.end();
+    
+    res.json({
+      success: true,
+      message: 'Bayo Lawal guarantor form reset successfully!',
+      user: {
+        id: bayo.id,
+        unique_id: bayo.unique_id,
+        name: `${bayo.first_name} ${bayo.last_name}`,
+        email: bayo.email
+      },
+      deletedRecords: deleteResult.rowCount,
+      statusUpdated: updateResult.rowCount > 0
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resetting Bayo guarantor form:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Reset failed',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
