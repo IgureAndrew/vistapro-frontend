@@ -358,4 +358,56 @@ router.post('/force-reset-bayo', async (req, res) => {
   }
 });
 
+// Emergency endpoint to get fresh user data for Bayo Lawal
+router.get('/get-fresh-bayo-data', async (req, res) => {
+  try {
+    console.log('🔍 EMERGENCY: Getting fresh Bayo Lawal user data...');
+    
+    // Get fresh user data from database
+    const userResult = await pool.query(`
+      SELECT 
+        id, unique_id, first_name, last_name, email, phone, location,
+        role, admin_id, super_admin_id, profile_image,
+        bio_submitted, guarantor_submitted, commitment_submitted, 
+        overall_verification_status, created_at, updated_at
+      FROM users 
+      WHERE unique_id = 'DSR00336'
+    `);
+    
+    if (userResult.rows.length > 0) {
+      const user = userResult.rows[0];
+      console.log('✅ Fresh user data retrieved:', {
+        unique_id: user.unique_id,
+        name: `${user.first_name} ${user.last_name}`,
+        bio_submitted: user.bio_submitted,
+        guarantor_submitted: user.guarantor_submitted,
+        commitment_submitted: user.commitment_submitted,
+        overall_verification_status: user.overall_verification_status
+      });
+      
+      res.json({
+        success: true,
+        message: 'Fresh Bayo Lawal user data retrieved',
+        user: user,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Bayo Lawal user not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ EMERGENCY: Error getting fresh Bayo data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'EMERGENCY: Error getting fresh Bayo Lawal user data',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;
