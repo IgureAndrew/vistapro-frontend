@@ -1773,7 +1773,7 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
         FROM users u
         WHERE u.role IN ('Admin', 'SuperAdmin')
           AND u.overall_verification_status = 'masteradmin_approval_pending'
-          AND u.deleted = FALSE
+          AND u.deleted_at IS NULL
         ORDER BY u.updated_at DESC
       `;
       
@@ -1809,12 +1809,20 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
               ORDER BY created_at DESC LIMIT 1
             `, [submission.marketer_unique_id]);
             
+            // Get admin verification details
+            const adminVerificationResult = await pool.query(`
+              SELECT * FROM admin_verification_details 
+              WHERE verification_submission_id = $1
+              ORDER BY created_at DESC LIMIT 1
+            `, [submission.submission_id]);
+            
             return {
               ...submission,
               submission_type: 'marketer_verification',
               biodata: biodataResult.rows[0] || null,
               guarantor: guarantorResult.rows[0] || null,
-              commitment: commitmentResult.rows[0] || null
+              commitment: commitmentResult.rows[0] || null,
+              admin_verification: adminVerificationResult.rows[0] || null
             };
           } catch (error) {
             console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
