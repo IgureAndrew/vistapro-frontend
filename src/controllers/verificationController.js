@@ -675,7 +675,7 @@ const submitBiodata = async (req, res, next) => {
 };
 /**
  * submitGuarantor
- * Inserts a new record into the guarantor_employment_form table and updates the user's flag.
+ * Inserts a new record into the marketer_guarantor_form table and updates the user's flag.
  * Expects text fields in req.body and file uploads in req.files:
  * - "identification_file": for the image of the selected identification.
  * - "signature": for the guarantor's signature image.
@@ -1155,7 +1155,7 @@ const allowRefillForm = async (req, res, next) => {
       tableName = "marketer_biodata";
       flagName = "bio_submitted";
     } else if (formType.toLowerCase() === "guarantor") {
-      tableName = "guarantor_employment_form";
+      tableName = "marketer_guarantor_form";
       flagName = "guarantor_submitted";
     } else if (formType.toLowerCase() === "commitment") {
       tableName = "marketer_commitment_form";
@@ -1621,7 +1621,7 @@ const deleteGuarantorSubmission = async (req, res, next) => {
 
     // 1) Delete the guarantor record
     const deleteResult = await pool.query(
-      "DELETE FROM guarantor_employment_form WHERE id = $1 RETURNING *",
+      "DELETE FROM marketer_guarantor_form WHERE id = $1 RETURNING *",
       [submissionId]
     );
     if (deleteResult.rowCount === 0) {
@@ -1797,8 +1797,8 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
             
             // Get guarantor form
             const guarantorResult = await pool.query(`
-              SELECT * FROM guarantor_employment_form 
-              WHERE marketer_unique_id = $1 
+              SELECT * FROM marketer_guarantor_form 
+              WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
               ORDER BY created_at DESC LIMIT 1
             `, [submission.marketer_unique_id]);
             
@@ -1948,7 +1948,7 @@ const getApprovedSubmissionsForMasterAdmin = async (req, res, next) => {
           
           // Get guarantor form
           const guarantorResult = await pool.query(
-            "SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = $1",
+            "SELECT * FROM marketer_guarantor_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)",
             [submission.marketer_unique_id]
           );
           
