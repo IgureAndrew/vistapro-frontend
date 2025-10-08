@@ -625,18 +625,25 @@ const SuperAdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
                       </div>
                     </div>
                     {/* Guarantor Documents */}
-                    {(selectedSubmission.guarantor.identification_file_url || selectedSubmission.guarantor.signature_url) && (
+                    {(selectedSubmission.guarantor.id_document_url || selectedSubmission.guarantor.signature_url) && (
                       <div className="mt-4">
                         <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">Guarantor Documents</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {selectedSubmission.guarantor.identification_file_url && (
+                          {selectedSubmission.guarantor.id_document_url && (
                             <div>
                               <label className="text-sm font-medium text-gray-500 dark:text-gray-400">ID Document</label>
                               <img
-                                src={selectedSubmission.guarantor.identification_file_url}
+                                src={selectedSubmission.guarantor.id_document_url}
                                 alt="Guarantor ID Document"
                                 className="w-full h-48 object-cover rounded-lg mt-2"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
                               />
+                              <div style={{display: 'none'}} className="w-full h-48 bg-gray-200 rounded-lg mt-2 flex items-center justify-center">
+                                <span className="text-gray-500">Image failed to load</span>
+                              </div>
                             </div>
                           )}
                           {selectedSubmission.guarantor.signature_url && (
@@ -646,7 +653,14 @@ const SuperAdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
                                 src={selectedSubmission.guarantor.signature_url}
                                 alt="Guarantor Signature"
                                 className="w-full h-48 object-cover rounded-lg mt-2"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
                               />
+                              <div style={{display: 'none'}} className="w-full h-48 bg-gray-200 rounded-lg mt-2 flex items-center justify-center">
+                                <span className="text-gray-500">Image failed to load</span>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -858,7 +872,14 @@ const SuperAdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
                                 src={selectedSubmission.admin_verification.location_photo_url}
                                 alt="Location Photo"
                                 className="w-full h-48 object-cover rounded-lg mt-2"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
                               />
+                              <div style={{display: 'none'}} className="w-full h-48 bg-gray-200 rounded-lg mt-2 flex items-center justify-center">
+                                <span className="text-gray-500">Location photo failed to load</span>
+                              </div>
                             </div>
                           )}
                           {selectedSubmission.admin_verification.admin_marketer_photo_url && (
@@ -868,7 +889,14 @@ const SuperAdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
                                 src={selectedSubmission.admin_verification.admin_marketer_photo_url}
                                 alt="Admin and Marketer Photo"
                                 className="w-full h-48 object-cover rounded-lg mt-2"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
                               />
+                              <div style={{display: 'none'}} className="w-full h-48 bg-gray-200 rounded-lg mt-2 flex items-center justify-center">
+                                <span className="text-gray-500">Admin & Marketer photo failed to load</span>
+                              </div>
                             </div>
                           )}
                         </div>
