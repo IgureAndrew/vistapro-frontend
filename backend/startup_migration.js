@@ -23,7 +23,8 @@ async function runStartupMigration() {
       'marketer_commitment_form', 
       'admin_verification_details',
       'verification_submissions',
-      'verification_workflow_logs'
+      'verification_workflow_logs',
+      'additional_pickup_requests'
     ];
     
     let missingTables = [];
@@ -301,6 +302,63 @@ async function runStartupMigration() {
         }
         
         console.log('✅ verification_workflow_logs table created');
+      }
+      
+      // Create additional_pickup_requests table
+      if (missingTables.includes('additional_pickup_requests')) {
+        console.log('📋 Creating additional_pickup_requests table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS additional_pickup_requests (
+            id SERIAL PRIMARY KEY,
+            marketer_id INTEGER NOT NULL UNIQUE,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+            requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_by INTEGER,
+            reviewed_at TIMESTAMP,
+            review_notes TEXT,
+            order_confirmation_required BOOLEAN NOT NULL DEFAULT TRUE,
+            units_remaining INTEGER,
+            completion_status VARCHAR(20) DEFAULT 'pending' CHECK (completion_status IN ('pending', 'in_progress', 'completed')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        
+        // Add foreign key constraints
+        try {
+          await pool.query(`
+            ALTER TABLE additional_pickup_requests 
+            ADD CONSTRAINT fk_additional_pickup_marketer 
+            FOREIGN KEY (marketer_id) REFERENCES users(id) ON DELETE CASCADE;
+          `);
+        } catch (error) {
+          if (error.code !== '42710') { // Constraint already exists
+            console.log('⚠️  Could not add foreign key constraint for additional pickup marketer');
+          }
+        }
+        
+        try {
+          await pool.query(`
+            ALTER TABLE additional_pickup_requests 
+            ADD CONSTRAINT fk_additional_pickup_reviewer 
+            FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL;
+          `);
+        } catch (error) {
+          if (error.code !== '42710') { // Constraint already exists
+            console.log('⚠️  Could not add foreign key constraint for additional pickup reviewer');
+          }
+        }
+        
+        // Create indexes
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_additional_pickup_marketer ON additional_pickup_requests(marketer_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_additional_pickup_status ON additional_pickup_requests(status);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_additional_pickup_requested_at ON additional_pickup_requests(requested_at);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for additional_pickup_requests');
+        }
+        
+        console.log('✅ additional_pickup_requests table created');
       }
       
       console.log('🎉 Startup migration completed successfully!');
