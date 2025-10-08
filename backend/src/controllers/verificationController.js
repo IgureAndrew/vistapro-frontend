@@ -425,14 +425,19 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
       );
       console.log(`✅ User status updated:`, userUpdateResult.rows[0]);
 
-      // Log the status change
-      await pool.query(
-        `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes)
-         SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
-         FROM verification_submissions WHERE marketer_id = $1`,
-        [marketerId]
-      );
-      console.log(`✅ Workflow log created`);
+      // Log the status change - handle case where verification_submission might not exist
+      try {
+        const workflowLogResult = await pool.query(
+          `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes)
+           SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
+           FROM verification_submissions WHERE marketer_id = $1`,
+          [marketerId]
+        );
+        console.log(`✅ Workflow log created`);
+      } catch (workflowError) {
+        console.log(`⚠️ Could not create workflow log (verification_submission might not exist):`, workflowError.message);
+        // Continue without failing - this is not critical for form submission
+      }
 
       // Notify marketer about status change
       await notifyMarketerOfStatusChange(
