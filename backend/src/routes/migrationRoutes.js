@@ -555,4 +555,125 @@ router.post('/fix-bayo-verification', async (req, res) => {
   }
 });
 
+// Check Bayo Lawal's complete verification status
+router.get('/check-bayo-status', async (req, res) => {
+  try {
+    console.log('🔍 Checking Bayo Lawal complete verification status...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Get complete user information
+    const userQuery = `
+      SELECT 
+        id, unique_id, first_name, last_name, email, role,
+        bio_submitted, guarantor_submitted, commitment_submitted,
+        overall_verification_status, admin_id, super_admin_id,
+        created_at, updated_at
+      FROM users 
+      WHERE (first_name ILIKE '%bayo%' AND last_name ILIKE '%lawal%') OR email = 'lawal@gmail.com'
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `;
+    
+    const userResult = await pool.query(userQuery);
+    
+    if (userResult.rows.length === 0) {
+      await pool.end();
+      return res.status(404).json({
+        success: false,
+        message: 'Bayo Lawal not found'
+      });
+    }
+    
+    const bayo = userResult.rows[0];
+    
+    // Check guarantor form submissions
+    const guarantorQuery = `
+      SELECT 
+        id, marketer_id, is_candidate_well_known, relationship, known_duration, occupation,
+        means_of_identification, guarantor_full_name, guarantor_email, guarantor_phone,
+        guarantor_home_address, guarantor_office_address, candidate_name,
+        id_document_url, passport_photo_url, signature_url,
+        created_at, updated_at
+      FROM marketer_guarantor_form 
+      WHERE marketer_id = $1
+      ORDER BY created_at DESC;
+    `;
+    
+    const guarantorResult = await pool.query(guarantorQuery, [bayo.id]);
+    
+    // Check verification submissions
+    const verificationQuery = `
+      SELECT 
+        id, marketer_id, admin_id, super_admin_id, submission_status,
+        admin_reviewed_at, superadmin_reviewed_at, masteradmin_approved_at,
+        rejection_reason, rejected_by, rejected_at,
+        created_at, updated_at
+      FROM verification_submissions 
+      WHERE marketer_id = $1
+      ORDER BY created_at DESC;
+    `;
+    
+    const verificationResult = await pool.query(verificationQuery, [bayo.id]);
+    
+    // Check workflow logs
+    const workflowQuery = `
+      SELECT 
+        id, verification_submission_id, action_by, action_by_role, action_type,
+        action_description, previous_status, new_status, notes, created_at
+      FROM verification_workflow_logs 
+      WHERE action_by = $1 OR verification_submission_id IN (
+        SELECT id FROM verification_submissions WHERE marketer_id = $1
+      )
+      ORDER BY created_at DESC
+      LIMIT 10;
+    `;
+    
+    const workflowResult = await pool.query(workflowQuery, [bayo.id]);
+    
+    await pool.end();
+    
+    res.json({
+      success: true,
+      message: 'Bayo Lawal complete status check completed',
+      user: {
+        id: bayo.id,
+        unique_id: bayo.unique_id,
+        name: `${bayo.first_name} ${bayo.last_name}`,
+        email: bayo.email,
+        role: bayo.role,
+        formSubmissions: {
+          bio_submitted: bayo.bio_submitted,
+          guarantor_submitted: bayo.guarantor_submitted,
+          commitment_submitted: bayo.commitment_submitted
+        },
+        verificationStatus: bayo.overall_verification_status,
+        admin_id: bayo.admin_id,
+        super_admin_id: bayo.super_admin_id,
+        created_at: bayo.created_at,
+        updated_at: bayo.updated_at
+      },
+      guarantorForms: guarantorResult.rows.length,
+      guarantorData: guarantorResult.rows,
+      verificationSubmissions: verificationResult.rows.length,
+      verificationData: verificationResult.rows,
+      workflowLogs: workflowResult.rows.length,
+      workflowData: workflowResult.rows
+    });
+    
+  } catch (error) {
+    console.error('❌ Error checking Bayo status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Status check failed',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
