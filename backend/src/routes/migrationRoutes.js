@@ -676,4 +676,170 @@ router.get('/check-bayo-status', async (req, res) => {
   }
 });
 
+// Create admin_verification_details table
+router.post('/create-admin-verification-table', async (req, res) => {
+  try {
+    console.log('🔍 Creating admin_verification_details table...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Check if table already exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'admin_verification_details'
+      );
+    `);
+    
+    if (tableCheck.rows[0].exists) {
+      await pool.end();
+      return res.status(200).json({
+        success: true,
+        message: 'admin_verification_details table already exists'
+      });
+    }
+    
+    console.log('🔄 Creating admin_verification_details table...');
+    
+    // Create the table
+    await pool.query(`
+      CREATE TABLE admin_verification_details (
+        id SERIAL PRIMARY KEY,
+        verification_submission_id INTEGER NOT NULL,
+        admin_id INTEGER NOT NULL,
+        marketer_id INTEGER NOT NULL,
+        
+        -- Location verification
+        marketer_address TEXT NOT NULL,
+        landmark_description TEXT,
+        location_photo_url TEXT,
+        
+        -- Admin and Marketer together
+        admin_marketer_photo_url TEXT,
+        
+        -- Additional verification details
+        verification_notes TEXT,
+        admin_verification_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        
+        -- Document uploads
+        additional_documents JSONB,
+        
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    console.log('✅ Created admin_verification_details table');
+    
+    // Add foreign key constraints
+    console.log('🔄 Adding foreign key constraints...');
+    
+    try {
+      await pool.query(`
+        ALTER TABLE admin_verification_details 
+        ADD CONSTRAINT fk_admin_verification_submission 
+        FOREIGN KEY (verification_submission_id) REFERENCES verification_submissions(id) ON DELETE CASCADE;
+      `);
+      console.log('✅ Added verification_submission_id foreign key');
+    } catch (error) {
+      if (error.code !== '42710') { // Constraint already exists
+        console.log('⚠️ Could not add verification_submission_id foreign key:', error.message);
+      }
+    }
+    
+    try {
+      await pool.query(`
+        ALTER TABLE admin_verification_details 
+        ADD CONSTRAINT fk_admin_verification_admin 
+        FOREIGN KEY (admin_id) REFERENCES users(id);
+      `);
+      console.log('✅ Added admin_id foreign key');
+    } catch (error) {
+      if (error.code !== '42710') { // Constraint already exists
+        console.log('⚠️ Could not add admin_id foreign key:', error.message);
+      }
+    }
+    
+    try {
+      await pool.query(`
+        ALTER TABLE admin_verification_details 
+        ADD CONSTRAINT fk_admin_verification_marketer 
+        FOREIGN KEY (marketer_id) REFERENCES users(id);
+      `);
+      console.log('✅ Added marketer_id foreign key');
+    } catch (error) {
+      if (error.code !== '42710') { // Constraint already exists
+        console.log('⚠️ Could not add marketer_id foreign key:', error.message);
+      }
+    }
+    
+    // Create indexes
+    console.log('🔄 Creating indexes...');
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_admin_verification_submission 
+        ON admin_verification_details(verification_submission_id);
+      `);
+      console.log('✅ Created verification_submission_id index');
+    } catch (error) {
+      console.log('⚠️ Could not create verification_submission_id index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_admin_verification_admin 
+        ON admin_verification_details(admin_id);
+      `);
+      console.log('✅ Created admin_id index');
+    } catch (error) {
+      console.log('⚠️ Could not create admin_id index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_admin_verification_marketer 
+        ON admin_verification_details(marketer_id);
+      `);
+      console.log('✅ Created marketer_id index');
+    } catch (error) {
+      console.log('⚠️ Could not create marketer_id index:', error.message);
+    }
+    
+    await pool.end();
+    
+    res.status(200).json({
+      success: true,
+      message: 'admin_verification_details table created successfully!',
+      changes: {
+        tableCreated: 'admin_verification_details',
+        foreignKeys: [
+          'fk_admin_verification_submission',
+          'fk_admin_verification_admin', 
+          'fk_admin_verification_marketer'
+        ],
+        indexes: [
+          'idx_admin_verification_submission',
+          'idx_admin_verification_admin',
+          'idx_admin_verification_marketer'
+        ]
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error creating admin_verification_details table:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to create admin_verification_details table.', 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router;
