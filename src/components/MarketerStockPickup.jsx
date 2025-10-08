@@ -541,14 +541,14 @@ export default function MarketerStockPickup() {
   // Ask for extra pickup
   async function onRequestAdditional() {
     try {
-      await api.post('/stock/pickup/request-additional')
-      showInfo('Additional pickup requested—waiting for approval.', 'Request Submitted')
-      refreshAllowance()
-        checkEligibility()
-        checkAdditionalPickupEligibility() // Refresh eligibility status
+      await api.post('/stock/pickup/request-additional');
+      showInfo('Additional pickup requested—waiting for approval.', 'Request Submitted');
+      refreshAllowance();
+      checkEligibility();
+      checkAdditionalPickupEligibility(); // Refresh eligibility status
     } catch (err) {
-      console.error(err)
-      showError(err.response?.data?.message || 'Request failed', 'Request Failed')
+      console.error(err);
+      showError(err.response?.data?.message || 'Request failed', 'Request Failed');
     }
   }
 

@@ -74,7 +74,7 @@ const AdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get(
-        `${API_URL}/api/admin/verification-submissions`,
+        `${API_URL}/api/verification/submissions/admin`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -476,7 +476,9 @@ const AdminSubmissionsNew = ({ onNavigate, isDarkMode }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          {submission.submission_status === 'pending_admin_review' && submission.all_forms_submitted && (
+                          {(submission.submission_status === 'pending_admin_review' || 
+                            submission.submission_status === 'pending_marketer_forms' ||
+                            (submission.bio_submitted && submission.guarantor_submitted && submission.commitment_submitted)) && (
                             <Button
                               onClick={() => handleUploadVerification(submission)}
                               className="bg-blue-600 hover:bg-blue-700 text-white"

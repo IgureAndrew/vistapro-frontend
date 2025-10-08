@@ -87,8 +87,24 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
     
     console.log('✅ Validation passed, proceeding with submission');
     
+    // Parse known_duration to extract just the number
+    const processedFormData = { ...formData };
+    if (processedFormData.known_duration) {
+      // Extract number from string like "4 years" or "3 years 6 months"
+      const match = processedFormData.known_duration.match(/(\d+)/);
+      if (match) {
+        processedFormData.known_duration = parseInt(match[1], 10);
+        console.log('🔢 Parsed known_duration:', processedFormData.known_duration);
+      } else {
+        console.error('❌ Could not parse known_duration:', processedFormData.known_duration);
+        setErrors({ known_duration: 'Please enter a valid number of years' });
+        setLoading(false);
+        return;
+      }
+    }
+    
     const payload = new FormData();
-    Object.entries(formData).forEach(([k, v]) => payload.append(k, v));
+    Object.entries(processedFormData).forEach(([k, v]) => payload.append(k, v));
     if (formData.means_of_identification && identificationFile) {
       payload.append("identification_file", identificationFile);
     }
@@ -197,6 +213,13 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Scroll Indicator */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+          <p className="text-sm text-blue-700">
+            📋 <strong>Complete Form:</strong> Please scroll down to fill all required fields (4 sections total)
+          </p>
+        </div>
+        
         {/* Eligibility Notice */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start">
@@ -270,8 +293,11 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             onChange={handleChange}
             required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                placeholder="e.g., 5 years, 3 years 6 months"
+                placeholder="e.g., 4 years, 5 years, 3 years 6 months"
           />
+          <p className="text-xs text-gray-500 mt-1">
+            Enter the number of years (minimum 3). You can include additional text like "4 years" or just "4".
+          </p>
         </div>
 
             {/* Occupation */}
@@ -318,10 +344,9 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
         </div>
 
             {/* ID file upload */}
-        {formData.means_of_identification && (
           <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload your {formData.means_of_identification} image *
+                  Upload your {formData.means_of_identification || 'identification'} image *
             </label>
                 <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
                   <label htmlFor="guarantor-id-upload" className="cursor-pointer block">
@@ -348,7 +373,6 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
                   </label>
                 </div>
               </div>
-            )}
           </div>
         </div>
 
@@ -358,6 +382,7 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">3</span>
             Guarantor Personal Information
           </h3>
+          {console.log('🔍 Rendering Guarantor Personal Information Section')}
           
           <div className="space-y-4">
             {/* Full Name */}
@@ -432,16 +457,17 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
           />
         </div>
 
-            {/* Candidate Name (optional) */}
+            {/* Candidate Name */}
         <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Candidate Name (if any)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Candidate Name *</label>
           <input
             type="text"
             name="candidate_name"
             value={formData.candidate_name}
             onChange={handleChange}
+            required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                placeholder="Enter candidate's name (optional)"
+                placeholder="Enter candidate's name"
           />
             </div>
           </div>
@@ -453,6 +479,7 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             <span className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">4</span>
             Guarantor Signature
           </h3>
+          {console.log('🔍 Rendering Signature Upload Section')}
           
           <div className="relative rounded-lg p-6 text-center hover:shadow-md transition-all duration-200 shadow-sm bg-gray-50">
           <input
@@ -496,8 +523,11 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
           <button
             type="button"
             onClick={() => {
-              console.log('🔍 Guarantor submit button clicked', { loading, submitted });
+              console.log('🔍 Guarantor submit button clicked', { loading, submitted, showConfirmDialog });
+              console.log('🔍 Form data before confirmation:', formData);
+              console.log('🔍 Files before confirmation:', { identificationFile, signatureFile });
               setShowConfirmDialog(true);
+              console.log('🔍 Set showConfirmDialog to true');
             }}
             disabled={loading || submitted}
             className="w-full text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
@@ -527,10 +557,17 @@ export default function ApplicantGuarantorForm({ onSuccess }) {
             message="Are you sure you want to submit the Guarantor Form? This action cannot be undone."
             confirmText="Submit Form"
             cancelText="Cancel"
-            onConfirm={handleConfirmSubmit}
-            onCancel={() => setShowConfirmDialog(false)}
+            onConfirm={() => {
+              console.log('🔍 AlertDialog onConfirm called');
+              handleConfirmSubmit();
+            }}
+            onCancel={() => {
+              console.log('🔍 AlertDialog onCancel called');
+              setShowConfirmDialog(false);
+            }}
             variant="default"
           />
+          {console.log('🔍 AlertDialog render state:', { showConfirmDialog, open: showConfirmDialog })}
 
           {/* Success Animation */}
           {showSuccess && (

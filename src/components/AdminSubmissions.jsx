@@ -18,6 +18,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import api from '../api';
+import AdminVerificationUploadModal from './AdminVerificationUploadModal';
 
 export default function AdminSubmissions({ onNavigate }) {
   const [submissions, setSubmissions] = useState([]);
@@ -27,6 +28,8 @@ export default function AdminSubmissions({ onNavigate }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationSubmission, setVerificationSubmission] = useState(null);
 
   // Load submissions on component mount
   useEffect(() => {
@@ -36,9 +39,26 @@ export default function AdminSubmissions({ onNavigate }) {
   const loadSubmissions = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/verification-submissions');
+      const response = await api.get('/verification/submissions/admin');
       console.log('🔍 Admin submissions API response:', response.data);
       console.log('📊 Submissions data:', response.data.submissions);
+      
+      // Debug each submission
+      if (response.data.submissions && response.data.submissions.length > 0) {
+        response.data.submissions.forEach((submission, index) => {
+          console.log(`📋 Submission ${index + 1}:`, {
+            marketer_name: `${submission.marketer_first_name} ${submission.marketer_last_name}`,
+            submission_status: submission.submission_status,
+            bio_submitted: submission.bio_submitted,
+            guarantor_submitted: submission.guarantor_submitted,
+            commitment_submitted: submission.commitment_submitted,
+            guarantor_well_known: submission.guarantor_well_known,
+            guarantor_relationship: submission.guarantor_relationship,
+            guarantor_means_of_identification: submission.guarantor_means_of_identification,
+            guarantor_full_name: submission.guarantor_full_name
+          });
+        });
+      }
       
       if (response.data.submissions && response.data.submissions.length > 0) {
         console.log('📋 First submission details:', response.data.submissions[0]);
@@ -78,6 +98,17 @@ export default function AdminSubmissions({ onNavigate }) {
 
   const handleViewSubmission = (submission) => {
     setSelectedSubmission(submission);
+  };
+
+  const handleUploadVerification = (submission) => {
+    setVerificationSubmission(submission);
+    setShowVerificationModal(true);
+  };
+
+  const handleVerificationSuccess = () => {
+    setShowVerificationModal(false);
+    setVerificationSubmission(null);
+    loadSubmissions(); // Reload submissions to show updated status
   };
 
   const handleScheduleVisit = async (submissionId) => {
@@ -236,6 +267,17 @@ export default function AdminSubmissions({ onNavigate }) {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
+                      {(submission.submission_status === 'pending_admin_review' || 
+                        submission.submission_status === 'pending_marketer_forms' ||
+                        (submission.guarantor_submitted && submission.bio_submitted && submission.commitment_submitted)) && (
+                        <button
+                          onClick={() => handleUploadVerification(submission)}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                          title="Upload Verification"
+                        >
+                          <Upload className="w-4 h-4" />
+                        </button>
+                      )}
                       
                       <button
                         onClick={() => handleDownloadDocuments(submission.id)}
@@ -312,6 +354,16 @@ export default function AdminSubmissions({ onNavigate }) {
           onScheduleVisit={handleScheduleVisit}
         />
       )}
+
+      {/* Admin Verification Upload Modal */}
+      {showVerificationModal && verificationSubmission && (
+        <AdminVerificationUploadModal
+          isOpen={showVerificationModal}
+          onClose={() => setShowVerificationModal(false)}
+          submission={verificationSubmission}
+          onSuccess={handleVerificationSuccess}
+        />
+      )}
     </div>
   );
 }
@@ -375,10 +427,10 @@ function SubmissionDetailModal({ submission, onClose, onScheduleVisit }) {
             <BiodataContent data={submission.biodata} />
           )}
           {activeTab === 'guarantor' && (
-            <GuarantorContent data={submission.guarantor} />
+            <GuarantorContent data={submission} />
           )}
           {activeTab === 'commitment' && (
-            <CommitmentContent data={submission.commitment} />
+            <CommitmentContent data={submission} />
           )}
           {activeTab === 'documents' && (
             <DocumentsContent data={submission.documents} />
@@ -448,28 +500,48 @@ function GuarantorContent({ data }) {
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Guarantor Information</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Name</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorName || 'N/A'}</p>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Phone</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorPhone || 'N/A'}</p>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Address</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorAddress || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Well Known</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_well_known ? 'Yes' : 'No'}</p>
         </div>
         <div>
           <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Relationship</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorRelationship || 'N/A'}</p>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_relationship || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Known Duration (Years)</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_known_duration || 'N/A'}</p>
         </div>
         <div>
           <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Occupation</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorOccupation || 'N/A'}</p>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_occupation || 'N/A'}</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Employer</label>
-          <p className="text-gray-900 dark:text-white">{data?.guarantorEmployer || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Means of Identification</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_means_of_identification || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Full Name</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_full_name || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Email</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_email || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Phone</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_phone || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Home Address</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_home_address || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Guarantor Office Address</label>
+          <p className="text-gray-900 dark:text-white">{data?.guarantor_office_address || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Candidate Name</label>
+          <p className="text-gray-900 dark:text-white">{data?.candidate_name || 'N/A'}</p>
         </div>
       </div>
     </div>
@@ -482,24 +554,56 @@ function CommitmentContent({ data }) {
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sales Commitment</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Sales Target</label>
-          <p className="text-gray-900 dark:text-white">₦{data?.salesTarget?.toLocaleString() || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Accept False Documents</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_false_docs ? 'Yes' : 'No'}</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Commitment Period</label>
-          <p className="text-gray-900 dark:text-white">{data?.commitmentPeriod || 'N/A'} months</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Request Irrelevant Info</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_irrelevant_info ? 'Yes' : 'No'}</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Expected Start Date</label>
-          <p className="text-gray-900 dark:text-white">{data?.expectedStartDate || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Charge Customer Fees</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_no_fees ? 'Yes' : 'No'}</p>
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Previous Experience</label>
-          <p className="text-gray-900 dark:text-white">{data?.previousExperience || 'N/A'}</p>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Modify Contract Info</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_no_modify ? 'Yes' : 'No'}</p>
         </div>
-        <div className="md:col-span-2">
-          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Motivation</label>
-          <p className="text-gray-900 dark:text-white">{data?.motivation || 'N/A'}</p>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Sell Unapproved Phones</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_approved_phones ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Make Unofficial Commitment</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_no_unofficial ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Operate Customer Account</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_no_operate_account ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Accept Fraud Firing</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_fraud_firing ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Not Share Company Info</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_no_share_info ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Ensure Loan Recovery</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_loan_recovery ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Abide By System</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_abide_system ? 'Yes' : 'No'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Rep Name</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_rep_name || 'N/A'}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Date Signed</label>
+          <p className="text-gray-900 dark:text-white">{data?.commitment_date_signed || 'N/A'}</p>
         </div>
       </div>
     </div>

@@ -64,8 +64,29 @@ const AdminVerificationUploadModal = ({ isOpen, onClose, submission, onSuccess }
         showSuccess("Verification photos and details have been uploaded successfully. Please review and click 'Verify and Send' to proceed.", "Upload Successful");
         setUploadSuccess(true);
       } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to upload verification');
+        const errorData = await response.json();
+        console.error('Upload error response:', errorData);
+        
+        // Show specific error messages based on response
+        let errorMessage = errorData.message || 'Failed to upload verification';
+        
+        if (response.status === 400) {
+          if (errorData.message.includes('already uploaded recently')) {
+            errorMessage = 'Verification already uploaded recently. Please wait before uploading again.';
+          } else if (errorData.message.includes('Invalid submission ID')) {
+            errorMessage = 'Invalid submission. Please refresh the page and try again.';
+          } else if (errorData.message.includes('Image upload failed')) {
+            errorMessage = 'Image upload failed. Please check your images and try again.';
+          }
+        } else if (response.status === 500) {
+          if (errorData.message.includes('Database table missing')) {
+            errorMessage = 'System error. Please contact support.';
+          } else if (errorData.message.includes('Cloudinary')) {
+            errorMessage = 'Image upload service error. Please try again.';
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error uploading verification:', error);
