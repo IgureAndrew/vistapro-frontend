@@ -1103,6 +1103,124 @@ router.post('/fix-workflow-logs-schema', async (req, res) => {
   }
 });
 
+// Add missing workflow logs columns
+router.post('/add-missing-workflow-columns', async (req, res) => {
+  try {
+    console.log('🔍 Adding missing columns to verification_workflow_logs...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Add the missing columns one by one
+    const columnsToAdd = [
+      'action_by INTEGER',
+      'action_by_role VARCHAR(50)',
+      'action_type VARCHAR(50)',
+      'action_description TEXT',
+      'previous_status VARCHAR(50)',
+      'new_status VARCHAR(50)'
+    ];
+    
+    const results = [];
+    
+    for (const column of columnsToAdd) {
+      try {
+        const columnName = column.split(' ')[0];
+        console.log(`🔄 Adding column: ${columnName}`);
+        
+        await pool.query(`ALTER TABLE verification_workflow_logs ADD COLUMN IF NOT EXISTS ${column};`);
+        results.push(`✅ Added column: ${columnName}`);
+        console.log(`✅ Added column: ${columnName}`);
+      } catch (error) {
+        if (error.code === '42701') {
+          results.push(`⏭️ Column already exists: ${column.split(' ')[0]}`);
+          console.log(`⏭️ Column already exists: ${column.split(' ')[0]}`);
+        } else {
+          results.push(`❌ Error adding column ${column.split(' ')[0]}: ${error.message}`);
+          console.log(`❌ Error adding column ${column.split(' ')[0]}:`, error.message);
+        }
+      }
+    }
+    
+    // Add foreign key constraints
+    try {
+      await pool.query(`
+        ALTER TABLE verification_workflow_logs 
+        ADD CONSTRAINT fk_workflow_action_by 
+        FOREIGN KEY (action_by) REFERENCES users(id)
+      `);
+      results.push('✅ Added action_by foreign key');
+      console.log('✅ Added action_by foreign key');
+    } catch (error) {
+      if (error.code === '42710') {
+        results.push('✅ Foreign key already exists');
+        console.log('✅ Foreign key already exists');
+      } else {
+        results.push(`⚠️ Could not add action_by foreign key: ${error.message}`);
+        console.log('⚠️ Could not add action_by foreign key:', error.message);
+      }
+    }
+    
+    // Create indexes
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_action_by 
+        ON verification_workflow_logs(action_by)
+      `);
+      results.push('✅ Added action_by index');
+      console.log('✅ Added action_by index');
+    } catch (error) {
+      results.push(`⚠️ Could not add action_by index: ${error.message}`);
+      console.log('⚠️ Could not add action_by index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_action_type 
+        ON verification_workflow_logs(action_type)
+      `);
+      results.push('✅ Added action_type index');
+      console.log('✅ Added action_type index');
+    } catch (error) {
+      results.push(`⚠️ Could not add action_type index: ${error.message}`);
+      console.log('⚠️ Could not add action_type index:', error.message);
+    }
+    
+    // Check final table structure
+    const tableInfo = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'verification_workflow_logs' 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position;
+    `);
+    
+    await pool.end();
+    
+    console.log('🎉 Missing columns added successfully!');
+    
+    res.json({
+      success: true,
+      message: 'Missing columns added to verification_workflow_logs successfully',
+      results: results,
+      finalTableStructure: tableInfo.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error adding missing columns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add missing columns',
+      error: error.message
+    });
+  }
+});
+
 // Create admin verification details table endpoint
 router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
 
