@@ -37,6 +37,11 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
     return form?.[field] || 'N/A';
   };
 
+  // Helper function to safely get nested form field values
+  const getNestedFormField = (form, field1, field2) => {
+    return form?.[field1]?.[field2] || 'N/A';
+  };
+
   const [submissions, setSubmissions] = useState([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +89,13 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
+      if (!token) {
+        setError("No authentication token found. Please log in again.");
+        setSubmissions([]);
+        setLoading(false);
+        return;
+      }
+
       const response = await axios.get(
         `${API_URL}/api/verification/submissions/master`,
         {
@@ -92,22 +104,29 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
           },
         }
       );
-      setSubmissions(response.data.submissions || []);
       
-      // Update stats from response
-      if (response.data.marketer_verifications !== undefined) {
+      // Safely set submissions with fallback
+      setSubmissions(response.data?.submissions || []);
+      
+      // Update stats from response with safe fallbacks
+      if (response.data && typeof response.data.marketer_verifications !== 'undefined') {
         setStats(prev => ({
           ...prev,
-          marketerVerifications: response.data.marketer_verifications,
-          adminSuperadminApprovals: response.data.admin_superadmin_approvals
+          marketerVerifications: response.data.marketer_verifications || 0,
+          adminSuperadminApprovals: response.data.admin_superadmin_approvals || 0
         }));
       }
       
       setError(null);
     } catch (err) {
       console.error("Error fetching MasterAdmin submissions:", err);
-      setError("Failed to load submissions.");
+      setError("Failed to load submissions. Please try again.");
       setSubmissions([]);
+      setStats(prev => ({
+        ...prev,
+        marketerVerifications: 0,
+        adminSuperadminApprovals: 0
+      }));
     } finally {
       setLoading(false);
     }
@@ -323,6 +342,17 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
       ))}
     </div>
   );
+
+  // Safety check to prevent crashes
+  if (!submissions && typeof submissions !== 'object') {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">Loading submissions...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
