@@ -1221,6 +1221,122 @@ router.post('/add-missing-workflow-columns', async (req, res) => {
   }
 });
 
+// Add missing deleted column to users table
+router.post('/add-users-deleted-column', async (req, res) => {
+  try {
+    console.log('🔍 Adding missing deleted column to users table...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Check if deleted column exists
+    const columnCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'deleted'
+    `);
+    
+    if (columnCheck.rows.length > 0) {
+      await pool.end();
+      return res.status(200).json({
+        success: true,
+        message: 'deleted column already exists in users table',
+        column: columnCheck.rows[0]
+      });
+    }
+    
+    console.log('🔄 Adding deleted column to users table...');
+    
+    // Add the deleted column
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN deleted BOOLEAN DEFAULT FALSE
+    `);
+    
+    console.log('✅ Added deleted column');
+    
+    // Add deleted_at column as well for consistency
+    try {
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL
+      `);
+      console.log('✅ Added deleted_at column');
+    } catch (error) {
+      if (error.code === '42701') {
+        console.log('⏭️ deleted_at column already exists');
+      } else {
+        console.log('⚠️ Could not add deleted_at column:', error.message);
+      }
+    }
+    
+    // Add deleted_by column
+    try {
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS deleted_by INTEGER NULL
+      `);
+      console.log('✅ Added deleted_by column');
+    } catch (error) {
+      if (error.code === '42701') {
+        console.log('⏭️ deleted_by column already exists');
+      } else {
+        console.log('⚠️ Could not add deleted_by column:', error.message);
+      }
+    }
+    
+    // Create indexes for better performance
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_deleted ON users(deleted)
+      `);
+      console.log('✅ Added deleted index');
+    } catch (error) {
+      console.log('⚠️ Could not add deleted index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at)
+      `);
+      console.log('✅ Added deleted_at index');
+    } catch (error) {
+      console.log('⚠️ Could not add deleted_at index:', error.message);
+    }
+    
+    // Check final table structure
+    const finalCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name IN ('deleted', 'deleted_at', 'deleted_by')
+      ORDER BY column_name
+    `);
+    
+    await pool.end();
+    
+    console.log('🎉 Users table soft delete columns added successfully!');
+    
+    res.json({
+      success: true,
+      message: 'Soft delete columns added to users table successfully',
+      addedColumns: finalCheck.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error adding soft delete columns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add soft delete columns',
+      error: error.message
+    });
+  }
+});
+
 // Create admin verification details table endpoint
 router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
 
