@@ -842,4 +842,49 @@ router.post('/create-admin-verification-table', async (req, res) => {
   }
 });
 
+// Run admin verification table creation script
+router.post('/run-admin-verification-script', async (req, res) => {
+  try {
+    console.log('🔍 Running admin verification table creation script...');
+    
+    // Import and run the script
+    const { exec } = require('child_process');
+    const path = require('path');
+    const scriptPath = path.join(__dirname, '../../create_admin_verification_table.js');
+    
+    exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ Script execution error:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Script execution failed',
+          error: error.message,
+          stderr: stderr
+        });
+      }
+      
+      console.log('✅ Script executed successfully');
+      console.log('STDOUT:', stdout);
+      if (stderr) {
+        console.log('STDERR:', stderr);
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Admin verification table creation script executed successfully',
+        output: stdout,
+        stderr: stderr
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Error running admin verification script:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to run admin verification script.', 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router;
