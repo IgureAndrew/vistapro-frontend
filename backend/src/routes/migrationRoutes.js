@@ -421,4 +421,138 @@ router.post('/fix-workflow-logs', async (req, res) => {
   }
 });
 
+// Fix Bayo Lawal's verification submission
+router.post('/fix-bayo-verification', async (req, res) => {
+  try {
+    console.log('🔍 Fixing Bayo Lawal verification submission...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Find Bayo Lawal
+    const userQuery = `
+      SELECT id, unique_id, first_name, last_name, email, admin_id, super_admin_id
+      FROM users 
+      WHERE (first_name ILIKE '%bayo%' AND last_name ILIKE '%lawal%') OR email = 'lawal@gmail.com'
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `;
+    
+    const userResult = await pool.query(userQuery);
+    
+    if (userResult.rows.length === 0) {
+      await pool.end();
+      return res.status(404).json({
+        success: false,
+        message: 'Bayo Lawal not found'
+      });
+    }
+    
+    const bayo = userResult.rows[0];
+    console.log(`👤 Found Bayo Lawal: ${bayo.first_name} ${bayo.last_name} (ID: ${bayo.id})`);
+    console.log(`📋 Admin ID: ${bayo.admin_id}, Super Admin ID: ${bayo.super_admin_id}`);
+    
+    // Check if verification submission exists
+    const submissionQuery = `
+      SELECT id, marketer_id, admin_id, super_admin_id, submission_status, created_at
+      FROM verification_submissions 
+      WHERE marketer_id = $1;
+    `;
+    
+    const submissionResult = await pool.query(submissionQuery, [bayo.id]);
+    console.log(`📊 Verification submissions found: ${submissionResult.rows.length}`);
+    
+    if (submissionResult.rows.length === 0) {
+      // Create verification submission
+      if (!bayo.admin_id) {
+        await pool.end();
+        return res.status(400).json({
+          success: false,
+          message: 'Bayo Lawal has no admin assigned. Cannot create verification submission.',
+          user: {
+            id: bayo.id,
+            unique_id: bayo.unique_id,
+            name: `${bayo.first_name} ${bayo.last_name}`,
+            email: bayo.email,
+            admin_id: bayo.admin_id,
+            super_admin_id: bayo.super_admin_id
+          }
+        });
+      }
+      
+      console.log('🔄 Creating verification submission...');
+      const createSubmissionQuery = `
+        INSERT INTO verification_submissions (marketer_id, admin_id, super_admin_id, submission_status, created_at, updated_at)
+        VALUES ($1, $2, $3, 'pending_marketer_forms', NOW(), NOW())
+        RETURNING id;
+      `;
+      
+      const createResult = await pool.query(createSubmissionQuery, [bayo.id, bayo.admin_id, bayo.super_admin_id]);
+      console.log(`✅ Created verification submission with ID: ${createResult.rows[0].id}`);
+      
+      await pool.end();
+      
+      return res.json({
+        success: true,
+        message: 'Verification submission created successfully!',
+        user: {
+          id: bayo.id,
+          unique_id: bayo.unique_id,
+          name: `${bayo.first_name} ${bayo.last_name}`,
+          email: bayo.email,
+          admin_id: bayo.admin_id,
+          super_admin_id: bayo.super_admin_id
+        },
+        submission: {
+          id: createResult.rows[0].id,
+          status: 'pending_marketer_forms'
+        }
+      });
+    } else {
+      // Update existing submission
+      console.log('🔄 Updating existing verification submission...');
+      const updateSubmissionQuery = `
+        UPDATE verification_submissions 
+        SET admin_id = $2, super_admin_id = $3, updated_at = NOW()
+        WHERE marketer_id = $1
+        RETURNING id, submission_status;
+      `;
+      
+      const updateResult = await pool.query(updateSubmissionQuery, [bayo.id, bayo.admin_id, bayo.super_admin_id]);
+      console.log(`✅ Updated verification submission`);
+      
+      await pool.end();
+      
+      return res.json({
+        success: true,
+        message: 'Verification submission updated successfully!',
+        user: {
+          id: bayo.id,
+          unique_id: bayo.unique_id,
+          name: `${bayo.first_name} ${bayo.last_name}`,
+          email: bayo.email,
+          admin_id: bayo.admin_id,
+          super_admin_id: bayo.super_admin_id
+        },
+        submission: {
+          id: updateResult.rows[0].id,
+          status: updateResult.rows[0].submission_status
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error fixing Bayo verification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fix Bayo verification',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
