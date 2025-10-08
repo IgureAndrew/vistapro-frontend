@@ -425,14 +425,19 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
       );
       console.log(`✅ User status updated:`, userUpdateResult.rows[0]);
 
-      // Log the status change
-      await pool.query(
+      // Log the status change - handle case where verification_submission might not exist
+      try {
+        const workflowLogResult = await pool.query(
         `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes)
          SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
          FROM verification_submissions WHERE marketer_id = $1`,
         [marketerId]
       );
-      console.log(`✅ Workflow log created`);
+        console.log(`✅ Workflow log created`);
+      } catch (workflowError) {
+        console.log(`⚠️ Could not create workflow log (verification_submission might not exist):`, workflowError.message);
+        // Continue without failing - this is not critical for form submission
+      }
 
       // Notify marketer about status change
       await notifyMarketerOfStatusChange(
@@ -622,20 +627,6 @@ const submitBiodata = async (req, res, next) => {
       return next(error);
     }
 
-    // Mark flag true
-    const updatedUserResult = await pool.query(
-      "UPDATE users SET bio_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
-      [marketerUniqueId]
-    );
-    
-    if (updatedUserResult.rows.length === 0) {
-      console.error('❌ Failed to update user bio_submitted flag - user not found');
-      return res.status(500).json({
-        message: "Failed to update user status. Please try again.",
-        error: "User update failed"
-      });
-    }
-
     // Get marketer's ID and admin_id for workflow
     const marketerInfo = await pool.query(
       'SELECT id, admin_id FROM users WHERE unique_id = $1',
@@ -650,19 +641,33 @@ const submitBiodata = async (req, res, next) => {
       
       // Check if all forms are completed and update workflow status
       await checkAndUpdateWorkflowStatus(marketerId);
+      
+      // Only mark as submitted if all workflow logic succeeds
+      const updatedUserResult = await pool.query(
+        "UPDATE users SET bio_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
+        [marketerUniqueId]
+      );
+      
+      if (updatedUserResult.rows.length === 0) {
+        console.error('❌ Failed to update user bio_submitted flag - user not found');
+        return res.status(500).json({
+          message: "Failed to update user status. Please try again.",
+          error: "User update failed"
+        });
+      }
+      
+      // Notify marketer about biodata form submission
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'pending_forms', 
+        'Biodata form submitted successfully! Please continue with the remaining forms.'
+      );
     }
-
-    // Notify marketer about biodata form submission
-    await notifyMarketerOfStatusChange(
-      marketerId, 
-      'pending_forms', 
-      'Biodata form submitted successfully! Please continue with the remaining forms.'
-    );
 
     res.status(201).json({
       message: "Biodata submitted successfully.",
       biodata: result.rows[0],
-      updatedUser: updatedUserResult.rows[0],
+      updatedUser: marketerInfo.rows.length > 0 ? (await pool.query("SELECT * FROM users WHERE unique_id = $1", [marketerUniqueId])).rows[0] : null,
     });
   } catch (error) {
     next(error);
@@ -692,6 +697,34 @@ const submitGuarantor = async (req, res, next) => {
       guarantor_home_address, guarantor_office_address,
       guarantor_email, guarantor_phone, candidate_name
     } = req.body;
+
+    // Validate and convert known_duration to integer
+    let parsedKnownDuration;
+    if (known_duration) {
+      // If it's already a number, use it
+      if (typeof known_duration === 'number') {
+        parsedKnownDuration = known_duration;
+      } else {
+        // If it's a string, try to extract the number
+        const match = known_duration.toString().match(/(\d+)/);
+        if (match) {
+          parsedKnownDuration = parseInt(match[1], 10);
+        } else {
+          return res.status(400).json({
+            field: "known_duration",
+            message: "Please enter a valid number of years (e.g., 4, 5, 3)"
+          });
+        }
+      }
+      
+      // Validate minimum duration (3 years)
+      if (parsedKnownDuration < 3) {
+        return res.status(400).json({
+          field: "known_duration",
+          message: "You must have known the candidate for at least 3 years"
+        });
+      }
+    }
 
     let identificationFileUrl = null;
     let signatureUrl = null;
@@ -765,23 +798,30 @@ const submitGuarantor = async (req, res, next) => {
         marketer_id, is_candidate_well_known, relationship,
         known_duration, occupation,
         id_document_url, passport_photo_url, signature_url,
-        created_at, updated_at
+        means_of_identification, guarantor_full_name, guarantor_email,
+        guarantor_phone, guarantor_home_address, guarantor_office_address,
+        candidate_name, created_at, updated_at
       ) VALUES (
         (SELECT id FROM users WHERE unique_id = $1), $2, $3,
         $4, $5,
         $6, $7, $8,
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        $9, $10, $11,
+        $12, $13, $14,
+        $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       RETURNING *;
     `;
     const values = [
       marketerUniqueId, is_candidate_known, relationship,
-      known_duration, occupation,
-      identificationFileUrl, identificationFileUrl, signatureUrl
+      parsedKnownDuration, occupation,
+      identificationFileUrl, identificationFileUrl, signatureUrl,
+      means_of_identification, guarantor_full_name, guarantor_email,
+      guarantor_phone, guarantor_home_address, guarantor_office_address,
+      candidate_name
     ];
 
     console.log('📝 Inserting guarantor data:', { insertQuery, values });
-    
+
     let result;
     try {
       result = await pool.query(insertQuery, values);
@@ -800,19 +840,6 @@ const submitGuarantor = async (req, res, next) => {
       return next(error);
     }
 
-    const updatedUserResult = await pool.query(
-      "UPDATE users SET guarantor_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
-      [marketerUniqueId]
-    );
-    
-    if (updatedUserResult.rows.length === 0) {
-      console.error('❌ Failed to update user guarantor_submitted flag - user not found');
-      return res.status(500).json({
-        message: "Failed to update user status. Please try again.",
-        error: "User update failed"
-      });
-    }
-
     // Get marketer's ID and admin_id for workflow
     const marketerInfo = await pool.query(
       'SELECT id, admin_id FROM users WHERE unique_id = $1',
@@ -827,19 +854,33 @@ const submitGuarantor = async (req, res, next) => {
       
       // Check if all forms are completed and update workflow status
       await checkAndUpdateWorkflowStatus(marketerId);
+      
+      // Only mark as submitted if all workflow logic succeeds
+      const updatedUserResult = await pool.query(
+        "UPDATE users SET guarantor_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
+        [marketerUniqueId]
+      );
+      
+      if (updatedUserResult.rows.length === 0) {
+        console.error('❌ Failed to update user guarantor_submitted flag - user not found');
+        return res.status(500).json({
+          message: "Failed to update user status. Please try again.",
+          error: "User update failed"
+        });
+      }
+      
+      // Notify marketer about guarantor form submission
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'pending_forms', 
+        'Guarantor form submitted successfully! Please continue with the remaining forms.'
+      );
     }
-
-    // Notify marketer about guarantor form submission
-    await notifyMarketerOfStatusChange(
-      marketerId, 
-      'pending_forms', 
-      'Guarantor form submitted successfully! Please continue with the remaining forms.'
-    );
 
     res.status(201).json({
       message: "Guarantor form submitted successfully.",
       guarantor: result.rows[0],
-      updatedUser: updatedUserResult.rows[0],
+      updatedUser: marketerInfo.rows.length > 0 ? (await pool.query("SELECT * FROM users WHERE unique_id = $1", [marketerUniqueId])).rows[0] : null,
     });
   } catch (error) {
     next(error);
@@ -1012,22 +1053,6 @@ const submitCommitment = async (req, res, next) => {
       return next(error);
     }
 
-    console.log('🔄 Updating user commitment_submitted flag...');
-    const updatedUserResult = await pool.query(
-      "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
-      [marketerUniqueId]
-    );
-    
-    if (updatedUserResult.rows.length === 0) {
-      console.error('❌ Failed to update user commitment_submitted flag - user not found');
-      return res.status(500).json({
-        message: "Failed to update user status. Please try again.",
-        error: "User update failed"
-      });
-    }
-    
-    console.log('✅ User commitment_submitted flag updated successfully');
-
     // Get marketer's ID and admin_id for workflow
     console.log('🔍 Getting marketer info for workflow...');
     const marketerInfo = await pool.query(
@@ -1046,7 +1071,23 @@ const submitCommitment = async (req, res, next) => {
       // Check if all forms are completed and update workflow status
       console.log('🔄 Checking workflow status...');
       await checkAndUpdateWorkflowStatus(marketerId);
-    }
+      
+      // Only mark as submitted if all workflow logic succeeds
+      console.log('🔄 Updating user commitment_submitted flag...');
+      const updatedUserResult = await pool.query(
+        "UPDATE users SET commitment_submitted = TRUE, updated_at = NOW() WHERE unique_id = $1 RETURNING *",
+        [marketerUniqueId]
+      );
+      
+      if (updatedUserResult.rows.length === 0) {
+        console.error('❌ Failed to update user commitment_submitted flag - user not found');
+        return res.status(500).json({
+          message: "Failed to update user status. Please try again.",
+          error: "User update failed"
+        });
+      }
+      
+      console.log('✅ User commitment_submitted flag updated successfully');
 
     console.log('🔍 Getting final form status...');
     const { bio_submitted, guarantor_submitted, commitment_submitted } =
@@ -1063,21 +1104,22 @@ const submitCommitment = async (req, res, next) => {
         marketerUniqueId,
         "All your forms have been submitted successfully. Your submission is under review and your dashboard is unlocked.",
         req.app
+        );
+      }
+
+      // Notify marketer about commitment form submission
+      await notifyMarketerOfStatusChange(
+        marketerId, 
+        'pending_forms', 
+        'Commitment form submitted successfully! Please continue with the remaining forms.'
       );
     }
-
-    // Notify marketer about commitment form submission
-    await notifyMarketerOfStatusChange(
-      marketerId, 
-      'pending_forms', 
-      'Commitment form submitted successfully! Please continue with the remaining forms.'
-    );
 
     console.log('✅ Commitment form submission completed successfully');
     res.status(201).json({
       message: "Commitment form submitted successfully.",
       commitment: result.rows[0],
-      updatedUser: updatedUserResult.rows[0]
+      updatedUser: marketerInfo.rows.length > 0 ? (await pool.query("SELECT * FROM users WHERE unique_id = $1", [marketerUniqueId])).rows[0] : null
     });
   } catch (error) {
     console.error('❌ Commitment form submission error:', {
@@ -2092,7 +2134,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mb.account_number as biodata_account_number,
         mb.passport_photo_url as biodata_passport_photo,
         mb.created_at as biodata_submitted_at,
-        -- Guarantor form data
+        -- Guarantor form data (new structure)
         mgf.is_candidate_well_known as guarantor_well_known,
         mgf.relationship as guarantor_relationship,
         mgf.known_duration as guarantor_known_duration,
@@ -2101,6 +2143,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
         mgf.passport_photo_url as guarantor_passport_photo,
         mgf.signature_url as guarantor_signature,
         mgf.created_at as guarantor_submitted_at,
+        -- Additional fields from database (new structure with fallback for old data)
+        COALESCE(mgf.means_of_identification, 'Not provided') as guarantor_means_of_identification,
+        COALESCE(mgf.guarantor_full_name, 'Not provided') as guarantor_full_name,
+        COALESCE(mgf.guarantor_email, 'Not provided') as guarantor_email,
+        COALESCE(mgf.guarantor_phone, 'Not provided') as guarantor_phone,
+        COALESCE(mgf.guarantor_home_address, 'Not provided') as guarantor_home_address,
+        COALESCE(mgf.guarantor_office_address, 'Not provided') as guarantor_office_address,
+        COALESCE(mgf.candidate_name, 'Not provided') as candidate_name,
         -- Commitment form data
         mcf.promise_accept_false_documents as commitment_false_docs,
         mcf.promise_not_request_irrelevant_info as commitment_irrelevant_info,
@@ -2136,7 +2186,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
     let submissionsResult;
     try {
       submissionsResult = await pool.query(submissionsQuery, [adminId]);
-      console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
+    console.log(`✅ Found ${submissionsResult.rows.length} submissions`);
       
       if (submissionsResult.rows.length > 0) {
         console.log('🔍 First submission data:', {
@@ -2239,7 +2289,11 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           marketer_name: submissionsResult.rows[0].marketer_name,
           bio_submitted: submissionsResult.rows[0].bio_submitted,
           guarantor_submitted: submissionsResult.rows[0].guarantor_submitted,
-          commitment_submitted: submissionsResult.rows[0].commitment_submitted
+          commitment_submitted: submissionsResult.rows[0].commitment_submitted,
+          guarantor_well_known: submissionsResult.rows[0].guarantor_well_known,
+          guarantor_relationship: submissionsResult.rows[0].guarantor_relationship,
+          guarantor_known_duration: submissionsResult.rows[0].guarantor_known_duration,
+          guarantor_occupation: submissionsResult.rows[0].guarantor_occupation
         });
       }
       
@@ -2247,7 +2301,7 @@ const getSubmissionsForAdmin = async (req, res, next) => {
       for (let i = 0; i < submissionsResult.rows.length; i++) {
         const submission = submissionsResult.rows[i];
         
-        // Try to get guarantor form data
+        // Try to get guarantor form data with enhanced query
         try {
           const guarantorQuery = `
             SELECT 
@@ -2259,14 +2313,14 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               passport_photo_url as guarantor_passport_photo,
               signature_url as guarantor_signature,
               created_at as guarantor_submitted_at,
-              -- Additional fields for frontend compatibility
-              NULL as guarantor_means_of_identification,
-              NULL as guarantor_full_name,
-              NULL as guarantor_email,
-              NULL as guarantor_phone,
-              NULL as guarantor_home_address,
-              NULL as guarantor_office_address,
-              NULL as candidate_name
+              -- New structure fields with fallback for old data
+              COALESCE(means_of_identification, 'Not provided') as guarantor_means_of_identification,
+              COALESCE(guarantor_full_name, 'Not provided') as guarantor_full_name,
+              COALESCE(guarantor_email, 'Not provided') as guarantor_email,
+              COALESCE(guarantor_phone, 'Not provided') as guarantor_phone,
+              COALESCE(guarantor_home_address, 'Not provided') as guarantor_home_address,
+              COALESCE(guarantor_office_address, 'Not provided') as guarantor_office_address,
+              COALESCE(candidate_name, 'Not provided') as candidate_name
             FROM marketer_guarantor_form 
             WHERE marketer_id = $1
             ORDER BY created_at DESC
@@ -2274,18 +2328,19 @@ const getSubmissionsForAdmin = async (req, res, next) => {
           `;
           
           const guarantorResult = await pool.query(guarantorQuery, [submission.marketer_id]);
-          console.log(`🔍 Guarantor query result for marketer ${submission.marketer_id}:`, guarantorResult.rows.length, 'rows');
+          console.log(`🔍 Enhanced guarantor query result for marketer ${submission.marketer_id}:`, guarantorResult.rows.length, 'rows');
           
           if (guarantorResult.rows.length > 0) {
             const guarantorData = guarantorResult.rows[0];
-            console.log(`📋 Guarantor data found:`, guarantorData);
+            console.log(`📋 Enhanced guarantor data found:`, guarantorData);
             submissionsResult.rows[i] = {
               ...submission,
               ...guarantorData
             };
-            console.log(`✅ Added guarantor data for marketer ${submission.marketer_id}`);
+            console.log(`✅ Added enhanced guarantor data for marketer ${submission.marketer_id}`);
           } else {
-            // Add null values for guarantor fields
+            console.log(`⚠️ No guarantor data found for marketer ${submission.marketer_id}`);
+            // Add fallback values for guarantor fields
             submissionsResult.rows[i] = {
               ...submission,
               guarantor_well_known: null,
@@ -2296,18 +2351,18 @@ const getSubmissionsForAdmin = async (req, res, next) => {
               guarantor_passport_photo: null,
               guarantor_signature: null,
               guarantor_submitted_at: null,
-              guarantor_means_of_identification: null,
-              guarantor_full_name: null,
-              guarantor_email: null,
-              guarantor_phone: null,
-              guarantor_home_address: null,
-              guarantor_office_address: null,
-              candidate_name: null
+              guarantor_means_of_identification: 'Not provided',
+              guarantor_full_name: 'Not provided',
+              guarantor_email: 'Not provided',
+              guarantor_phone: 'Not provided',
+              guarantor_home_address: 'Not provided',
+              guarantor_office_address: 'Not provided',
+              candidate_name: 'Not provided'
             };
           }
         } catch (guarantorError) {
-          console.log(`⚠️  Guarantor table not available for marketer ${submission.marketer_id}`);
-          // Add null values for guarantor fields
+          console.log(`⚠️  Guarantor query error for marketer ${submission.marketer_id}:`, guarantorError.message);
+          // Add fallback values for guarantor fields
           submissionsResult.rows[i] = {
             ...submission,
             guarantor_well_known: null,
@@ -2318,13 +2373,13 @@ const getSubmissionsForAdmin = async (req, res, next) => {
             guarantor_passport_photo: null,
             guarantor_signature: null,
             guarantor_submitted_at: null,
-            guarantor_means_of_identification: null,
-            guarantor_full_name: null,
-            guarantor_email: null,
-            guarantor_phone: null,
-            guarantor_home_address: null,
-            guarantor_office_address: null,
-            candidate_name: null
+            guarantor_means_of_identification: 'Not provided',
+            guarantor_full_name: 'Not provided',
+            guarantor_email: 'Not provided',
+            guarantor_phone: 'Not provided',
+            guarantor_home_address: 'Not provided',
+            guarantor_office_address: 'Not provided',
+            candidate_name: 'Not provided'
           };
         }
         
@@ -3112,9 +3167,25 @@ async function uploadAdminVerification(req, res) {
 
     // Check if admin verification details already exist
     const existingDetails = await client.query(
-      'SELECT id FROM admin_verification_details WHERE verification_submission_id = $1',
+      'SELECT id, admin_verification_date FROM admin_verification_details WHERE verification_submission_id = $1',
       [submissionId]
     );
+
+    // If verification already exists and was completed recently, prevent duplicate upload
+    if (existingDetails.rows.length > 0 && existingDetails.rows[0].admin_verification_date) {
+      const verificationDate = new Date(existingDetails.rows[0].admin_verification_date);
+      const now = new Date();
+      const timeDiff = now - verificationDate;
+      const hoursDiff = timeDiff / (1000 * 60 * 60);
+      
+      if (hoursDiff < 1) { // Prevent uploads within 1 hour
+        return res.status(400).json({
+          success: false,
+          message: 'Verification already uploaded recently. Please wait before uploading again.',
+          lastUpload: verificationDate.toISOString()
+        });
+      }
+    }
 
     let insertResult;
     if (existingDetails.rows.length > 0) {
@@ -3125,12 +3196,12 @@ async function uploadAdminVerification(req, res) {
           admin_id = $2,
           marketer_id = $3,
           marketer_address = $4,
-          landmark_description = $5,
-          location_photo_url = $6,
-          admin_marketer_photo_url = $7,
-          verification_notes = $8,
-          admin_verification_date = NOW(),
+          location_photo_url = $5,
+          admin_marketer_photo_url = $6,
+          verification_notes = $7,
+          landmark_description = $8,
           additional_documents = $9::jsonb,
+          admin_verification_date = NOW(),
           updated_at = NOW()
         WHERE verification_submission_id = $1
         RETURNING *
@@ -3141,11 +3212,15 @@ async function uploadAdminVerification(req, res) {
         adminId,
         submission.marketer_id,
         submission.marketer_location || 'Not provided',
-        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
-        uploadedFiles.location_photos ? uploadedFiles.location_photos[0] : null,
-        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos[0] : null,
+        uploadedFiles.location_photos ? uploadedFiles.location_photos.join(', ') : null,
+        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos.join(', ') : null,
         verificationNotes || null,
-        uploadedFiles.location_photos ? JSON.stringify(uploadedFiles.location_photos) : null
+        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
+        JSON.stringify({
+          location_photos: uploadedFiles.location_photos || [],
+          admin_marketer_photos: uploadedFiles.admin_marketer_photos || [],
+          landmark_photos: uploadedFiles.landmark_photos || []
+        })
       ];
 
       try {
@@ -3164,26 +3239,29 @@ async function uploadAdminVerification(req, res) {
         admin_id,
         marketer_id,
         marketer_address,
-        landmark_description,
         location_photo_url,
         admin_marketer_photo_url,
         verification_notes,
-        admin_verification_date,
+        landmark_description,
         additional_documents
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9::jsonb)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
       RETURNING *
     `;
 
       const insertValues = [
-      submissionId,
-      adminId,
-      submission.marketer_id,
+        submissionId,
+        adminId,
+        submission.marketer_id,
         submission.marketer_location || 'Not provided',
-      uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
-      uploadedFiles.location_photos ? uploadedFiles.location_photos[0] : null,
-      uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos[0] : null,
-      verificationNotes || null,
-      uploadedFiles.location_photos ? JSON.stringify(uploadedFiles.location_photos) : null
+        uploadedFiles.location_photos ? uploadedFiles.location_photos.join(', ') : null,
+        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos.join(', ') : null,
+        verificationNotes || null,
+        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
+        JSON.stringify({
+          location_photos: uploadedFiles.location_photos || [],
+          admin_marketer_photos: uploadedFiles.admin_marketer_photos || [],
+          landmark_photos: uploadedFiles.landmark_photos || []
+        })
       ];
 
       try {
@@ -3255,10 +3333,33 @@ async function uploadAdminVerification(req, res) {
 
   } catch (error) {
     console.error('❌ Error uploading admin verification:', error);
-    res.status(500).json({ 
+    
+    // Provide specific error messages based on error type
+    let errorMessage = 'Failed to upload verification details';
+    let statusCode = 500;
+    
+    if (error.code === '42P01') {
+      errorMessage = 'Database table missing. Please contact support.';
+      statusCode = 500;
+    } else if (error.code === '23503') {
+      errorMessage = 'Invalid reference data. Please check your information.';
+      statusCode = 400;
+    } else if (error.code === '23505') {
+      errorMessage = 'Duplicate verification detected. Please refresh and try again.';
+      statusCode = 400;
+    } else if (error.message.includes('Cloudinary')) {
+      errorMessage = 'Image upload failed. Please check your images and try again.';
+      statusCode = 400;
+    } else if (error.message.includes('verification_submission_id')) {
+      errorMessage = 'Invalid submission ID. Please refresh the page and try again.';
+      statusCode = 400;
+    }
+    
+    res.status(statusCode).json({ 
       success: false, 
-      message: 'Failed to upload verification details',
-      error: error.message 
+      message: errorMessage,
+      error: error.message,
+      code: error.code
     });
   } finally {
     client.release();
@@ -4269,6 +4370,68 @@ const getRawFormData = async (req, res, next) => {
   }
 };
 
+// Reset all forms for a marketer (for testing/fresh start)
+const resetAllForms = async (req, res, next) => {
+  try {
+    const marketerUniqueId = req.user.unique_id;
+    const marketerId = req.user.id;
+    
+    console.log(`🔄 Resetting all forms for marketer ${marketerUniqueId} (ID: ${marketerId})`);
+    
+    // Reset user flags
+    await pool.query(
+      `UPDATE users SET 
+        bio_submitted = FALSE,
+        guarantor_submitted = FALSE,
+        commitment_submitted = FALSE,
+        overall_verification_status = NULL,
+        updated_at = NOW()
+       WHERE unique_id = $1`,
+      [marketerUniqueId]
+    );
+    
+    // Delete form records
+    await pool.query(
+      'DELETE FROM marketer_biodata WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    await pool.query(
+      'DELETE FROM marketer_guarantor_form WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    await pool.query(
+      'DELETE FROM direct_sales_commitment_form WHERE marketer_unique_id = $1',
+      [marketerUniqueId]
+    );
+    
+    // Delete verification submission records
+    await pool.query(
+      'DELETE FROM verification_submissions WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    // Delete workflow logs
+    await pool.query(
+      'DELETE FROM verification_workflow_logs WHERE marketer_id = $1',
+      [marketerId]
+    );
+    
+    console.log(`✅ All forms reset for marketer ${marketerUniqueId}`);
+    
+    res.json({
+      success: true,
+      message: "All forms have been reset successfully. You can now start the verification process from the beginning.",
+      resetAt: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resetting forms:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitBiodata,
   submitGuarantor,
@@ -4299,5 +4462,6 @@ module.exports = {
   fixUserFormFlags,
   getRawFormData,
   testFormSubmission,
+  resetAllForms,
 };
 

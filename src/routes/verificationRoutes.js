@@ -43,6 +43,7 @@ const {
   getAdminAssignmentInfo,
   fixUserFormFlags,
   testFormSubmission,
+  resetAllForms,
 } = require("../controllers/verificationController");
 
 /** *********************** Submission Endpoints *************************/
@@ -338,6 +339,98 @@ router.get(
       res.status(500).json({
         success: false,
         message: "Connection test failed",
+        error: error.message
+      });
+    }
+  }
+);
+
+// Reset all forms for a marketer (for testing/fresh start)
+router.post(
+  "/reset-all-forms",
+  verifyToken,
+  verifyRole(["Marketer"]),
+  resetAllForms
+);
+
+// Emergency reset endpoint (no auth required for testing)
+router.post(
+  "/emergency-reset/:marketerUniqueId",
+  async (req, res, next) => {
+    try {
+      const { marketerUniqueId } = req.params;
+      
+      console.log(`🚨 Emergency reset for marketer ${marketerUniqueId}`);
+      
+      // Get marketer ID
+      const marketerResult = await pool.query(
+        'SELECT id FROM users WHERE unique_id = $1',
+        [marketerUniqueId]
+      );
+      
+      if (marketerResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Marketer not found'
+        });
+      }
+      
+      const marketerId = marketerResult.rows[0].id;
+      
+      // Reset user flags
+      await pool.query(
+        `UPDATE users SET 
+          bio_submitted = FALSE,
+          guarantor_submitted = FALSE,
+          commitment_submitted = FALSE,
+          overall_verification_status = NULL,
+          updated_at = NOW()
+         WHERE unique_id = $1`,
+        [marketerUniqueId]
+      );
+      
+      // Delete form records
+      await pool.query(
+        'DELETE FROM marketer_biodata WHERE marketer_unique_id = $1',
+        [marketerUniqueId]
+      );
+      
+      await pool.query(
+        'DELETE FROM marketer_guarantor_form WHERE marketer_id = $1',
+        [marketerId]
+      );
+      
+      await pool.query(
+        'DELETE FROM direct_sales_commitment_form WHERE marketer_unique_id = $1',
+        [marketerUniqueId]
+      );
+      
+      // Delete verification submission records
+      await pool.query(
+        'DELETE FROM verification_submissions WHERE marketer_id = $1',
+        [marketerId]
+      );
+      
+      // Delete workflow logs
+      await pool.query(
+        'DELETE FROM verification_workflow_logs WHERE marketer_id = $1',
+        [marketerId]
+      );
+      
+      console.log(`✅ Emergency reset completed for marketer ${marketerUniqueId}`);
+      
+      res.json({
+        success: true,
+        message: "All forms have been reset successfully via emergency endpoint.",
+        marketerUniqueId: marketerUniqueId,
+        resetAt: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('❌ Error in emergency reset:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error resetting forms",
         error: error.message
       });
     }
