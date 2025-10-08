@@ -1,6 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const router = express.Router();
+const createAdminVerificationTableEndpoint = require('../../create_admin_table_endpoint');
 
 // Production migration endpoint
 router.post('/guarantor-structure', async (req, res) => {
@@ -911,5 +912,7 @@ router.post('/create-admin-table-simple', async (req, res) => {
   }
 });
 
+// Create admin verification details table endpoint
+router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
 
 module.exports = router;
