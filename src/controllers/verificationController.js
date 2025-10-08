@@ -2553,13 +2553,13 @@ const getSubmissionsForSuperAdmin = async (req, res, next) => {
         
         // Fetch guarantor details
         const guarantorResult = await pool.query(
-          `SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM marketer_guarantor_form WHERE marketer_id = $1 ORDER BY created_at DESC LIMIT 1`,
           [marketerId]
         );
         
         // Fetch commitment details
         const commitmentResult = await pool.query(
-          `SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM direct_sales_commitment_form WHERE marketer_id = $1 ORDER BY created_at DESC LIMIT 1`,
           [marketerId]
         );
         
