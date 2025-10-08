@@ -401,7 +401,7 @@ router.post(
       );
       
       await pool.query(
-        'DELETE FROM direct_sales_commitment_form WHERE marketer_unique_id = $1',
+        'DELETE FROM marketer_commitment_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)',
         [marketerUniqueId]
       );
       

@@ -890,7 +890,7 @@ const submitGuarantor = async (req, res, next) => {
 
 /**
  * submitCommitment
- * Inserts a new record into the direct_sales_commitment_form table and updates the marketer's flag.
+ * Inserts a new record into the marketer_commitment_form table and updates the marketer's flag.
  * Expects text fields in req.body and a file upload via multer (as a buffer) under the field "signature".
  * Uses the marketer's unique ID from req.user.unique_id.
  */
@@ -1044,7 +1044,7 @@ const submitCommitment = async (req, res, next) => {
         detail: error.detail
       });
       
-      if (error.code === "23505" && error.constraint === "direct_sales_commitment_form_direct_sales_rep_name_key") {
+      if (error.code === "23505" && error.constraint === "marketer_commitment_form_direct_sales_rep_name_key") {
         return res.status(400).json({
           field: "direct_sales_rep_name",
           message: "That Direct Sales Rep name has already been used."
@@ -1158,7 +1158,7 @@ const allowRefillForm = async (req, res, next) => {
       tableName = "guarantor_employment_form";
       flagName = "guarantor_submitted";
     } else if (formType.toLowerCase() === "commitment") {
-      tableName = "direct_sales_commitment_form";
+      tableName = "marketer_commitment_form";
       flagName = "commitment_submitted";
     } else {
       return res.status(400).json({ message: "Invalid form type provided." });
@@ -1673,7 +1673,7 @@ const deleteCommitmentSubmission = async (req, res, next) => {
 
     // 1) Delete the commitment record
     const deleteResult = await pool.query(
-      "DELETE FROM direct_sales_commitment_form WHERE id = $1 RETURNING *",
+      "DELETE FROM marketer_commitment_form WHERE id = $1 RETURNING *",
       [submissionId]
     );
     if (deleteResult.rowCount === 0) {
@@ -1804,8 +1804,8 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
             
             // Get commitment form
             const commitmentResult = await pool.query(`
-              SELECT * FROM direct_sales_commitment_form 
-              WHERE marketer_unique_id = $1 
+              SELECT * FROM marketer_commitment_form 
+              WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
               ORDER BY created_at DESC LIMIT 1
             `, [submission.marketer_unique_id]);
             
@@ -1954,7 +1954,7 @@ const getApprovedSubmissionsForMasterAdmin = async (req, res, next) => {
           
           // Get commitment form
           const commitmentResult = await pool.query(
-            "SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = $1",
+            "SELECT * FROM marketer_commitment_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)",
             [submission.marketer_unique_id]
           );
           
@@ -2559,7 +2559,7 @@ const getSubmissionsForSuperAdmin = async (req, res, next) => {
         
         // Fetch commitment details
         const commitmentResult = await pool.query(
-          `SELECT * FROM direct_sales_commitment_form WHERE marketer_id = $1 ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM marketer_commitment_form WHERE marketer_id = $1 ORDER BY created_at DESC LIMIT 1`,
           [marketerId]
         );
         
@@ -4402,7 +4402,7 @@ const resetAllForms = async (req, res, next) => {
     );
     
     await pool.query(
-      'DELETE FROM direct_sales_commitment_form WHERE marketer_unique_id = $1',
+      'DELETE FROM marketer_commitment_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)',
       [marketerUniqueId]
     );
     
