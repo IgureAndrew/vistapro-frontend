@@ -428,8 +428,8 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
       // Log the status change - handle case where verification_submission might not exist
       try {
         const workflowLogResult = await pool.query(
-        `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes)
-         SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
+        `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, marketer_id)
+         SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer', $1
          FROM verification_submissions WHERE marketer_id = $1`,
         [marketerId]
       );
@@ -1325,10 +1325,10 @@ const superadminVerify = async (req, res, next) => {
     await pool.query(
       `INSERT INTO verification_workflow_logs (
         verification_submission_id, action_by, action_by_role, action_type,
-        action_description, previous_status, new_status, notes, created_at
+        action_description, previous_status, new_status, notes, created_at, marketer_id
       ) VALUES (
         (SELECT id FROM verification_submissions WHERE marketer_id = $1),
-        $2, $3, $4, $5, $6, $7, $8, NOW()
+        $2, $3, $4, $5, $6, $7, $8, NOW(), $1
       )`,
       [
         marketer.id,
@@ -1338,7 +1338,8 @@ const superadminVerify = async (req, res, next) => {
         'SuperAdmin completed verification review', // action_description
         'awaiting_superadmin_validation', // previous_status
         overallStatus, // new_status
-        superadmin_review_report || 'SuperAdmin verification completed' // notes
+        superadmin_review_report || 'SuperAdmin verification completed', // notes
+        marketer.id // marketer_id
       ]
     );
     
@@ -1503,9 +1504,9 @@ const masterApprove = async (req, res, next) => {
     await pool.query(
       `INSERT INTO verification_workflow_logs (
         verification_submission_id, action_by, action_by_role, action_type, 
-        previous_status, new_status, notes, created_at
+        previous_status, new_status, notes, created_at, marketer_id
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, NOW()
+        $1, $2, $3, $4, $5, $6, $7, NOW(), $8
       )`,
       [
         submissionId,
@@ -1514,7 +1515,8 @@ const masterApprove = async (req, res, next) => {
         `masteradmin_${action}`,
         'pending_masteradmin_approval',
         newUserStatus,
-        reason
+        reason,
+        submission.marketer_id // Add the missing marketer_id
       ]
     );
     
@@ -3257,13 +3259,13 @@ async function uploadAdminVerification(req, res) {
     `;
 
       const insertValues = [
-        submissionId,
-        adminId,
-        submission.marketer_id,
+      submissionId,
+      adminId,
+      submission.marketer_id,
         submission.marketer_location || 'Not provided',
         uploadedFiles.location_photos ? uploadedFiles.location_photos.join(', ') : null,
         uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos.join(', ') : null,
-        verificationNotes || null,
+      verificationNotes || null,
         uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
         JSON.stringify({
           location_photos: uploadedFiles.location_photos || [],
@@ -3309,8 +3311,8 @@ async function uploadAdminVerification(req, res) {
     try {
       await client.query(
         `INSERT INTO verification_workflow_logs 
-         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at, marketer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
         [
           submissionId,
           adminId,
@@ -3319,7 +3321,8 @@ async function uploadAdminVerification(req, res) {
           'Admin uploaded verification files and photos',
           submission.submission_status,
           submission.submission_status, // Status remains the same
-          JSON.stringify(workflowLogDetails)
+          JSON.stringify(workflowLogDetails),
+          submission.marketer_id
         ]
       );
       console.log(`✅ File upload action logged successfully`);
@@ -3485,8 +3488,8 @@ const verifyAndSendToSuperAdmin = async (req, res) => {
     try {
       await client.query(
         `INSERT INTO verification_workflow_logs 
-         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at, marketer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
         [
           submissionId,
           adminId,
@@ -3495,7 +3498,8 @@ const verifyAndSendToSuperAdmin = async (req, res) => {
           'Admin verified and sent submission to SuperAdmin',
           submission.submission_status,
           'pending_superadmin_review',
-          JSON.stringify(workflowLogDetails)
+          JSON.stringify(workflowLogDetails),
+          submission.marketer_id
         ]
       );
       console.log(`✅ Verify and send action logged successfully`);
@@ -3624,8 +3628,8 @@ const resetSubmissionStatus = async (req, res) => {
     try {
       await client.query(
         `INSERT INTO verification_workflow_logs 
-         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at, marketer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
         [
           submissionId,
           adminId,
@@ -3634,7 +3638,8 @@ const resetSubmissionStatus = async (req, res) => {
           'Admin reset submission status for testing purposes',
           submission.submission_status,
           'pending_admin_review',
-          JSON.stringify(workflowLogDetails)
+          JSON.stringify(workflowLogDetails),
+          submission.marketer_id
         ]
       );
       console.log(`✅ Reset action logged successfully`);
