@@ -32,6 +32,11 @@ import { format } from "date-fns";
 const API_URL = import.meta.env.VITE_API_URL;
 
 const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
+  // Helper function to safely get form field values
+  const getFormField = (form, field) => {
+    return form?.[field] || 'N/A';
+  };
+
   const [submissions, setSubmissions] = useState([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -819,113 +824,113 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.name || 'N/A'}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.phone}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.phone || 'N/A'}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Address</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.address}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.address || 'N/A'}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Religion</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.religion}</p>
+                        <p className="text-gray-900 dark:text-white">{getFormField(selectedSubmission.biodata, 'religion')}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date of Birth</label>
                         <p className="text-gray-900 dark:text-white">
-                          {selectedSubmission.biodata.date_of_birth ? 
-                            format(new Date(selectedSubmission.biodata.date_of_birth), 'MMM dd, yyyy') : 
+                          {selectedSubmission.biodata?.date_of_birth ? 
+                            format(new Date(selectedSubmission.biodata?.date_of_birth), 'MMM dd, yyyy') : 
                             'N/A'
                           }
                         </p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Marital Status</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.marital_status}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.marital_status}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">State of Origin</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.state_of_origin}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.state_of_origin}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">State of Residence</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.state_of_residence}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.state_of_residence}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Mother's Maiden Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.mothers_maiden_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.mothers_maiden_name}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">School Attended</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.school_attended}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.school_attended}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Means of Identification</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.means_of_identification}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.means_of_identification}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Place of Work</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.last_place_of_work}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.last_place_of_work}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Job Description</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.job_description}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.job_description}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Reason for Quitting</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.reason_for_quitting}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.reason_for_quitting}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Medical Condition</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.medical_condition}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.medical_condition}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Next of Kin Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.next_of_kin_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.next_of_kin_name}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Next of Kin Phone</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.next_of_kin_phone}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.next_of_kin_phone}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Next of Kin Address</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.next_of_kin_address}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.next_of_kin_address}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Next of Kin Relationship</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.next_of_kin_relationship}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.next_of_kin_relationship}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Bank Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.bank_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.bank_name}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Account Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.account_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.account_name}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Account Number</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata.account_number}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.biodata?.account_number}</p>
                       </div>
                     </div>
-                    {selectedSubmission.biodata.id_document_url && (
+                    {selectedSubmission.biodata?.id_document_url && (
                       <div className="mt-4">
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">ID Document</label>
                         <img
-                          src={selectedSubmission.biodata.id_document_url}
+                          src={selectedSubmission.biodata?.id_document_url}
                           alt="ID Document"
                           className="w-full h-48 object-cover rounded-lg mt-2"
                         />
                       </div>
                     )}
-                    {selectedSubmission.biodata.passport_photo_url && (
+                    {selectedSubmission.biodata?.passport_photo_url && (
                       <div className="mt-4">
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Passport Photo</label>
                         <img
-                          src={selectedSubmission.biodata.passport_photo_url}
+                          src={selectedSubmission.biodata?.passport_photo_url}
                           alt="Passport Photo"
                           className="w-full h-48 object-cover rounded-lg mt-2"
                         />
@@ -944,65 +949,65 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Is Candidate Known</label>
                         <p className="text-gray-900 dark:text-white">
-                          {selectedSubmission.guarantor.is_candidate_known ? 'Yes' : 'No'}
+                          {selectedSubmission.guarantor?.is_candidate_known ? 'Yes' : 'No'}
                         </p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Relationship</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.relationship}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.relationship}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Known Duration</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.known_duration}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.known_duration}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Occupation</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.occupation}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.occupation}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Means of Identification</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.means_of_identification}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.means_of_identification}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Guarantor Full Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.guarantor_full_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.guarantor_full_name}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Guarantor Home Address</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.guarantor_home_address}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.guarantor_home_address}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Guarantor Office Address</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.guarantor_office_address}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.guarantor_office_address}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Guarantor Email</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.guarantor_email}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.guarantor_email}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Guarantor Phone</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.guarantor_phone}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.guarantor_phone}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Candidate Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor.candidate_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.guarantor?.candidate_name}</p>
                       </div>
                     </div>
-                    {selectedSubmission.guarantor.identification_file_url && (
+                    {selectedSubmission.guarantor?.identification_file_url && (
                       <div className="mt-4">
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Identification Document</label>
                         <img
-                          src={selectedSubmission.guarantor.identification_file_url}
+                          src={selectedSubmission.guarantor?.identification_file_url}
                           alt="Identification Document"
                           className="w-full h-48 object-cover rounded-lg mt-2"
                         />
                       </div>
                     )}
-                    {selectedSubmission.guarantor.signature_url && (
+                    {selectedSubmission.guarantor?.signature_url && (
                       <div className="mt-4">
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Signature</label>
                         <img
-                          src={selectedSubmission.guarantor.signature_url}
+                          src={selectedSubmission.guarantor?.signature_url}
                           alt="Signature"
                           className="w-full h-48 object-cover rounded-lg mt-2"
                         />
@@ -1022,89 +1027,89 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise to Accept False Documents</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_accept_false_documents ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_accept_false_documents ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Request Unrelated Info</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_request_unrelated_info ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_request_unrelated_info ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Charge Customer Fees</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_charge_customer_fees ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_charge_customer_fees ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Modify Contract Info</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_modify_contract_info ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_modify_contract_info ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Sell Unapproved Phones</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_sell_unapproved_phones ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_sell_unapproved_phones ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Make Unofficial Commitment</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_make_unofficial_commitment ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_make_unofficial_commitment ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Operate Customer Account</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_operate_customer_account ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_operate_customer_account ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise to Accept Fraud Firing</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_accept_fraud_firing ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_accept_fraud_firing ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise Not to Share Company Info</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_not_share_company_info ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_not_share_company_info ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise to Ensure Loan Recovery</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_ensure_loan_recovery ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_ensure_loan_recovery ? 'Yes' : 'No'}
                           </p>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Promise to Abide by System</label>
                           <p className="text-gray-900 dark:text-white">
-                            {selectedSubmission.commitment.promise_abide_by_system ? 'Yes' : 'No'}
+                            {selectedSubmission.commitment?.promise_abide_by_system ? 'Yes' : 'No'}
                           </p>
                         </div>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Direct Sales Rep Name</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.commitment.direct_sales_rep_name}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.commitment?.direct_sales_rep_name}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date Signed</label>
                         <p className="text-gray-900 dark:text-white">
-                          {selectedSubmission.commitment.date_signed ? 
-                            format(new Date(selectedSubmission.commitment.date_signed), 'MMM dd, yyyy') : 
+                          {selectedSubmission.commitment?.date_signed ? 
+                            format(new Date(selectedSubmission.commitment?.date_signed), 'MMM dd, yyyy') : 
                             'N/A'
                           }
                         </p>
                       </div>
                     </div>
-                    {selectedSubmission.commitment.direct_sales_rep_signature_url && (
+                    {selectedSubmission.commitment?.direct_sales_rep_signature_url && (
                       <div className="mt-4">
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Signature</label>
                         <img
-                          src={selectedSubmission.commitment.direct_sales_rep_signature_url}
+                          src={selectedSubmission.commitment?.direct_sales_rep_signature_url}
                           alt="Direct Sales Rep Signature"
                           className="w-full h-48 object-cover rounded-lg mt-2"
                         />
@@ -1128,25 +1133,25 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Marketer Address</label>
-                        <p className="text-gray-900 dark:text-white">{selectedSubmission.admin_verification.marketer_address}</p>
+                        <p className="text-gray-900 dark:text-white">{selectedSubmission.admin_verification?.marketer_address}</p>
                       </div>
-                      {selectedSubmission.admin_verification.landmark_description && (
+                      {selectedSubmission.admin_verification?.landmark_description && (
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Landmark Description</label>
-                          <p className="text-gray-900 dark:text-white">{selectedSubmission.admin_verification.landmark_description}</p>
+                          <p className="text-gray-900 dark:text-white">{selectedSubmission.admin_verification?.landmark_description}</p>
                         </div>
                       )}
-                      {selectedSubmission.admin_verification.verification_notes && (
+                      {selectedSubmission.admin_verification?.verification_notes && (
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Admin Notes</label>
-                          <p className="text-gray-900 dark:text-white">{selectedSubmission.admin_verification.verification_notes}</p>
+                          <p className="text-gray-900 dark:text-white">{selectedSubmission.admin_verification?.verification_notes}</p>
                         </div>
                       )}
                       <div>
                         <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Verification Date</label>
                         <p className="text-gray-900 dark:text-white">
-                          {selectedSubmission.admin_verification.admin_verification_date ? 
-                            format(new Date(selectedSubmission.admin_verification.admin_verification_date), 'MMM dd, yyyy HH:mm') : 
+                          {selectedSubmission.admin_verification?.admin_verification_date ? 
+                            format(new Date(selectedSubmission.admin_verification?.admin_verification_date), 'MMM dd, yyyy HH:mm') : 
                             'N/A'
                           }
                         </p>
@@ -1186,21 +1191,21 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                       Verification Photos
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {selectedSubmission.admin_verification.location_photo_url && (
+                      {selectedSubmission.admin_verification?.location_photo_url && (
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Location Photo</label>
                           <img
-                            src={selectedSubmission.admin_verification.location_photo_url}
+                            src={selectedSubmission.admin_verification?.location_photo_url}
                             alt="Location Photo"
                             className="w-full h-48 object-cover rounded-lg mt-2"
                           />
                         </div>
                       )}
-                      {selectedSubmission.admin_verification.admin_marketer_photo_url && (
+                      {selectedSubmission.admin_verification?.admin_marketer_photo_url && (
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Admin & Marketer Photo</label>
                           <img
-                            src={selectedSubmission.admin_verification.admin_marketer_photo_url}
+                            src={selectedSubmission.admin_verification?.admin_marketer_photo_url}
                             alt="Admin and Marketer Photo"
                             className="w-full h-48 object-cover rounded-lg mt-2"
                           />
