@@ -842,46 +842,70 @@ router.post('/create-admin-verification-table', async (req, res) => {
   }
 });
 
-// Run admin verification table creation script
-router.post('/run-admin-verification-script', async (req, res) => {
+// Simple admin verification table creation
+router.post('/create-admin-table-simple', async (req, res) => {
   try {
-    console.log('🔍 Running admin verification table creation script...');
+    console.log('🔍 Creating admin_verification_details table directly...');
     
-    // Import and run the script
-    const { exec } = require('child_process');
-    const path = require('path');
-    const scriptPath = path.join(__dirname, '../../create_admin_verification_table.js');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
     
-    exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
-      if (error) {
-        console.error('❌ Script execution error:', error);
-        return res.status(500).json({
-          success: false,
-          message: 'Script execution failed',
-          error: error.message,
-          stderr: stderr
-        });
-      }
-      
-      console.log('✅ Script executed successfully');
-      console.log('STDOUT:', stdout);
-      if (stderr) {
-        console.log('STDERR:', stderr);
-      }
-      
-      res.status(200).json({
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'admin_verification_details'
+      );
+    `);
+    
+    if (tableCheck.rows[0].exists) {
+      await pool.end();
+      return res.status(200).json({
         success: true,
-        message: 'Admin verification table creation script executed successfully',
-        output: stdout,
-        stderr: stderr
+        message: 'admin_verification_details table already exists'
       });
+    }
+    
+    console.log('🔄 Creating admin_verification_details table...');
+    
+    // Create the table with minimal structure first
+    await pool.query(`
+      CREATE TABLE admin_verification_details (
+        id SERIAL PRIMARY KEY,
+        verification_submission_id INTEGER NOT NULL,
+        admin_id INTEGER NOT NULL,
+        marketer_id INTEGER NOT NULL,
+        marketer_address TEXT NOT NULL,
+        landmark_description TEXT,
+        location_photo_url TEXT,
+        admin_marketer_photo_url TEXT,
+        verification_notes TEXT,
+        admin_verification_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        additional_documents JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    console.log('✅ Created admin_verification_details table');
+    
+    await pool.end();
+    
+    res.status(200).json({
+      success: true,
+      message: 'admin_verification_details table created successfully!'
     });
     
   } catch (error) {
-    console.error('❌ Error running admin verification script:', error);
+    console.error('❌ Error creating admin_verification_details table:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to run admin verification script.', 
+      message: 'Failed to create admin_verification_details table.', 
       error: error.message 
     });
   }
