@@ -36,15 +36,61 @@ async function getAssignedAdmins(superAdminId) {
 }
 
 /**
+ * Get BNPL-specific sales data for a marketer
+ */
+async function getBnplSalesData(userId, bnplPlatform, startDate) {
+  const { rows } = await pool.query(`
+    SELECT COALESCE(SUM(sold_amount), 0) as total_sales
+    FROM orders 
+    WHERE marketer_id = $1 
+      AND status = 'released_confirmed'
+      AND bnpl_platform = $2
+      AND sale_date >= $3::date
+  `, [userId, bnplPlatform, startDate]);
+  
+  return parseFloat(rows[0].total_sales);
+}
+
+/**
+ * Get recruitment data for a user (marketers recruited by an admin/superadmin)
+ */
+async function getRecruitmentData(userId, userRole, startDate) {
+  let query = '';
+  
+  if (userRole === 'Admin') {
+    query = `
+      SELECT COUNT(*) as count
+      FROM users 
+      WHERE admin_id = $1 
+        AND role = 'Marketer'
+        AND created_at >= $2::date
+    `;
+  } else if (userRole === 'SuperAdmin') {
+    query = `
+      SELECT COUNT(*) as count
+      FROM users 
+      WHERE super_admin_id = $1 
+        AND role = 'Admin'
+        AND created_at >= $2::date
+    `;
+  } else {
+    return 0;
+  }
+  
+  const { rows } = await pool.query(query, [userId, startDate]);
+  return parseInt(rows[0].count);
+}
+
+/**
  * Calculate performance for a marketer based on their targets
  */
 async function calculateMarketerPerformance(marketerId) {
   // Get current targets
   const targets = await targetManagementService.getUserTargets(marketerId);
   
-  // Get the numeric user ID for the orders table
+  // Get the numeric user ID and role for the orders table
   const { rows: userData } = await pool.query(`
-    SELECT id FROM users WHERE unique_id = $1
+    SELECT id, role FROM users WHERE unique_id = $1
   `, [marketerId]);
   
   if (userData.length === 0) {
@@ -52,6 +98,7 @@ async function calculateMarketerPerformance(marketerId) {
   }
   
   const userId = userData[0].id;
+  const userRole = userData[0].role;
   
   // Get actual performance data for different periods
   const now = new Date();
@@ -101,35 +148,108 @@ async function calculateMarketerPerformance(marketerId) {
   
   // Calculate performance scores based on targets
   const performance = {
-    weekly: { orders: parseInt(weeklyData.count), sales: parseFloat(weeklyData.total_sales), performance: 0 },
-    monthly: { orders: parseInt(monthlyData.count), sales: parseFloat(monthlyData.total_sales), performance: 0 },
-    quarterly: { orders: parseInt(quarterlyData.count), sales: parseFloat(quarterlyData.total_sales), performance: 0 },
-    overall: { performance: 0, successRate: 0, totalOrders: parseInt(totalData.total_orders), totalSales: parseFloat(totalData.total_sales) }
+    weekly: { 
+      orders: parseInt(weeklyData.count), 
+      sales: parseFloat(weeklyData.total_sales), 
+      performance: 0,
+      targets: []
+    },
+    monthly: { 
+      orders: parseInt(monthlyData.count), 
+      sales: parseFloat(monthlyData.total_sales), 
+      performance: 0,
+      targets: []
+    },
+    quarterly: { 
+      orders: parseInt(quarterlyData.count), 
+      sales: parseFloat(quarterlyData.total_sales), 
+      performance: 0,
+      targets: []
+    },
+    overall: { 
+      performance: 0, 
+      successRate: 0, 
+      totalOrders: parseInt(totalData.total_orders), 
+      totalSales: parseFloat(totalData.total_sales) 
+    }
   };
   
-  // Calculate performance for each period based on targets
-  const weeklyTarget = targets.find(t => t.period_type === 'weekly' && t.target_type_name === 'orders');
-  const monthlyTarget = targets.find(t => t.period_type === 'monthly' && t.target_type_name === 'orders');
-  const quarterlyTarget = targets.find(t => t.period_type === 'quarterly' && t.target_type_name === 'orders');
+  // Helper function to calculate performance against a single target
+  const calculateTargetPerformance = (actual, target) => {
+    if (!target || target.target_value === 0) return 0;
+    return Math.min(100, Math.round((actual / target.target_value) * 100));
+  };
   
-  if (weeklyTarget) {
-    performance.weekly.target = weeklyTarget.target_value;
-    performance.weekly.performance = Math.min(100, Math.round((performance.weekly.orders / weeklyTarget.target_value) * 100));
-  }
+  // Calculate performance for each period based on ALL target types
+  const periods = ['weekly', 'monthly', 'quarterly'];
+  const periodStartDates = {
+    weekly: weekStart.toISOString().split('T')[0],
+    monthly: monthStart.toISOString().split('T')[0],
+    quarterly: quarterStart.toISOString().split('T')[0]
+  };
   
-  if (monthlyTarget) {
-    performance.monthly.target = monthlyTarget.target_value;
-    performance.monthly.performance = Math.min(100, Math.round((performance.monthly.orders / monthlyTarget.target_value) * 100));
-  }
-  
-  if (quarterlyTarget) {
-    performance.quarterly.target = quarterlyTarget.target_value;
-    performance.quarterly.performance = Math.min(100, Math.round((performance.quarterly.orders / quarterlyTarget.target_value) * 100));
+  for (const period of periods) {
+    const periodTargets = targets.filter(t => t.period_type === period);
+    const performances = [];
+    
+    for (const target of periodTargets) {
+      let actual = 0;
+      let performanceScore = 0;
+      
+      switch (target.target_type_name) {
+        case 'orders':
+          actual = performance[period].orders;
+          performanceScore = calculateTargetPerformance(actual, target);
+          break;
+          
+        case 'sales':
+          // For sales targets, consider BNPL platform if specified
+          if (target.bnpl_platform) {
+            actual = await getBnplSalesData(userId, target.bnpl_platform, periodStartDates[period]);
+          } else {
+            actual = performance[period].sales;
+          }
+          performanceScore = calculateTargetPerformance(actual, target);
+          break;
+          
+        case 'recruitment':
+          // Recruitment targets for admin/superadmin
+          actual = await getRecruitmentData(userId, userRole, periodStartDates[period]);
+          performanceScore = calculateTargetPerformance(actual, target);
+          break;
+          
+        // Additional target types can be added here
+        default:
+          performanceScore = 0;
+      }
+      
+      performances.push(performanceScore);
+      performance[period].targets.push({
+        type: target.target_type_name,
+        bnplPlatform: target.bnpl_platform,
+        target: target.target_value,
+        actual: actual,
+        performance: performanceScore
+      });
+    }
+    
+    // Calculate average performance for the period
+    if (performances.length > 0) {
+      performance[period].performance = Math.round(
+        performances.reduce((a, b) => a + b, 0) / performances.length
+      );
+    }
   }
   
   // Calculate overall performance
-  const performances = [performance.weekly.performance, performance.monthly.performance, performance.quarterly.performance].filter(p => p > 0);
-  performance.overall.performance = performances.length > 0 ? Math.round(performances.reduce((a, b) => a + b, 0) / performances.length) : 0;
+  const performances = [
+    performance.weekly.performance, 
+    performance.monthly.performance, 
+    performance.quarterly.performance
+  ].filter(p => p > 0);
+  
+  performance.overall.performance = performances.length > 0 ? 
+    Math.round(performances.reduce((a, b) => a + b, 0) / performances.length) : 0;
   
   // Calculate success rate
   performance.overall.successRate = totalData.total_orders > 0 ? 
@@ -445,19 +565,19 @@ async function getPerformanceSummary() {
     const totalSales = marketerPerformances.reduce((sum, m) => sum + m.performance.overall.totalSales, 0);
     
     console.log('✅ Performance summary calculation completed successfully');
-    
-    return {
+  
+  return {
       marketers: marketerPerformances,
       admins: adminPerformances,
       superAdmins: superAdminPerformances,
-      summary: {
+    summary: {
         totalMarketers: counts.marketer || 0,
         totalAdmins: counts.admin || 0,
         totalSuperAdmins: counts.superadmin || 0,
-        totalOrders,
-        totalSales
-      }
-    };
+      totalOrders,
+      totalSales
+    }
+  };
     
   } catch (error) {
     console.error('❌ Error in getPerformanceSummary:', error);
