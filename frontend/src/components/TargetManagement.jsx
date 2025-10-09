@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Modal from "./Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square } from 'lucide-react';
+import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square, Settings } from 'lucide-react';
 import { targetManagementApiService } from '@/api/targetManagementApi';
 import { assignmentApiService } from '@/api/assignmentApi';
 import { useToast } from "./ui/use-toast";
+import TargetScaleConfiguration from './TargetScaleConfiguration';
+import { getAvailablePercentages, getOrdersCountForPercentage } from '@/api/percentageMappingApi';
 
 const TargetManagement = () => {
   const { showSuccess, showError } = useToast();
@@ -34,6 +36,8 @@ const TargetManagement = () => {
     location: '',
     bnplPlatform: ''
   });
+  const [availablePercentages, setAvailablePercentages] = useState([]);
+  const [calculatedTargetValue, setCalculatedTargetValue] = useState('');
   
   // Enhanced target creation state
   const [creationMode, setCreationMode] = useState('single'); // 'single' or 'bulk'
@@ -56,6 +60,7 @@ const TargetManagement = () => {
     userId: '',
     targetTypeId: '',
     targetValue: '',
+    targetPercentage: '',
     periodType: '',
     periodStart: '',
     periodEnd: '',
@@ -171,6 +176,7 @@ const TargetManagement = () => {
       userId: '',
       targetTypeId: '',
       targetValue: '',
+      targetPercentage: '',
       periodType: '',
       periodStart: '',
       periodEnd: '',
@@ -180,6 +186,8 @@ const TargetManagement = () => {
     setSelectedUsers([]);
     setUserFilters({ role: '', location: '' });
     setCreationMode('single');
+    setAvailablePercentages([]);
+    setCalculatedTargetValue('');
   };
 
   const openEditDialog = (target) => {
@@ -199,6 +207,44 @@ const TargetManagement = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  // Load available percentages for a target type
+  const loadAvailablePercentages = async (targetTypeId, bnplPlatform = null, location = null) => {
+    if (!targetTypeId) {
+      setAvailablePercentages([]);
+      return;
+    }
+
+    try {
+      const targetType = targetTypes.find(type => type.id === parseInt(targetTypeId));
+      if (!targetType) return;
+
+      const response = await getAvailablePercentages(targetType.name, bnplPlatform, location);
+      setAvailablePercentages(response.data.percentages || []);
+    } catch (error) {
+      console.error('Error loading available percentages:', error);
+      setAvailablePercentages([]);
+    }
+  };
+
+  // Calculate target value from percentage
+  const calculateTargetValue = async (percentage, targetTypeId, bnplPlatform = null, location = null) => {
+    if (!percentage || !targetTypeId) {
+      setCalculatedTargetValue('');
+      return;
+    }
+
+    try {
+      const targetType = targetTypes.find(type => type.id === parseInt(targetTypeId));
+      if (!targetType) return;
+
+      const response = await getOrdersCountForPercentage(percentage, targetType.name, bnplPlatform, location);
+      setCalculatedTargetValue(response.data.ordersCount);
+    } catch (error) {
+      console.error('Error calculating target value:', error);
+      setCalculatedTargetValue('');
+    }
   };
 
   const getPeriodTypeColor = (periodType) => {
@@ -398,13 +444,19 @@ const TargetManagement = () => {
                   <Label htmlFor="targetTypeId">Target Type</Label>
                   <select 
                     value={formData.targetTypeId} 
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const selectedType = targetTypes.find(type => type.id === parseInt(e.target.value));
                       setFormData({
                         ...formData, 
                         targetTypeId: e.target.value,
-                        bnplPlatform: selectedType?.supports_bnpl ? formData.bnplPlatform : ''
+                        bnplPlatform: selectedType?.supports_bnpl ? formData.bnplPlatform : '',
+                        targetPercentage: '',
+                        targetValue: ''
                       });
+                      setCalculatedTargetValue('');
+                      
+                      // Load available percentages for this target type
+                      await loadAvailablePercentages(e.target.value, formData.bnplPlatform, null);
                     }}
                     className="select-soft h-11 w-full"
                       required
@@ -419,15 +471,64 @@ const TargetManagement = () => {
                       )}
                   </select>
                 </div>
+                
+                {/* Percentage Selection */}
+                {availablePercentages.length > 0 && (
+                  <div>
+                    <Label htmlFor="targetPercentage">Target Percentage</Label>
+                    <select 
+                      value={formData.targetPercentage} 
+                      onChange={async (e) => {
+                        setFormData({...formData, targetPercentage: e.target.value});
+                        
+                        // Calculate target value from percentage
+                        if (e.target.value) {
+                          await calculateTargetValue(e.target.value, formData.targetTypeId, formData.bnplPlatform, null);
+                          setFormData(prev => ({
+                            ...prev, 
+                            targetValue: calculatedTargetValue,
+                            targetPercentage: e.target.value
+                          }));
+                        } else {
+                          setCalculatedTargetValue('');
+                          setFormData(prev => ({...prev, targetValue: '', targetPercentage: ''}));
+                        }
+                      }}
+                      className="select-soft h-11 w-full"
+                    >
+                      <option value="">Select percentage</option>
+                      {availablePercentages.map((percentage) => (
+                        <option key={percentage} value={percentage}>
+                          {percentage}%
+                        </option>
+                      ))}
+                    </select>
+                    {calculatedTargetValue && (
+                      <p className="text-sm text-green-600 mt-1">
+                        {formData.targetPercentage}% = {calculatedTargetValue.toLocaleString()} {targetTypes.find(t => t.id === parseInt(formData.targetTypeId))?.metric_unit || 'units'}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
                 <div>
-                  <Label htmlFor="targetValue">Target Value</Label>
+                  <Label htmlFor="targetValue">
+                    Target Value {calculatedTargetValue && <span className="text-green-600">(Calculated from {formData.targetPercentage}%)</span>}
+                  </Label>
                   <Input
                     id="targetValue"
                     type="number"
                     value={formData.targetValue}
-                    onChange={(e) => setFormData({...formData, targetValue: e.target.value})}
+                    onChange={(e) => setFormData({...formData, targetValue: e.target.value, targetPercentage: ''})}
+                    className={calculatedTargetValue ? 'bg-green-50 border-green-300' : ''}
+                    placeholder={calculatedTargetValue ? 'Calculated from percentage' : 'Enter target value or select percentage'}
                     required
                   />
+                  {calculatedTargetValue && (
+                    <p className="text-xs text-green-600 mt-1">
+                      This value is automatically calculated from the selected percentage
+                    </p>
+                  )}
                 </div>
                 </div>
                 
@@ -826,6 +927,11 @@ const TargetManagement = () => {
           </form>
         </div>
       </Modal>
+
+      {/* Target Scale Configuration Section */}
+      <div className="mt-8">
+        <TargetScaleConfiguration />
+      </div>
     </div>
   );
 };
