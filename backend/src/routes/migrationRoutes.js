@@ -1,6 +1,8 @@
 const express = require('express');
 const { Pool } = require('pg');
 const router = express.Router();
+const createAdminVerificationTableEndpoint = require('../../create_admin_table_endpoint');
+const { runEnhancedTargetMigration } = require('../../run_enhanced_target_migration');
 
 // Production migration endpoint
 router.post('/guarantor-structure', async (req, res) => {
@@ -911,5 +913,455 @@ router.post('/create-admin-table-simple', async (req, res) => {
   }
 });
 
+// Fix verification_workflow_logs table schema completely
+router.post('/fix-workflow-logs-schema', async (req, res) => {
+  try {
+    console.log('🔍 Starting complete verification_workflow_logs schema fix...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Check current table structure
+    const tableInfo = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'verification_workflow_logs' 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position;
+    `);
+    
+    console.log('📋 Current table structure:');
+    tableInfo.rows.forEach(row => {
+      console.log(`  - ${row.column_name}: ${row.data_type} (nullable: ${row.is_nullable})`);
+    });
+    
+    // Check if new columns exist
+    const hasNewColumns = tableInfo.rows.some(row => 
+      ['verification_submission_id', 'action_by', 'action_by_role', 'action_type'].includes(row.column_name)
+    );
+    
+    if (hasNewColumns) {
+      await pool.end();
+      return res.status(200).json({
+        success: true,
+        message: 'Table already has new schema columns',
+        tableStructure: tableInfo.rows
+      });
+    }
+    
+    console.log('🔄 Adding new columns to verification_workflow_logs...');
+    
+    // Add new columns
+    await pool.query(`
+      ALTER TABLE verification_workflow_logs 
+      ADD COLUMN IF NOT EXISTS verification_submission_id INTEGER,
+      ADD COLUMN IF NOT EXISTS action_by INTEGER,
+      ADD COLUMN IF NOT EXISTS action_by_role VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS action_type VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS action_description TEXT,
+      ADD COLUMN IF NOT EXISTS previous_status VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS new_status VARCHAR(50)
+    `);
+    
+    console.log('✅ Added new columns');
+    
+    // Migrate existing data (if any)
+    const existingData = await pool.query('SELECT COUNT(*) as count FROM verification_workflow_logs');
+    console.log(`Found ${existingData.rows[0].count} existing records`);
+    
+    if (parseInt(existingData.rows[0].count) > 0) {
+      console.log('🔄 Migrating existing data...');
+      
+      // Update existing records to use new schema
+      await pool.query(`
+        UPDATE verification_workflow_logs 
+        SET 
+          action_by = CASE 
+            WHEN admin_id IS NOT NULL THEN admin_id
+            WHEN super_admin_id IS NOT NULL THEN super_admin_id
+            WHEN master_admin_id IS NOT NULL THEN master_admin_id
+            ELSE marketer_id
+          END,
+          action_by_role = CASE 
+            WHEN admin_id IS NOT NULL THEN 'Admin'
+            WHEN super_admin_id IS NOT NULL THEN 'SuperAdmin'
+            WHEN master_admin_id IS NOT NULL THEN 'MasterAdmin'
+            ELSE 'Marketer'
+          END,
+          action_type = action,
+          action_description = notes,
+          new_status = status
+        WHERE action_by IS NULL
+      `);
+      
+      console.log('✅ Migrated existing data');
+    }
+    
+    // Add foreign key constraints for new columns
+    try {
+      await pool.query(`
+        ALTER TABLE verification_workflow_logs 
+        ADD CONSTRAINT fk_workflow_verification_submission 
+        FOREIGN KEY (verification_submission_id) REFERENCES verification_submissions(id) ON DELETE CASCADE
+      `);
+      console.log('✅ Added verification_submission_id foreign key');
+    } catch (error) {
+      if (error.code === '42710') {
+        console.log('✅ Foreign key already exists');
+      } else {
+        console.log('⚠️ Could not add verification_submission_id foreign key:', error.message);
+      }
+    }
+    
+    try {
+      await pool.query(`
+        ALTER TABLE verification_workflow_logs 
+        ADD CONSTRAINT fk_workflow_action_by 
+        FOREIGN KEY (action_by) REFERENCES users(id)
+      `);
+      console.log('✅ Added action_by foreign key');
+    } catch (error) {
+      if (error.code === '42710') {
+        console.log('✅ Foreign key already exists');
+      } else {
+        console.log('⚠️ Could not add action_by foreign key:', error.message);
+      }
+    }
+    
+    // Create indexes for new columns
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_submission 
+        ON verification_workflow_logs(verification_submission_id)
+      `);
+      console.log('✅ Added verification_submission_id index');
+    } catch (error) {
+      console.log('⚠️ Could not add index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_action_by 
+        ON verification_workflow_logs(action_by)
+      `);
+      console.log('✅ Added action_by index');
+    } catch (error) {
+      console.log('⚠️ Could not add index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_action_type 
+        ON verification_workflow_logs(action_type)
+      `);
+      console.log('✅ Added action_type index');
+    } catch (error) {
+      console.log('⚠️ Could not add index:', error.message);
+    }
+    
+    await pool.end();
+    
+    console.log('🎉 verification_workflow_logs table schema updated successfully!');
+    
+    res.json({
+      success: true,
+      message: 'verification_workflow_logs table schema updated successfully',
+      changes: {
+        addedColumns: [
+          'verification_submission_id',
+          'action_by', 
+          'action_by_role',
+          'action_type',
+          'action_description',
+          'previous_status',
+          'new_status'
+        ],
+        migratedRecords: parseInt(existingData.rows[0].count),
+        addedConstraints: [
+          'fk_workflow_verification_submission',
+          'fk_workflow_action_by'
+        ],
+        addedIndexes: [
+          'idx_workflow_submission',
+          'idx_workflow_action_by',
+          'idx_workflow_action_type'
+        ]
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating verification_workflow_logs schema:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Schema update failed',
+      error: error.message
+    });
+  }
+});
+
+// Add missing workflow logs columns
+router.post('/add-missing-workflow-columns', async (req, res) => {
+  try {
+    console.log('🔍 Adding missing columns to verification_workflow_logs...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Add the missing columns one by one
+    const columnsToAdd = [
+      'action_by INTEGER',
+      'action_by_role VARCHAR(50)',
+      'action_type VARCHAR(50)',
+      'action_description TEXT',
+      'previous_status VARCHAR(50)',
+      'new_status VARCHAR(50)'
+    ];
+    
+    const results = [];
+    
+    for (const column of columnsToAdd) {
+      try {
+        const columnName = column.split(' ')[0];
+        console.log(`🔄 Adding column: ${columnName}`);
+        
+        await pool.query(`ALTER TABLE verification_workflow_logs ADD COLUMN IF NOT EXISTS ${column};`);
+        results.push(`✅ Added column: ${columnName}`);
+        console.log(`✅ Added column: ${columnName}`);
+      } catch (error) {
+        if (error.code === '42701') {
+          results.push(`⏭️ Column already exists: ${column.split(' ')[0]}`);
+          console.log(`⏭️ Column already exists: ${column.split(' ')[0]}`);
+        } else {
+          results.push(`❌ Error adding column ${column.split(' ')[0]}: ${error.message}`);
+          console.log(`❌ Error adding column ${column.split(' ')[0]}:`, error.message);
+        }
+      }
+    }
+    
+    // Add foreign key constraints
+    try {
+      await pool.query(`
+        ALTER TABLE verification_workflow_logs 
+        ADD CONSTRAINT fk_workflow_action_by 
+        FOREIGN KEY (action_by) REFERENCES users(id)
+      `);
+      results.push('✅ Added action_by foreign key');
+      console.log('✅ Added action_by foreign key');
+    } catch (error) {
+      if (error.code === '42710') {
+        results.push('✅ Foreign key already exists');
+        console.log('✅ Foreign key already exists');
+      } else {
+        results.push(`⚠️ Could not add action_by foreign key: ${error.message}`);
+        console.log('⚠️ Could not add action_by foreign key:', error.message);
+      }
+    }
+    
+    // Create indexes
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_action_by 
+        ON verification_workflow_logs(action_by)
+      `);
+      results.push('✅ Added action_by index');
+      console.log('✅ Added action_by index');
+    } catch (error) {
+      results.push(`⚠️ Could not add action_by index: ${error.message}`);
+      console.log('⚠️ Could not add action_by index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_action_type 
+        ON verification_workflow_logs(action_type)
+      `);
+      results.push('✅ Added action_type index');
+      console.log('✅ Added action_type index');
+    } catch (error) {
+      results.push(`⚠️ Could not add action_type index: ${error.message}`);
+      console.log('⚠️ Could not add action_type index:', error.message);
+    }
+    
+    // Check final table structure
+    const tableInfo = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'verification_workflow_logs' 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position;
+    `);
+    
+    await pool.end();
+    
+    console.log('🎉 Missing columns added successfully!');
+    
+    res.json({
+      success: true,
+      message: 'Missing columns added to verification_workflow_logs successfully',
+      results: results,
+      finalTableStructure: tableInfo.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error adding missing columns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add missing columns',
+      error: error.message
+    });
+  }
+});
+
+// Add missing deleted column to users table
+router.post('/add-users-deleted-column', async (req, res) => {
+  try {
+    console.log('🔍 Adding missing deleted column to users table...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Check if deleted column exists
+    const columnCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'deleted'
+    `);
+    
+    if (columnCheck.rows.length > 0) {
+      await pool.end();
+      return res.status(200).json({
+        success: true,
+        message: 'deleted column already exists in users table',
+        column: columnCheck.rows[0]
+      });
+    }
+    
+    console.log('🔄 Adding deleted column to users table...');
+    
+    // Add the deleted column
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN deleted BOOLEAN DEFAULT FALSE
+    `);
+    
+    console.log('✅ Added deleted column');
+    
+    // Add deleted_at column as well for consistency
+    try {
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL
+      `);
+      console.log('✅ Added deleted_at column');
+    } catch (error) {
+      if (error.code === '42701') {
+        console.log('⏭️ deleted_at column already exists');
+      } else {
+        console.log('⚠️ Could not add deleted_at column:', error.message);
+      }
+    }
+    
+    // Add deleted_by column
+    try {
+      await pool.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS deleted_by INTEGER NULL
+      `);
+      console.log('✅ Added deleted_by column');
+    } catch (error) {
+      if (error.code === '42701') {
+        console.log('⏭️ deleted_by column already exists');
+      } else {
+        console.log('⚠️ Could not add deleted_by column:', error.message);
+      }
+    }
+    
+    // Create indexes for better performance
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_deleted ON users(deleted)
+      `);
+      console.log('✅ Added deleted index');
+    } catch (error) {
+      console.log('⚠️ Could not add deleted index:', error.message);
+    }
+    
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at)
+      `);
+      console.log('✅ Added deleted_at index');
+    } catch (error) {
+      console.log('⚠️ Could not add deleted_at index:', error.message);
+    }
+    
+    // Check final table structure
+    const finalCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name IN ('deleted', 'deleted_at', 'deleted_by')
+      ORDER BY column_name
+    `);
+    
+    await pool.end();
+    
+    console.log('🎉 Users table soft delete columns added successfully!');
+    
+    res.json({
+      success: true,
+      message: 'Soft delete columns added to users table successfully',
+      addedColumns: finalCheck.rows,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error adding soft delete columns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add soft delete columns',
+      error: error.message
+    });
+  }
+});
+
+// Create admin verification details table endpoint
+router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
+
+// Enhanced Target Management Migration
+router.post('/enhance-target-management', async (req, res) => {
+  try {
+    console.log('🚀 Starting Enhanced Target Management Migration...');
+    
+    await runEnhancedTargetMigration();
+    
+    res.json({
+      success: true,
+      message: 'Enhanced Target Management migration completed successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Enhanced Target Management migration failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Enhanced Target Management migration failed',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

@@ -428,11 +428,11 @@ const checkAndUpdateWorkflowStatus = async (marketerId) => {
       // Log the status change - handle case where verification_submission might not exist
       try {
         const workflowLogResult = await pool.query(
-          `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes)
-           SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer'
-           FROM verification_submissions WHERE marketer_id = $1`,
-          [marketerId]
-        );
+        `INSERT INTO verification_workflow_logs (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, marketer_id)
+         SELECT id, $1, 'marketer', 'forms_completed', 'All required forms completed by marketer', 'pending_marketer_forms', 'awaiting_admin_review', 'All required forms completed by marketer', $1
+         FROM verification_submissions WHERE marketer_id = $1`,
+        [marketerId]
+      );
         console.log(`✅ Workflow log created`);
       } catch (workflowError) {
         console.log(`⚠️ Could not create workflow log (verification_submission might not exist):`, workflowError.message);
@@ -675,7 +675,7 @@ const submitBiodata = async (req, res, next) => {
 };
 /**
  * submitGuarantor
- * Inserts a new record into the guarantor_employment_form table and updates the user's flag.
+ * Inserts a new record into the marketer_guarantor_form table and updates the user's flag.
  * Expects text fields in req.body and file uploads in req.files:
  * - "identification_file": for the image of the selected identification.
  * - "signature": for the guarantor's signature image.
@@ -890,7 +890,7 @@ const submitGuarantor = async (req, res, next) => {
 
 /**
  * submitCommitment
- * Inserts a new record into the direct_sales_commitment_form table and updates the marketer's flag.
+ * Inserts a new record into the marketer_commitment_form table and updates the marketer's flag.
  * Expects text fields in req.body and a file upload via multer (as a buffer) under the field "signature".
  * Uses the marketer's unique ID from req.user.unique_id.
  */
@@ -1044,7 +1044,7 @@ const submitCommitment = async (req, res, next) => {
         detail: error.detail
       });
       
-      if (error.code === "23505" && error.constraint === "direct_sales_commitment_form_direct_sales_rep_name_key") {
+      if (error.code === "23505" && error.constraint === "marketer_commitment_form_direct_sales_rep_name_key") {
         return res.status(400).json({
           field: "direct_sales_rep_name",
           message: "That Direct Sales Rep name has already been used."
@@ -1155,10 +1155,10 @@ const allowRefillForm = async (req, res, next) => {
       tableName = "marketer_biodata";
       flagName = "bio_submitted";
     } else if (formType.toLowerCase() === "guarantor") {
-      tableName = "guarantor_employment_form";
+      tableName = "marketer_guarantor_form";
       flagName = "guarantor_submitted";
     } else if (formType.toLowerCase() === "commitment") {
-      tableName = "direct_sales_commitment_form";
+      tableName = "marketer_commitment_form";
       flagName = "commitment_submitted";
     } else {
       return res.status(400).json({ message: "Invalid form type provided." });
@@ -1325,10 +1325,10 @@ const superadminVerify = async (req, res, next) => {
     await pool.query(
       `INSERT INTO verification_workflow_logs (
         verification_submission_id, action_by, action_by_role, action_type,
-        action_description, previous_status, new_status, notes, created_at
+        action_description, previous_status, new_status, notes, created_at, marketer_id
       ) VALUES (
         (SELECT id FROM verification_submissions WHERE marketer_id = $1),
-        $2, $3, $4, $5, $6, $7, $8, NOW()
+        $2, $3, $4, $5, $6, $7, $8, NOW(), $1
       )`,
       [
         marketer.id,
@@ -1338,7 +1338,8 @@ const superadminVerify = async (req, res, next) => {
         'SuperAdmin completed verification review', // action_description
         'awaiting_superadmin_validation', // previous_status
         overallStatus, // new_status
-        superadmin_review_report || 'SuperAdmin verification completed' // notes
+        superadmin_review_report || 'SuperAdmin verification completed', // notes
+        marketer.id // marketer_id
       ]
     );
     
@@ -1503,9 +1504,9 @@ const masterApprove = async (req, res, next) => {
     await pool.query(
       `INSERT INTO verification_workflow_logs (
         verification_submission_id, action_by, action_by_role, action_type, 
-        previous_status, new_status, notes, created_at
+        previous_status, new_status, notes, created_at, marketer_id
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, NOW()
+        $1, $2, $3, $4, $5, $6, $7, NOW(), $8
       )`,
       [
         submissionId,
@@ -1514,7 +1515,8 @@ const masterApprove = async (req, res, next) => {
         `masteradmin_${action}`,
         'pending_masteradmin_approval',
         newUserStatus,
-        reason
+        reason,
+        submission.marketer_id // Add the missing marketer_id
       ]
     );
     
@@ -1621,7 +1623,7 @@ const deleteGuarantorSubmission = async (req, res, next) => {
 
     // 1) Delete the guarantor record
     const deleteResult = await pool.query(
-      "DELETE FROM guarantor_employment_form WHERE id = $1 RETURNING *",
+      "DELETE FROM marketer_guarantor_form WHERE id = $1 RETURNING *",
       [submissionId]
     );
     if (deleteResult.rowCount === 0) {
@@ -1673,7 +1675,7 @@ const deleteCommitmentSubmission = async (req, res, next) => {
 
     // 1) Delete the commitment record
     const deleteResult = await pool.query(
-      "DELETE FROM direct_sales_commitment_form WHERE id = $1 RETURNING *",
+      "DELETE FROM marketer_commitment_form WHERE id = $1 RETURNING *",
       [submissionId]
     );
     if (deleteResult.rowCount === 0) {
@@ -1773,7 +1775,7 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
         FROM users u
         WHERE u.role IN ('Admin', 'SuperAdmin')
           AND u.overall_verification_status = 'masteradmin_approval_pending'
-          AND u.deleted = FALSE
+          AND u.deleted_at IS NULL
         ORDER BY u.updated_at DESC
       `;
       
@@ -1797,24 +1799,32 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
             
             // Get guarantor form
             const guarantorResult = await pool.query(`
-              SELECT * FROM guarantor_employment_form 
-              WHERE marketer_unique_id = $1 
+              SELECT * FROM marketer_guarantor_form 
+              WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
               ORDER BY created_at DESC LIMIT 1
             `, [submission.marketer_unique_id]);
             
             // Get commitment form
             const commitmentResult = await pool.query(`
-              SELECT * FROM direct_sales_commitment_form 
-              WHERE marketer_unique_id = $1 
+              SELECT * FROM marketer_commitment_form 
+              WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)
               ORDER BY created_at DESC LIMIT 1
             `, [submission.marketer_unique_id]);
+            
+            // Get admin verification details
+            const adminVerificationResult = await pool.query(`
+              SELECT * FROM admin_verification_details 
+              WHERE verification_submission_id = $1
+              ORDER BY created_at DESC LIMIT 1
+            `, [submission.submission_id]);
             
             return {
               ...submission,
               submission_type: 'marketer_verification',
               biodata: biodataResult.rows[0] || null,
               guarantor: guarantorResult.rows[0] || null,
-              commitment: commitmentResult.rows[0] || null
+              commitment: commitmentResult.rows[0] || null,
+              admin_verification: adminVerificationResult.rows[0] || null
             };
           } catch (error) {
             console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
@@ -1948,13 +1958,13 @@ const getApprovedSubmissionsForMasterAdmin = async (req, res, next) => {
           
           // Get guarantor form
           const guarantorResult = await pool.query(
-            "SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = $1",
+            "SELECT * FROM marketer_guarantor_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)",
             [submission.marketer_unique_id]
           );
           
           // Get commitment form
           const commitmentResult = await pool.query(
-            "SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = $1",
+            "SELECT * FROM marketer_commitment_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)",
             [submission.marketer_unique_id]
           );
           
@@ -2553,13 +2563,13 @@ const getSubmissionsForSuperAdmin = async (req, res, next) => {
         
         // Fetch guarantor details
         const guarantorResult = await pool.query(
-          `SELECT * FROM guarantor_employment_form WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM marketer_guarantor_form WHERE marketer_id = $1 ORDER BY created_at DESC LIMIT 1`,
           [marketerId]
         );
         
         // Fetch commitment details
         const commitmentResult = await pool.query(
-          `SELECT * FROM direct_sales_commitment_form WHERE marketer_unique_id = (SELECT unique_id FROM users WHERE id = $1) ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM marketer_commitment_form WHERE marketer_id = $1 ORDER BY created_at DESC LIMIT 1`,
           [marketerId]
         );
         
@@ -3167,9 +3177,25 @@ async function uploadAdminVerification(req, res) {
 
     // Check if admin verification details already exist
     const existingDetails = await client.query(
-      'SELECT id FROM admin_verification_details WHERE verification_submission_id = $1',
+      'SELECT id, admin_verification_date FROM admin_verification_details WHERE verification_submission_id = $1',
       [submissionId]
     );
+
+    // If verification already exists and was completed recently, prevent duplicate upload
+    if (existingDetails.rows.length > 0 && existingDetails.rows[0].admin_verification_date) {
+      const verificationDate = new Date(existingDetails.rows[0].admin_verification_date);
+      const now = new Date();
+      const timeDiff = now - verificationDate;
+      const hoursDiff = timeDiff / (1000 * 60 * 60);
+      
+      if (hoursDiff < 1) { // Prevent uploads within 1 hour
+        return res.status(400).json({
+          success: false,
+          message: 'Verification already uploaded recently. Please wait before uploading again.',
+          lastUpload: verificationDate.toISOString()
+        });
+      }
+    }
 
     let insertResult;
     if (existingDetails.rows.length > 0) {
@@ -3180,12 +3206,12 @@ async function uploadAdminVerification(req, res) {
           admin_id = $2,
           marketer_id = $3,
           marketer_address = $4,
-          landmark_description = $5,
-          location_photo_url = $6,
-          admin_marketer_photo_url = $7,
-          verification_notes = $8,
-          admin_verification_date = NOW(),
+          location_photo_url = $5,
+          admin_marketer_photo_url = $6,
+          verification_notes = $7,
+          landmark_description = $8,
           additional_documents = $9::jsonb,
+          admin_verification_date = NOW(),
           updated_at = NOW()
         WHERE verification_submission_id = $1
         RETURNING *
@@ -3196,11 +3222,15 @@ async function uploadAdminVerification(req, res) {
         adminId,
         submission.marketer_id,
         submission.marketer_location || 'Not provided',
-        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
-        uploadedFiles.location_photos ? uploadedFiles.location_photos[0] : null,
-        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos[0] : null,
+        uploadedFiles.location_photos ? uploadedFiles.location_photos.join(', ') : null,
+        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos.join(', ') : null,
         verificationNotes || null,
-        uploadedFiles.location_photos ? JSON.stringify(uploadedFiles.location_photos) : null
+        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
+        JSON.stringify({
+          location_photos: uploadedFiles.location_photos || [],
+          admin_marketer_photos: uploadedFiles.admin_marketer_photos || [],
+          landmark_photos: uploadedFiles.landmark_photos || []
+        })
       ];
 
       try {
@@ -3219,13 +3249,12 @@ async function uploadAdminVerification(req, res) {
         admin_id,
         marketer_id,
         marketer_address,
-        landmark_description,
         location_photo_url,
         admin_marketer_photo_url,
         verification_notes,
-        admin_verification_date,
+        landmark_description,
         additional_documents
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9::jsonb)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
       RETURNING *
     `;
 
@@ -3234,11 +3263,15 @@ async function uploadAdminVerification(req, res) {
       adminId,
       submission.marketer_id,
         submission.marketer_location || 'Not provided',
-      uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
-      uploadedFiles.location_photos ? uploadedFiles.location_photos[0] : null,
-      uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos[0] : null,
+        uploadedFiles.location_photos ? uploadedFiles.location_photos.join(', ') : null,
+        uploadedFiles.admin_marketer_photos ? uploadedFiles.admin_marketer_photos.join(', ') : null,
       verificationNotes || null,
-      uploadedFiles.location_photos ? JSON.stringify(uploadedFiles.location_photos) : null
+        uploadedFiles.landmark_photos ? uploadedFiles.landmark_photos.join(', ') : null,
+        JSON.stringify({
+          location_photos: uploadedFiles.location_photos || [],
+          admin_marketer_photos: uploadedFiles.admin_marketer_photos || [],
+          landmark_photos: uploadedFiles.landmark_photos || []
+        })
       ];
 
       try {
@@ -3278,8 +3311,8 @@ async function uploadAdminVerification(req, res) {
     try {
       await client.query(
         `INSERT INTO verification_workflow_logs 
-         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at, marketer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
         [
           submissionId,
           adminId,
@@ -3288,7 +3321,8 @@ async function uploadAdminVerification(req, res) {
           'Admin uploaded verification files and photos',
           submission.submission_status,
           submission.submission_status, // Status remains the same
-          JSON.stringify(workflowLogDetails)
+          JSON.stringify(workflowLogDetails),
+          submission.marketer_id
         ]
       );
       console.log(`✅ File upload action logged successfully`);
@@ -3310,10 +3344,33 @@ async function uploadAdminVerification(req, res) {
 
   } catch (error) {
     console.error('❌ Error uploading admin verification:', error);
-    res.status(500).json({ 
+    
+    // Provide specific error messages based on error type
+    let errorMessage = 'Failed to upload verification details';
+    let statusCode = 500;
+    
+    if (error.code === '42P01') {
+      errorMessage = 'Database table missing. Please contact support.';
+      statusCode = 500;
+    } else if (error.code === '23503') {
+      errorMessage = 'Invalid reference data. Please check your information.';
+      statusCode = 400;
+    } else if (error.code === '23505') {
+      errorMessage = 'Duplicate verification detected. Please refresh and try again.';
+      statusCode = 400;
+    } else if (error.message.includes('Cloudinary')) {
+      errorMessage = 'Image upload failed. Please check your images and try again.';
+      statusCode = 400;
+    } else if (error.message.includes('verification_submission_id')) {
+      errorMessage = 'Invalid submission ID. Please refresh the page and try again.';
+      statusCode = 400;
+    }
+    
+    res.status(statusCode).json({ 
       success: false, 
-      message: 'Failed to upload verification details',
-      error: error.message 
+      message: errorMessage,
+      error: error.message,
+      code: error.code
     });
   } finally {
     client.release();
@@ -3431,8 +3488,8 @@ const verifyAndSendToSuperAdmin = async (req, res) => {
     try {
       await client.query(
         `INSERT INTO verification_workflow_logs 
-         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at, marketer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
         [
           submissionId,
           adminId,
@@ -3441,7 +3498,8 @@ const verifyAndSendToSuperAdmin = async (req, res) => {
           'Admin verified and sent submission to SuperAdmin',
           submission.submission_status,
           'pending_superadmin_review',
-          JSON.stringify(workflowLogDetails)
+          JSON.stringify(workflowLogDetails),
+          submission.marketer_id
         ]
       );
       console.log(`✅ Verify and send action logged successfully`);
@@ -3570,8 +3628,8 @@ const resetSubmissionStatus = async (req, res) => {
     try {
       await client.query(
         `INSERT INTO verification_workflow_logs 
-         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+         (verification_submission_id, action_by, action_by_role, action_type, action_description, previous_status, new_status, notes, created_at, marketer_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
         [
           submissionId,
           adminId,
@@ -3580,7 +3638,8 @@ const resetSubmissionStatus = async (req, res) => {
           'Admin reset submission status for testing purposes',
           submission.submission_status,
           'pending_admin_review',
-          JSON.stringify(workflowLogDetails)
+          JSON.stringify(workflowLogDetails),
+          submission.marketer_id
         ]
       );
       console.log(`✅ Reset action logged successfully`);
@@ -4356,7 +4415,7 @@ const resetAllForms = async (req, res, next) => {
     );
     
     await pool.query(
-      'DELETE FROM direct_sales_commitment_form WHERE marketer_unique_id = $1',
+      'DELETE FROM marketer_commitment_form WHERE marketer_id = (SELECT id FROM users WHERE unique_id = $1)',
       [marketerUniqueId]
     );
     

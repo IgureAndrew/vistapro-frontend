@@ -30,7 +30,9 @@ const TargetManagement = () => {
   const [filters, setFilters] = useState({
     userRole: '',
     periodType: '',
-    targetType: ''
+    targetType: '',
+    location: '',
+    bnplPlatform: ''
   });
   
   // Enhanced target creation state
@@ -41,6 +43,14 @@ const TargetManagement = () => {
   });
   const [selectedUsers, setSelectedUsers] = useState([]);
 
+  // BNPL platform options
+  const bnplPlatforms = [
+    { value: 'WATU', label: 'WATU' },
+    { value: 'EASYBUY', label: 'EASYBUY' },
+    { value: 'PALMPAY', label: 'PALMPAY' },
+    { value: 'CREDLOCK', label: 'CREDLOCK' }
+  ];
+
   // Form state for creating/editing targets
   const [formData, setFormData] = useState({
     userId: '',
@@ -49,6 +59,7 @@ const TargetManagement = () => {
     periodType: '',
     periodStart: '',
     periodEnd: '',
+    bnplPlatform: '',
     notes: ''
   });
 
@@ -386,7 +397,14 @@ const TargetManagement = () => {
                   <Label htmlFor="targetTypeId">Target Type</Label>
                   <select 
                     value={formData.targetTypeId} 
-                    onChange={(e) => setFormData({...formData, targetTypeId: e.target.value})}
+                    onChange={(e) => {
+                      const selectedType = targetTypes.find(type => type.id === parseInt(e.target.value));
+                      setFormData({
+                        ...formData, 
+                        targetTypeId: e.target.value,
+                        bnplPlatform: selectedType?.supports_bnpl ? formData.bnplPlatform : ''
+                      });
+                    }}
                     className="select-soft h-11 w-full"
                       required
                   >
@@ -411,6 +429,30 @@ const TargetManagement = () => {
                   />
                 </div>
                 </div>
+                
+                {/* BNPL Platform Selection - Only show for sales targets */}
+                {(() => {
+                  const selectedType = targetTypes.find(type => type.id === parseInt(formData.targetTypeId));
+                  return selectedType?.supports_bnpl ? (
+                    <div className="mt-4">
+                      <Label htmlFor="bnplPlatform">BNPL Platform</Label>
+                      <select 
+                        value={formData.bnplPlatform} 
+                        onChange={(e) => setFormData({...formData, bnplPlatform: e.target.value})}
+                        className="select-soft h-11 w-full"
+                        required
+                      >
+                        <option value="">Select BNPL platform</option>
+                        {bnplPlatforms.map((platform) => (
+                          <option key={platform.value} value={platform.value}>
+                            {platform.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null;
+                })()}
+                
                 <div className="grid grid-cols-3 gap-4 mt-4">
                 <div>
                   <Label htmlFor="periodType">Period Type</Label>
@@ -522,7 +564,7 @@ const TargetManagement = () => {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="userRole">User Role</Label>
               <select 
@@ -568,6 +610,36 @@ const TargetManagement = () => {
                 )}
               </select>
             </div>
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <select 
+                value={filters.location} 
+                onChange={(e) => setFilters({...filters, location: e.target.value})}
+                className="select-soft h-11 w-full"
+              >
+                <option value="">All locations</option>
+                {availableLocations.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="bnplPlatform">BNPL Platform</Label>
+              <select 
+                value={filters.bnplPlatform} 
+                onChange={(e) => setFilters({...filters, bnplPlatform: e.target.value})}
+                className="select-soft h-11 w-full"
+              >
+                <option value="">All platforms</option>
+                {bnplPlatforms.map((platform) => (
+                  <option key={platform.value} value={platform.value}>
+                    {platform.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -584,6 +656,7 @@ const TargetManagement = () => {
                 <TableHead>User</TableHead>
                 <TableHead>Target Type</TableHead>
                 <TableHead>Target Value</TableHead>
+                <TableHead>BNPL Platform</TableHead>
                 <TableHead>Period</TableHead>
                 <TableHead>Date Range</TableHead>
                 <TableHead>Status</TableHead>
@@ -607,6 +680,15 @@ const TargetManagement = () => {
                   </TableCell>
                   <TableCell className="font-medium">
                     {target.target_value.toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    {target.bnpl_platform ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {target.bnpl_platform}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge className={getPeriodTypeColor(target.period_type)}>

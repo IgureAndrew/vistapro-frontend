@@ -43,7 +43,7 @@ async function testConnection() {
           SELECT table_name 
           FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name IN ('guarantor_employment_form', 'direct_sales_commitment_form', 'marketer_biodata')
+          AND table_name IN ('guarantor_employment_form', 'marketer_commitment_form', 'marketer_biodata')
           ORDER BY table_name
         `);
         

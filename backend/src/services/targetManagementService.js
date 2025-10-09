@@ -8,7 +8,7 @@ const { pool } = require('../config/database');
  */
 async function getTargetTypes() {
   const { rows } = await pool.query(`
-    SELECT id, name, description, metric_unit, is_active
+    SELECT id, name, description, metric_unit, supports_bnpl, is_active
     FROM target_types
     WHERE is_active = true
     ORDER BY name
@@ -71,6 +71,7 @@ async function getAllTargets(filters = {}) {
       t.period_type,
       t.period_start,
       t.period_end,
+      t.bnpl_platform,
       t.is_active,
       t.created_by,
       t.notes,
@@ -79,9 +80,11 @@ async function getAllTargets(filters = {}) {
       tt.name as target_type_name,
       tt.description as target_type_description,
       tt.metric_unit,
+      tt.supports_bnpl,
       u.first_name || ' ' || u.last_name as user_name,
       u.role as user_role,
-      u.email as user_email
+      u.email as user_email,
+      u.location as user_location
     FROM targets t
     JOIN target_types tt ON tt.id = t.target_type_id
     JOIN users u ON u.unique_id = t.user_id
@@ -109,6 +112,20 @@ async function getAllTargets(filters = {}) {
     params.push(filters.targetType);
   }
   
+  // Add location filter
+  if (filters.location) {
+    paramCount++;
+    query += ` AND u.location = $${paramCount}`;
+    params.push(filters.location);
+  }
+  
+  // Add BNPL platform filter
+  if (filters.bnplPlatform) {
+    paramCount++;
+    query += ` AND t.bnpl_platform = $${paramCount}`;
+    params.push(filters.bnplPlatform);
+  }
+  
   query += ` ORDER BY u.role, u.first_name, u.last_name, t.period_type, t.period_start DESC`;
   
   const { rows } = await pool.query(query, params);
@@ -119,7 +136,7 @@ async function getAllTargets(filters = {}) {
  * Create a new target
  */
 async function createTarget(targetData) {
-  const { userId, targetTypeId, targetValue, periodType, periodStart, periodEnd, createdBy, notes } = targetData;
+  const { userId, targetTypeId, targetValue, periodType, periodStart, periodEnd, bnplPlatform, createdBy, notes } = targetData;
   
   // Deactivate any existing target of the same type and period
   await pool.query(`
@@ -130,10 +147,10 @@ async function createTarget(targetData) {
   
   const { rows } = await pool.query(`
     INSERT INTO targets 
-    (user_id, target_type_id, target_value, period_type, period_start, period_end, created_by, notes)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    (user_id, target_type_id, target_value, period_type, period_start, period_end, bnpl_platform, created_by, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING *
-  `, [userId, targetTypeId, targetValue, periodType, periodStart, periodEnd, createdBy, notes]);
+  `, [userId, targetTypeId, targetValue, periodType, periodStart, periodEnd, bnplPlatform, createdBy, notes]);
   
   return rows[0];
 }
