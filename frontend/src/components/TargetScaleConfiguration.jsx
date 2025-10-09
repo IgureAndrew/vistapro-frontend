@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Plus, Edit, Trash2, Filter, Search } from 'lucide-react';
@@ -212,56 +212,44 @@ const TargetScaleConfiguration = () => {
             />
           </div>
           
-          <Select
+          <select
             value={filters.targetType}
-            onValueChange={(value) => setFilters(prev => ({ ...prev, targetType: value }))}
+            onChange={(e) => setFilters(prev => ({ ...prev, targetType: e.target.value }))}
+            className="select-soft h-10 w-48 border border-gray-300 rounded-md px-3 py-2"
           >
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="All Target Types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Target Types</SelectItem>
-              {targetTypes.map((type) => (
-                <SelectItem key={type.id} value={type.name}>
-                  {type.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="">All Target Types</option>
+            {targetTypes.map((type) => (
+              <option key={type.id} value={type.name}>
+                {type.name}
+              </option>
+            ))}
+          </select>
 
-          <Select
+          <select
             value={filters.bnplPlatform}
-            onValueChange={(value) => setFilters(prev => ({ ...prev, bnplPlatform: value }))}
+            onChange={(e) => setFilters(prev => ({ ...prev, bnplPlatform: e.target.value }))}
+            className="select-soft h-10 w-48 border border-gray-300 rounded-md px-3 py-2"
           >
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="All Platforms" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Platforms</SelectItem>
-              {bnplPlatforms.map((platform) => (
-                <SelectItem key={platform} value={platform}>
-                  {platform}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="">All Platforms</option>
+            {bnplPlatforms.map((platform) => (
+              <option key={platform} value={platform}>
+                {platform}
+              </option>
+            ))}
+          </select>
 
-          <Select
+          <select
             value={filters.location}
-            onValueChange={(value) => setFilters(prev => ({ ...prev, location: value }))}
+            onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
+            className="select-soft h-10 w-48 border border-gray-300 rounded-md px-3 py-2"
           >
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="All Locations" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Locations</SelectItem>
-              {availableLocations.map((location) => (
-                <SelectItem key={location} value={location}>
-                  {location}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="">All Locations</option>
+            {availableLocations.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </select>
 
           <Button
             onClick={() => setModalOpen(true)}

@@ -6,7 +6,6 @@ import Modal from './Modal';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Plus, Save, X } from 'lucide-react';
 
 const PercentageMappingModal = ({ 
@@ -171,21 +170,19 @@ const PercentageMappingModal = ({
 
           <div>
             <Label htmlFor="target_type">Target Type *</Label>
-            <Select
+            <select
               value={formData.target_type}
-              onValueChange={(value) => handleInputChange('target_type', value)}
+              onChange={(e) => handleInputChange('target_type', e.target.value)}
+              className={`select-soft h-11 w-full border rounded-md px-3 py-2 ${errors.target_type ? 'border-red-500' : 'border-gray-300'}`}
+              required
             >
-              <SelectTrigger className={errors.target_type ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Select target type" />
-              </SelectTrigger>
-              <SelectContent>
-                {targetTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.name}>
-                    {type.name} ({type.description})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <option value="">Select target type</option>
+              {targetTypes.map((type) => (
+                <option key={type.id} value={type.name}>
+                  {type.name} ({type.description})
+                </option>
+              ))}
+            </select>
             {errors.target_type && (
               <p className="text-sm text-red-500 mt-1">{errors.target_type}</p>
             )}
@@ -194,42 +191,34 @@ const PercentageMappingModal = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="bnpl_platform">BNPL Platform (Optional)</Label>
-              <Select
+              <select
                 value={formData.bnpl_platform}
-                onValueChange={(value) => handleInputChange('bnpl_platform', value)}
+                onChange={(e) => handleInputChange('bnpl_platform', e.target.value)}
+                className="select-soft h-11 w-full border border-gray-300 rounded-md px-3 py-2"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select BNPL platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All Platforms</SelectItem>
-                  {bnplPlatforms.map((platform) => (
-                    <SelectItem key={platform} value={platform}>
-                      {platform}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="">All Platforms</option>
+                {bnplPlatforms.map((platform) => (
+                  <option key={platform} value={platform}>
+                    {platform}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <Label htmlFor="location">Location (Optional)</Label>
-              <Select
+              <select
                 value={formData.location}
-                onValueChange={(value) => handleInputChange('location', value)}
+                onChange={(e) => handleInputChange('location', e.target.value)}
+                className="select-soft h-11 w-full border border-gray-300 rounded-md px-3 py-2"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All Locations</SelectItem>
-                  {availableLocations.map((location) => (
-                    <SelectItem key={location} value={location}>
-                      {location}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="">All Locations</option>
+                {availableLocations.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
