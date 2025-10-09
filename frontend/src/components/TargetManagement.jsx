@@ -191,6 +191,7 @@ const TargetManagement = () => {
       periodType: target.period_type,
       periodStart: target.period_start,
       periodEnd: target.period_end,
+      bnplPlatform: target.bnpl_platform || '',
       notes: target.notes || ''
     });
     setEditDialogOpen(true);
@@ -259,8 +260,8 @@ const TargetManagement = () => {
           <Plus className="h-4 w-4 mr-2" />
           Create Target
         </Button>
-        <Modal isOpen={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
-          <div className="max-w-4xl">
+        <Modal isOpen={createDialogOpen} onClose={() => setCreateDialogOpen(false)} size="xl">
+          <div>
             <h2 className="text-xl font-semibold mb-4">Create New Target</h2>
             
             {/* Mode Selection */}
@@ -737,8 +738,8 @@ const TargetManagement = () => {
       </Card>
 
       {/* Edit Dialog */}
-      <Modal isOpen={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-        <div className="max-w-2xl">
+      <Modal isOpen={editDialogOpen} onClose={() => setEditDialogOpen(false)} size="lg">
+        <div>
           <h2 className="text-xl font-semibold mb-4">Edit Target</h2>
           <form onSubmit={handleUpdateTarget} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -790,6 +791,23 @@ const TargetManagement = () => {
                 />
               </div>
             </div>
+            
+            {/* BNPL Platform field - only show for sales targets */}
+            {selectedTarget && targetTypes.find(tt => tt.id === selectedTarget.target_type_id)?.supports_bnpl && (
+              <div>
+                <Label htmlFor="edit-bnplPlatform">BNPL Platform</Label>
+                <select 
+                  value={formData.bnplPlatform || ''} 
+                  onChange={(e) => setFormData({...formData, bnplPlatform: e.target.value})}
+                  className="select-soft h-11 w-full"
+                >
+                  <option value="">Select BNPL platform</option>
+                  {bnplPlatforms.map(platform => (
+                    <option key={platform} value={platform}>{platform}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <Label htmlFor="edit-notes">Notes (Optional)</Label>
               <Input
