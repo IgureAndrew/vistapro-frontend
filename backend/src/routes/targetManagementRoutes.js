@@ -7,64 +7,7 @@ const targetManagementController = require('../controllers/targetManagementContr
 const { verifyToken } = require('../middlewares/authMiddleware');
 const { verifyRole } = require('../middlewares/roleMiddleware');
 
-// Test endpoint to check if tables exist (no auth required for debugging)
-router.get('/test-tables', async (req, res) => {
-  try {
-    const { pool } = require('../config/database');
-    
-    // Check if target_types table exists
-    const targetTypesCheck = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'target_types'
-      );
-    `);
-    
-    // Check if targets table exists
-    const targetsCheck = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'targets'
-      );
-    `);
-    
-    // Try to get target types count
-    let targetTypesCount = 0;
-    try {
-      const countResult = await pool.query('SELECT COUNT(*) as count FROM target_types');
-      targetTypesCount = parseInt(countResult.rows[0].count);
-    } catch (error) {
-      console.log('Error counting target types:', error.message);
-    }
-    
-    res.json({
-      success: true,
-      message: 'Table check completed',
-      tables: {
-        target_types: {
-          exists: targetTypesCheck.rows[0].exists,
-          count: targetTypesCount
-        },
-        targets: {
-          exists: targetsCheck.rows[0].exists
-        }
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Error checking tables:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error checking tables',
-      error: error.message
-    });
-  }
-});
-
-// Create tables endpoint (no auth required for debugging)
+// Create tables endpoint (no auth required for debugging) - MUST BE FIRST
 router.get('/create-tables', async (req, res) => {
   try {
     console.log('🔧 Creating target management tables...');
@@ -138,6 +81,63 @@ router.get('/create-tables', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating tables',
+      error: error.message
+    });
+  }
+});
+
+// Test endpoint to check if tables exist (no auth required for debugging)
+router.get('/test-tables', async (req, res) => {
+  try {
+    const { pool } = require('../config/database');
+    
+    // Check if target_types table exists
+    const targetTypesCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'target_types'
+      );
+    `);
+    
+    // Check if targets table exists
+    const targetsCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'targets'
+      );
+    `);
+    
+    // Try to get target types count
+    let targetTypesCount = 0;
+    try {
+      const countResult = await pool.query('SELECT COUNT(*) as count FROM target_types');
+      targetTypesCount = parseInt(countResult.rows[0].count);
+    } catch (error) {
+      console.log('Error counting target types:', error.message);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Table check completed',
+      tables: {
+        target_types: {
+          exists: targetTypesCheck.rows[0].exists,
+          count: targetTypesCount
+        },
+        targets: {
+          exists: targetsCheck.rows[0].exists
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error checking tables:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking tables',
       error: error.message
     });
   }
