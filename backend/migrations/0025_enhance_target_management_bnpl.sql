@@ -5,7 +5,7 @@
 ALTER TABLE target_types ADD COLUMN IF NOT EXISTS supports_bnpl BOOLEAN DEFAULT false;
 
 -- Add bnpl_platform column to targets table
-ALTER TABLE target_types ADD COLUMN IF NOT EXISTS bnpl_platform VARCHAR(50);
+ALTER TABLE targets ADD COLUMN IF NOT EXISTS bnpl_platform VARCHAR(50);
 
 -- Update existing target types to set supports_bnpl flag
 UPDATE target_types SET supports_bnpl = true WHERE name = 'sales';
