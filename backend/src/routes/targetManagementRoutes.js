@@ -64,6 +64,85 @@ router.get('/test-tables', async (req, res) => {
   }
 });
 
+// Create tables endpoint (no auth required for debugging)
+router.post('/create-tables', async (req, res) => {
+  try {
+    console.log('🔧 Creating target management tables...');
+    const { pool } = require('../config/database');
+    
+    // Create target_types table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS target_types (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(50) UNIQUE NOT NULL,
+        description TEXT,
+        metric_unit VARCHAR(20) NOT NULL,
+        supports_bnpl BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    
+    // Insert default target types
+    await pool.query(`
+      INSERT INTO target_types (name, description, metric_unit, supports_bnpl) VALUES
+      ('orders', 'Number of orders to complete', 'count', false),
+      ('sales', 'Sales revenue target', 'currency', true),
+      ('customers', 'Number of new customers', 'count', false),
+      ('conversion_rate', 'Order conversion rate', 'percentage', false),
+      ('recruitment', 'Number of new marketers recruited', 'count', false)
+      ON CONFLICT (name) DO NOTHING;
+    `);
+    
+    // Create targets table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS targets (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL REFERENCES users(unique_id) ON DELETE CASCADE,
+        target_type_id INTEGER NOT NULL REFERENCES target_types(id),
+        target_value DECIMAL(15,2) NOT NULL CHECK (target_value > 0),
+        period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        bnpl_platform VARCHAR(50),
+        is_active BOOLEAN DEFAULT true,
+        created_by VARCHAR(50) REFERENCES users(unique_id),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    
+    // Create indexes
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_user_id ON targets(user_id);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_type_id ON targets(target_type_id);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_period ON targets(period_start, period_end);');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_bnpl_platform ON targets(bnpl_platform);');
+    
+    // Add constraint for BNPL platform values
+    await pool.query(`
+      ALTER TABLE targets ADD CONSTRAINT IF NOT EXISTS chk_bnpl_platform 
+      CHECK (bnpl_platform IS NULL OR bnpl_platform IN ('WATU', 'EASYBUY', 'PALMPAY', 'CREDLOCK'));
+    `);
+    
+    console.log('✅ Target management tables created successfully');
+    
+    res.json({
+      success: true,
+      message: 'Target management tables created successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error creating tables:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating tables',
+      error: error.message
+    });
+  }
+});
+
 // Apply authentication to all other routes
 router.use(verifyToken);
 
