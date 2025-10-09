@@ -64,7 +64,7 @@ router.get('/test-tables', async (req, res) => {
   }
 });
 
-// Apply authentication to all routes
+// Apply authentication to all other routes
 router.use(verifyToken);
 
 // Get target types (all authenticated users)
