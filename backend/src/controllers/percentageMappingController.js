@@ -2,7 +2,7 @@
 // Controller for managing target percentage mappings
 
 const percentageMappingService = require('../services/percentageMappingService');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 /**
  * Get all percentage mappings

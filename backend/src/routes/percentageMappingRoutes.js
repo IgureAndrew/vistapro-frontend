@@ -7,6 +7,41 @@ const percentageMappingController = require('../controllers/percentageMappingCon
 const { verifyToken } = require('../middlewares/authMiddleware');
 const { verifyRole } = require('../middlewares/roleMiddleware');
 
+// Debug endpoint to check percentage mappings table (no auth required)
+router.get('/debug/check-table', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    // Check if target_percentage_mappings table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'target_percentage_mappings'
+      );
+    `);
+
+    await pool.end();
+
+    res.json({
+      success: true,
+      table_exists: tableCheck.rows[0].exists
+    });
+  } catch (error) {
+    console.error('Error checking percentage mappings table:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Apply authentication to all routes
 router.use(verifyToken);
 
