@@ -9,13 +9,16 @@ const { logger } = require('../utils/logger');
  */
 const getTargetTypes = async (req, res) => {
   try {
+    console.log('🔍 Getting target types...');
     const targetTypes = await targetManagementService.getTargetTypes();
+    console.log('✅ Target types retrieved:', targetTypes.length, 'types');
     
     res.json({
       success: true,
       data: targetTypes
     });
   } catch (error) {
+    console.error('❌ Error getting target types:', error);
     logger.error('Error getting target types:', error);
     res.status(500).json({
       success: false,
@@ -54,6 +57,7 @@ const getUserTargets = async (req, res) => {
  */
 const getAllTargets = async (req, res) => {
   try {
+    console.log('🔍 Getting all targets with filters:', req.query);
     const { userRole, periodType, targetType, location } = req.query;
     
     const filters = {};
@@ -62,13 +66,16 @@ const getAllTargets = async (req, res) => {
     if (targetType) filters.targetType = targetType;
     if (location) filters.location = location;
     
+    console.log('📋 Applied filters:', filters);
     const targets = await targetManagementService.getAllTargets(filters);
+    console.log('✅ Targets retrieved:', targets.length, 'targets');
     
     res.json({
       success: true,
       data: targets
     });
   } catch (error) {
+    console.error('❌ Error getting all targets:', error);
     logger.error('Error getting all targets:', error);
     res.status(500).json({
       success: false,
