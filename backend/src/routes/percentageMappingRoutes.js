@@ -3,9 +3,6 @@
 
 const express = require('express');
 const router = express.Router();
-const percentageMappingController = require('../controllers/percentageMappingController');
-const { verifyToken } = require('../middlewares/authMiddleware');
-const { verifyRole } = require('../middlewares/roleMiddleware');
 
 // Debug endpoint to check percentage mappings table (no auth required)
 router.get('/debug/check-table', async (req, res) => {
@@ -42,7 +39,11 @@ router.get('/debug/check-table', async (req, res) => {
   }
 });
 
-// Apply authentication to all routes
+const percentageMappingController = require('../controllers/percentageMappingController');
+const { verifyToken } = require('../middlewares/authMiddleware');
+const { verifyRole } = require('../middlewares/roleMiddleware');
+
+// Apply authentication to all other routes
 router.use(verifyToken);
 
 // Apply Master Admin role verification to all routes
