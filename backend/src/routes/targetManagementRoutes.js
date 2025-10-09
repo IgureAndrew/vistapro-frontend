@@ -7,6 +7,52 @@ const targetManagementController = require('../controllers/targetManagementContr
 const { verifyToken } = require('../middlewares/authMiddleware');
 const { verifyRole } = require('../middlewares/roleMiddleware');
 
+// Debug endpoint to check and create tables (no auth required for debugging)
+router.get('/debug/check-tables', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    // Check if target_types table exists
+    const targetTypesCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'target_types'
+      );
+    `);
+
+    // Check if targets table exists
+    const targetsCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'targets'
+      );
+    `);
+
+    await pool.end();
+
+    res.json({
+      success: true,
+      tables: {
+        target_types: targetTypesCheck.rows[0].exists,
+        targets: targetsCheck.rows[0].exists
+      }
+    });
+  } catch (error) {
+    console.error('Error checking tables:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Apply authentication to all other routes
 router.use(verifyToken);

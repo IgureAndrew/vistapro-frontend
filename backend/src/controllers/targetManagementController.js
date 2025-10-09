@@ -2,7 +2,7 @@
 // Controller for managing targets with Master Admin control
 
 const targetManagementService = require('../services/targetManagementService');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 /**
  * Get all target types
