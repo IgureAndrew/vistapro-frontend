@@ -44,6 +44,7 @@ import VerificationMarketer from '../components/VerificationMarketer';
 import Messaging from '../components/Messaging';
 import Performance from '../components/Performance';
 import TargetManagement from '../components/TargetManagement';
+import UserTargets from '../components/UserTargets';
 import UserAssignmentManagement from '../components/UserAssignmentManagement';
 import SuperAdminAssignedUsers from '../components/SuperAdminAssignedUsers';
 import Submissions from '../components/Submissions';
@@ -101,6 +102,7 @@ export const ROLE_CONFIG = {
     color: "#f59e0b",
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
+      { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
       { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
       { key: "stock", label: "Stock Pickups", icon: Package, component: SuperAdminStockPickups },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: SuperAdminManageOrders },
@@ -130,6 +132,7 @@ export const ROLE_CONFIG = {
     color: "#f59e0b",
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
+      { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
       { key: "profile", label: "Profile", icon: User, component: ProfileUpdate },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: ManageOrders },
       { key: "stock", label: "Stock Pickups", icon: Package, component: AdminStockPickups },
@@ -182,6 +185,7 @@ export const ROLE_CONFIG = {
     color: "#f59e0b",
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: MarketersOverview },
+      { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
       { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
       { key: "verification", label: "Verification", icon: CheckCircle, component: VerificationMarketer },
       { key: "stock-pickup", label: "Stock Pickup", icon: Package, component: MarketerStockPickup },
