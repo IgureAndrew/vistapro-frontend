@@ -24,7 +24,9 @@ async function runStartupMigration() {
       'admin_verification_details',
       'verification_submissions',
       'verification_workflow_logs',
-      'additional_pickup_requests'
+      'additional_pickup_requests',
+      'target_types',
+      'targets'
     ];
     
     let missingTables = [];
@@ -359,6 +361,78 @@ async function runStartupMigration() {
         }
         
         console.log('✅ additional_pickup_requests table created');
+      }
+      
+      // Create target management tables if missing
+      if (missingTables.includes('target_types')) {
+        console.log('🔧 Creating target_types table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS target_types (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50) UNIQUE NOT NULL,
+            description TEXT,
+            metric_unit VARCHAR(20) NOT NULL,
+            supports_bnpl BOOLEAN DEFAULT false,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        
+        // Insert default target types
+        await pool.query(`
+          INSERT INTO target_types (name, description, metric_unit, supports_bnpl) VALUES
+          ('orders', 'Number of orders to complete', 'count', false),
+          ('sales', 'Sales revenue target', 'currency', true),
+          ('customers', 'Number of new customers', 'count', false),
+          ('conversion_rate', 'Order conversion rate', 'percentage', false),
+          ('recruitment', 'Number of new marketers recruited', 'count', false)
+          ON CONFLICT (name) DO NOTHING;
+        `);
+        
+        console.log('✅ target_types table created');
+      }
+      
+      if (missingTables.includes('targets')) {
+        console.log('🔧 Creating targets table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS targets (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(50) NOT NULL REFERENCES users(unique_id) ON DELETE CASCADE,
+            target_type_id INTEGER NOT NULL REFERENCES target_types(id),
+            target_value DECIMAL(15,2) NOT NULL CHECK (target_value > 0),
+            period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
+            period_start DATE NOT NULL,
+            period_end DATE NOT NULL,
+            bnpl_platform VARCHAR(50),
+            is_active BOOLEAN DEFAULT true,
+            created_by VARCHAR(50) REFERENCES users(unique_id),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        
+        // Create indexes
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_user_id ON targets(user_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_type_id ON targets(target_type_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_period ON targets(period_start, period_end);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_targets_bnpl_platform ON targets(bnpl_platform);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for targets');
+        }
+        
+        // Add constraint for BNPL platform values
+        try {
+          await pool.query(`
+            ALTER TABLE targets ADD CONSTRAINT IF NOT EXISTS chk_bnpl_platform 
+            CHECK (bnpl_platform IS NULL OR bnpl_platform IN ('WATU', 'EASYBUY', 'PALMPAY', 'CREDLOCK'));
+          `);
+        } catch (error) {
+          console.log('⚠️  Could not add BNPL platform constraint');
+        }
+        
+        console.log('✅ targets table created');
       }
       
       console.log('🎉 Startup migration completed successfully!');
