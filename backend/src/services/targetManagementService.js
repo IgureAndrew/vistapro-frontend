@@ -2,6 +2,7 @@
 // Enhanced service for managing targets with Master Admin control
 
 const { pool } = require('../config/database');
+const percentageMappingService = require('./percentageMappingService');
 
 /**
  * Get all target types
@@ -68,6 +69,8 @@ async function getAllTargets(filters = {}) {
       t.user_id,
       t.target_type_id,
       t.target_value,
+      t.target_percentage,
+      t.calculated_target_value,
       t.period_type,
       t.period_start,
       t.period_end,
@@ -136,7 +139,51 @@ async function getAllTargets(filters = {}) {
  * Create a new target
  */
 async function createTarget(targetData) {
-  const { userId, targetTypeId, targetValue, periodType, periodStart, periodEnd, bnplPlatform, createdBy, notes } = targetData;
+  const { 
+    userId, 
+    targetTypeId, 
+    targetValue, 
+    targetPercentage, 
+    periodType, 
+    periodStart, 
+    periodEnd, 
+    bnplPlatform, 
+    createdBy, 
+    notes 
+  } = targetData;
+  
+  let calculatedTargetValue = targetValue;
+  
+  // If percentage is provided, calculate the actual target value
+  if (targetPercentage) {
+    // Get the target type name for percentage mapping
+    const targetTypeResult = await pool.query(
+      'SELECT name FROM target_types WHERE id = $1',
+      [targetTypeId]
+    );
+    
+    if (targetTypeResult.rows.length === 0) {
+      throw new Error('Target type not found');
+    }
+    
+    const targetTypeName = targetTypeResult.rows[0].name;
+    
+    // Get user's location for location-specific mappings
+    const userResult = await pool.query(
+      'SELECT location FROM users WHERE unique_id = $1',
+      [userId]
+    );
+    
+    const userLocation = userResult.rows.length > 0 ? userResult.rows[0].location : null;
+    
+    // Get the orders count for this percentage
+    calculatedTargetValue = await percentageMappingService.getOrdersCountForPercentage(
+      targetPercentage,
+      targetTypeName,
+      bnplPlatform,
+      userLocation
+    );
+  }
   
   // Deactivate any existing target of the same type and period
   await pool.query(`
@@ -147,10 +194,10 @@ async function createTarget(targetData) {
   
   const { rows } = await pool.query(`
     INSERT INTO targets 
-    (user_id, target_type_id, target_value, period_type, period_start, period_end, bnpl_platform, created_by, notes)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    (user_id, target_type_id, target_value, target_percentage, calculated_target_value, period_type, period_start, period_end, bnpl_platform, created_by, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING *
-  `, [userId, targetTypeId, targetValue, periodType, periodStart, periodEnd, bnplPlatform, createdBy, notes]);
+  `, [userId, targetTypeId, targetValue, targetPercentage, calculatedTargetValue, periodType, periodStart, periodEnd, bnplPlatform, createdBy, notes]);
   
   return rows[0];
 }

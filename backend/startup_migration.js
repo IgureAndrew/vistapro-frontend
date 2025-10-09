@@ -26,7 +26,8 @@ async function runStartupMigration() {
       'verification_workflow_logs',
       'additional_pickup_requests',
       'target_types',
-      'targets'
+      'targets',
+      'target_percentage_mappings'
     ];
     
     let missingTables = [];
@@ -433,6 +434,88 @@ async function runStartupMigration() {
         }
         
         console.log('✅ targets table created');
+      }
+      
+      // Create target_percentage_mappings table if missing
+      if (missingTables.includes('target_percentage_mappings')) {
+        console.log('🔧 Creating target_percentage_mappings table...');
+        
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS target_percentage_mappings (
+            id SERIAL PRIMARY KEY,
+            percentage INTEGER NOT NULL CHECK (percentage > 0 AND percentage <= 100),
+            orders_count INTEGER NOT NULL CHECK (orders_count > 0),
+            target_type VARCHAR(50) DEFAULT 'orders',
+            bnpl_platform VARCHAR(50),
+            location VARCHAR(100),
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            CONSTRAINT unique_percentage_target_type_platform_location 
+              UNIQUE (percentage, target_type, bnpl_platform, location)
+          );
+        `);
+        
+        // Create indexes
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_target_percentage_mappings_percentage ON target_percentage_mappings(percentage);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_target_percentage_mappings_target_type ON target_percentage_mappings(target_type);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_target_percentage_mappings_bnpl_platform ON target_percentage_mappings(bnpl_platform);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_target_percentage_mappings_location ON target_percentage_mappings(location);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_target_percentage_mappings_active ON target_percentage_mappings(is_active);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for target_percentage_mappings');
+        }
+        
+        // Insert default percentage mappings for orders
+        await pool.query(`
+          INSERT INTO target_percentage_mappings (percentage, orders_count, target_type, is_active) VALUES
+          (10, 15, 'orders', true),
+          (20, 25, 'orders', true),
+          (30, 35, 'orders', true),
+          (40, 45, 'orders', true),
+          (50, 60, 'orders', true),
+          (60, 75, 'orders', true),
+          (70, 90, 'orders', true),
+          (80, 110, 'orders', true),
+          (90, 135, 'orders', true),
+          (100, 150, 'orders', true)
+          ON CONFLICT (percentage, target_type, bnpl_platform, location) DO NOTHING;
+        `);
+        
+        // Insert default percentage mappings for sales
+        await pool.query(`
+          INSERT INTO target_percentage_mappings (percentage, orders_count, target_type, is_active) VALUES
+          (10, 15000, 'sales', true),
+          (20, 25000, 'sales', true),
+          (30, 35000, 'sales', true),
+          (40, 45000, 'sales', true),
+          (50, 60000, 'sales', true),
+          (60, 75000, 'sales', true),
+          (70, 90000, 'sales', true),
+          (80, 110000, 'sales', true),
+          (90, 135000, 'sales', true),
+          (100, 150000, 'sales', true)
+          ON CONFLICT (percentage, target_type, bnpl_platform, location) DO NOTHING;
+        `);
+        
+        // Insert default percentage mappings for recruitment
+        await pool.query(`
+          INSERT INTO target_percentage_mappings (percentage, orders_count, target_type, is_active) VALUES
+          (10, 2, 'recruitment', true),
+          (20, 4, 'recruitment', true),
+          (30, 6, 'recruitment', true),
+          (40, 8, 'recruitment', true),
+          (50, 10, 'recruitment', true),
+          (60, 12, 'recruitment', true),
+          (70, 14, 'recruitment', true),
+          (80, 16, 'recruitment', true),
+          (90, 18, 'recruitment', true),
+          (100, 20, 'recruitment', true)
+          ON CONFLICT (percentage, target_type, bnpl_platform, location) DO NOTHING;
+        `);
+        
+        console.log('✅ target_percentage_mappings table created');
       }
       
       console.log('🎉 Startup migration completed successfully!');
