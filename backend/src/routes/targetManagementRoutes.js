@@ -65,7 +65,7 @@ router.get('/test-tables', async (req, res) => {
 });
 
 // Create tables endpoint (no auth required for debugging)
-router.post('/create-tables', async (req, res) => {
+router.get('/create-tables', async (req, res) => {
   try {
     console.log('🔧 Creating target management tables...');
     const { pool } = require('../config/database');
