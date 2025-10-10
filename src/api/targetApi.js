@@ -68,7 +68,7 @@ export const targetApiService = {
 
   // Create a new target
   createTarget: (targetData) => {
-    return targetApi.post('/', targetData);
+    return targetApi.post('/create', targetData);
   },
 
   // Update a target
