@@ -25,6 +25,7 @@ async function runStartupMigration() {
       'verification_submissions',
       'verification_workflow_logs',
       'additional_pickup_requests',
+      'product_activity_logs',
       'target_types',
       'targets',
       'target_percentage_mappings'
@@ -362,6 +363,38 @@ async function runStartupMigration() {
         }
         
         console.log('✅ additional_pickup_requests table created');
+      }
+      
+      // Create product_activity_logs table if missing
+      if (missingTables.includes('product_activity_logs')) {
+        console.log('📋 Creating product_activity_logs table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS product_activity_logs (
+            id SERIAL PRIMARY KEY,
+            product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+            action_type VARCHAR(50) NOT NULL,
+            actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            actor_name VARCHAR(255),
+            actor_role VARCHAR(50),
+            old_values JSONB,
+            new_values JSONB,
+            quantity_change INTEGER DEFAULT 0,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        
+        // Create indexes for better query performance
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_product_id ON product_activity_logs(product_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_created_at ON product_activity_logs(created_at DESC);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_actor ON product_activity_logs(actor_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_action_type ON product_activity_logs(action_type);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for product_activity_logs');
+        }
+        
+        console.log('✅ product_activity_logs table created');
       }
       
       // Create target management tables if missing
