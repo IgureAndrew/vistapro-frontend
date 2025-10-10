@@ -41,6 +41,11 @@ targetApi.interceptors.response.use(
 
 // API methods for target management
 export const targetApiService = {
+  // Get unique user locations
+  getLocations: () => {
+    return targetApi.get('/locations');
+  },
+
   // Get all targets (Master Admin)
   getAllTargets: (filters = {}) => {
     return targetApi.get('/', { params: filters });

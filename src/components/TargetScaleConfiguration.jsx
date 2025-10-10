@@ -16,6 +16,7 @@ import {
   updatePercentageMapping, 
   deletePercentageMapping 
 } from '../api/percentageMappingApi';
+import { targetApiService } from '../api/targetApi';
 import { showSuccess, showError } from '../utils/toast';
 
 const TargetScaleConfiguration = () => {
@@ -97,11 +98,16 @@ const TargetScaleConfiguration = () => {
 
   const loadLocations = async () => {
     try {
-      // This would typically come from a locations API
-      // For now, using static data
-      setAvailableLocations(['Lagos', 'Abuja', 'Port Harcourt', 'Kano', 'Ibadan']);
+      const response = await targetApiService.getLocations();
+      if (response.data.success) {
+        // Add "All Locations" option at the beginning
+        const locationsWithAll = ['All Locations', ...response.data.locations];
+        setAvailableLocations(locationsWithAll);
+      }
     } catch (error) {
       console.error('Error loading locations:', error);
+      // Fallback to empty array if API fails
+      setAvailableLocations(['All Locations']);
     }
   };
 

@@ -70,7 +70,23 @@ const TargetManagement = () => {
 
   useEffect(() => {
     loadData();
+    fetchLocations();
   }, [filters]);
+
+  // Fetch unique user locations
+  const fetchLocations = async () => {
+    try {
+      const response = await targetApiService.getLocations();
+      if (response.data.success) {
+        // Add "All Locations" option at the beginning
+        const locationsWithAll = ['All Locations', ...response.data.locations];
+        setAvailableLocations(locationsWithAll);
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      showError('Failed to fetch locations');
+    }
+  };
 
   useEffect(() => {
     loadFilteredUsers();
