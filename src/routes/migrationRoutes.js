@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const router = express.Router();
 const createAdminVerificationTableEndpoint = require('../../create_admin_table_endpoint');
+const { runEnhancedTargetMigration } = require('../../run_enhanced_target_migration');
 
 // Production migration endpoint
 router.post('/guarantor-structure', async (req, res) => {
@@ -1339,5 +1340,28 @@ router.post('/add-users-deleted-column', async (req, res) => {
 
 // Create admin verification details table endpoint
 router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
+
+// Enhanced Target Management Migration
+router.post('/enhance-target-management', async (req, res) => {
+  try {
+    console.log('🚀 Starting Enhanced Target Management Migration...');
+    
+    await runEnhancedTargetMigration();
+    
+    res.json({
+      success: true,
+      message: 'Enhanced Target Management migration completed successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Enhanced Target Management migration failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Enhanced Target Management migration failed',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

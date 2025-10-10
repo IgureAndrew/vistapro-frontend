@@ -2,7 +2,7 @@
 // Controller for managing targets with Master Admin control
 
 const targetManagementService = require('../services/targetManagementService');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 /**
  * Get all target types
@@ -54,12 +54,13 @@ const getUserTargets = async (req, res) => {
  */
 const getAllTargets = async (req, res) => {
   try {
-    const { userRole, periodType, targetType } = req.query;
+    const { userRole, periodType, targetType, location } = req.query;
     
     const filters = {};
     if (userRole) filters.userRole = userRole;
     if (periodType) filters.periodType = periodType;
     if (targetType) filters.targetType = targetType;
+    if (location) filters.location = location;
     
     const targets = await targetManagementService.getAllTargets(filters);
     

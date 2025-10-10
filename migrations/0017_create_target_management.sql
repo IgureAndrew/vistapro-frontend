@@ -7,16 +7,18 @@ CREATE TABLE IF NOT EXISTS target_types (
   name VARCHAR(50) UNIQUE NOT NULL,
   description TEXT,
   metric_unit VARCHAR(20) NOT NULL, -- 'count', 'currency', 'percentage'
+  supports_bnpl BOOLEAN DEFAULT false, -- Whether this target type supports BNPL platform selection
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Insert default target types
-INSERT INTO target_types (name, description, metric_unit) VALUES
-('orders', 'Number of orders to complete', 'count'),
-('sales', 'Sales revenue target', 'currency'),
-('customers', 'Number of new customers', 'count'),
-('conversion_rate', 'Order conversion rate', 'percentage')
+INSERT INTO target_types (name, description, metric_unit, supports_bnpl) VALUES
+('orders', 'Number of orders to complete', 'count', false),
+('sales', 'Sales revenue target', 'currency', true),
+('customers', 'Number of new customers', 'count', false),
+('conversion_rate', 'Order conversion rate', 'percentage', false),
+('recruitment', 'Number of new marketers recruited', 'count', false)
 ON CONFLICT (name) DO NOTHING;
 
 -- Create enhanced targets table (replaces marketer_targets)
@@ -28,6 +30,7 @@ CREATE TABLE IF NOT EXISTS targets (
   period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
+  bnpl_platform VARCHAR(50), -- BNPL platform for sales targets (WATU, EASYBUY, PALMPAY, CREDLOCK)
   is_active BOOLEAN DEFAULT true,
   created_by VARCHAR(50) REFERENCES users(unique_id),
   notes TEXT,
