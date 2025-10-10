@@ -3,14 +3,14 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth');
+const { verifyToken } = require('../middlewares/authMiddleware');
 const targetBasedPerformanceService = require('../services/targetBasedPerformanceService');
 
 /**
  * Get all users performance with filters
  * GET /api/target-performance/all
  */
-router.get('/all', authenticateToken, async (req, res) => {
+router.get('/all', verifyToken, async (req, res) => {
   try {
     const {
       period = 'monthly',
@@ -52,7 +52,7 @@ router.get('/all', authenticateToken, async (req, res) => {
  * Get specific user's performance
  * GET /api/target-performance/user/:userId
  */
-router.get('/user/:userId', authenticateToken, async (req, res) => {
+router.get('/user/:userId', verifyToken, async (req, res) => {
   try {
     const { userId } = req.params;
     const { startDate, endDate } = req.query;
@@ -89,7 +89,7 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
  * Get user's current targets for dashboard widget
  * GET /api/target-performance/my-targets
  */
-router.get('/my-targets', authenticateToken, async (req, res) => {
+router.get('/my-targets', verifyToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -113,7 +113,7 @@ router.get('/my-targets', authenticateToken, async (req, res) => {
  * Get performance statistics summary
  * GET /api/target-performance/stats
  */
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', verifyToken, async (req, res) => {
   try {
     const {
       period = 'monthly',
