@@ -6,7 +6,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com';
 
 const targetApi = axios.create({
-  baseURL: `${API_URL}/api/targets`,
+  baseURL: `${API_URL}/api/target-management`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -38,5 +38,48 @@ targetApi.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// API methods for target management
+export const targetApiService = {
+  // Get all targets (Master Admin)
+  getAllTargets: (filters = {}) => {
+    return targetApi.get('/', { params: filters });
+  },
+
+  // Get targets for a specific user
+  getUserTargets: (userId) => {
+    return targetApi.get(`/user/${userId}`);
+  },
+
+  // Get target statistics
+  getTargetStats: () => {
+    return targetApi.get('/stats');
+  },
+
+  // Get target types
+  getTargetTypes: () => {
+    return targetApi.get('/target-types');
+  },
+
+  // Create a new target
+  createTarget: (targetData) => {
+    return targetApi.post('/', targetData);
+  },
+
+  // Update a target
+  updateTarget: (targetId, targetData) => {
+    return targetApi.put(`/${targetId}`, targetData);
+  },
+
+  // Delete a target
+  deleteTarget: (targetId) => {
+    return targetApi.delete(`/${targetId}`);
+  },
+
+  // Activate/Deactivate a target
+  toggleTargetStatus: (targetId, isActive) => {
+    return targetApi.patch(`/${targetId}/status`, { is_active: isActive });
+  }
+};
 
 export default targetApi;

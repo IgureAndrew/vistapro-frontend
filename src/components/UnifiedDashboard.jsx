@@ -28,6 +28,7 @@ import Performance from './Performance';
 import UsersManagement from './UsersManagement';
 import MasterAdminWallet from './MasterAdminWallet';
 import MarketerVerificationDashboard from './MarketerVerificationDashboard';
+import UserTargets from './UserTargets';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management

@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Modal from "./Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square } from 'lucide-react';
+import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square, Settings } from 'lucide-react';
 import { targetManagementApiService } from '@/api/targetManagementApi';
 import { assignmentApiService } from '@/api/assignmentApi';
 import { useToast } from "./ui/use-toast";
+import TargetScaleConfiguration from './TargetScaleConfiguration';
+import { getAvailablePercentages, getOrdersCountForPercentage } from '@/api/percentageMappingApi';
 
 const TargetManagement = () => {
   const { showSuccess, showError } = useToast();
@@ -30,8 +32,12 @@ const TargetManagement = () => {
   const [filters, setFilters] = useState({
     userRole: '',
     periodType: '',
-    targetType: ''
+    targetType: '',
+    location: '',
+    bnplPlatform: ''
   });
+  const [availablePercentages, setAvailablePercentages] = useState([]);
+  const [calculatedTargetValue, setCalculatedTargetValue] = useState('');
   
   // Enhanced target creation state
   const [creationMode, setCreationMode] = useState('single'); // 'single' or 'bulk'
@@ -41,14 +47,24 @@ const TargetManagement = () => {
   });
   const [selectedUsers, setSelectedUsers] = useState([]);
 
+  // BNPL platform options
+  const bnplPlatforms = [
+    { value: 'WATU', label: 'WATU' },
+    { value: 'EASYBUY', label: 'EASYBUY' },
+    { value: 'PALMPAY', label: 'PALMPAY' },
+    { value: 'CREDLOCK', label: 'CREDLOCK' }
+  ];
+
   // Form state for creating/editing targets
   const [formData, setFormData] = useState({
     userId: '',
     targetTypeId: '',
     targetValue: '',
+    targetPercentage: '',
     periodType: '',
     periodStart: '',
     periodEnd: '',
+    bnplPlatform: '',
     notes: ''
   });
 
@@ -160,6 +176,7 @@ const TargetManagement = () => {
       userId: '',
       targetTypeId: '',
       targetValue: '',
+      targetPercentage: '',
       periodType: '',
       periodStart: '',
       periodEnd: '',
@@ -169,6 +186,8 @@ const TargetManagement = () => {
     setSelectedUsers([]);
     setUserFilters({ role: '', location: '' });
     setCreationMode('single');
+    setAvailablePercentages([]);
+    setCalculatedTargetValue('');
   };
 
   const openEditDialog = (target) => {
@@ -180,6 +199,7 @@ const TargetManagement = () => {
       periodType: target.period_type,
       periodStart: target.period_start,
       periodEnd: target.period_end,
+      bnplPlatform: target.bnpl_platform || '',
       notes: target.notes || ''
     });
     setEditDialogOpen(true);
@@ -187,6 +207,44 @@ const TargetManagement = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  // Load available percentages for a target type
+  const loadAvailablePercentages = async (targetTypeId, bnplPlatform = null, location = null) => {
+    if (!targetTypeId) {
+      setAvailablePercentages([]);
+      return;
+    }
+
+    try {
+      const targetType = targetTypes.find(type => type.id === parseInt(targetTypeId));
+      if (!targetType) return;
+
+      const response = await getAvailablePercentages(targetType.name, bnplPlatform, location);
+      setAvailablePercentages(response.data.percentages || []);
+    } catch (error) {
+      console.error('Error loading available percentages:', error);
+      setAvailablePercentages([]);
+    }
+  };
+
+  // Calculate target value from percentage
+  const calculateTargetValue = async (percentage, targetTypeId, bnplPlatform = null, location = null) => {
+    if (!percentage || !targetTypeId) {
+      setCalculatedTargetValue('');
+      return;
+    }
+
+    try {
+      const targetType = targetTypes.find(type => type.id === parseInt(targetTypeId));
+      if (!targetType) return;
+
+      const response = await getOrdersCountForPercentage(percentage, targetType.name, bnplPlatform, location);
+      setCalculatedTargetValue(response.data.ordersCount);
+    } catch (error) {
+      console.error('Error calculating target value:', error);
+      setCalculatedTargetValue('');
+    }
   };
 
   const getPeriodTypeColor = (periodType) => {
@@ -248,8 +306,8 @@ const TargetManagement = () => {
           <Plus className="h-4 w-4 mr-2" />
           Create Target
         </Button>
-        <Modal isOpen={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
-          <div className="max-w-4xl">
+        <Modal isOpen={createDialogOpen} onClose={() => setCreateDialogOpen(false)} size="xl">
+          <div>
             <h2 className="text-xl font-semibold mb-4">Create New Target</h2>
             
             {/* Mode Selection */}
@@ -386,7 +444,20 @@ const TargetManagement = () => {
                   <Label htmlFor="targetTypeId">Target Type</Label>
                   <select 
                     value={formData.targetTypeId} 
-                    onChange={(e) => setFormData({...formData, targetTypeId: e.target.value})}
+                    onChange={async (e) => {
+                      const selectedType = targetTypes.find(type => type.id === parseInt(e.target.value));
+                      setFormData({
+                        ...formData, 
+                        targetTypeId: e.target.value,
+                        bnplPlatform: selectedType?.supports_bnpl ? formData.bnplPlatform : '',
+                        targetPercentage: '',
+                        targetValue: ''
+                      });
+                      setCalculatedTargetValue('');
+                      
+                      // Load available percentages for this target type
+                      await loadAvailablePercentages(e.target.value, formData.bnplPlatform, null);
+                    }}
                     className="select-soft h-11 w-full"
                       required
                   >
@@ -400,17 +471,114 @@ const TargetManagement = () => {
                       )}
                   </select>
                 </div>
+                
+                {/* Percentage Selection */}
+                {availablePercentages.length > 0 && (
+                  <div>
+                    <Label htmlFor="targetPercentage">Target Percentage</Label>
+                    <select 
+                      value={formData.targetPercentage} 
+                      onChange={async (e) => {
+                        setFormData({...formData, targetPercentage: e.target.value});
+                        
+                        // Calculate target value from percentage
+                        if (e.target.value) {
+                          await calculateTargetValue(e.target.value, formData.targetTypeId, formData.bnplPlatform, null);
+                          setFormData(prev => ({
+                            ...prev, 
+                            targetValue: calculatedTargetValue,
+                            targetPercentage: e.target.value
+                          }));
+                        } else {
+                          setCalculatedTargetValue('');
+                          setFormData(prev => ({...prev, targetValue: '', targetPercentage: ''}));
+                        }
+                      }}
+                      className="select-soft h-11 w-full"
+                    >
+                      <option value="">Select percentage</option>
+                      {availablePercentages.map((percentage) => (
+                        <option key={percentage} value={percentage}>
+                          {percentage}%
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {/* Instructions */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                      <div className="flex items-start space-x-2">
+                        <div className="text-blue-600 mt-0.5">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="text-sm text-blue-800">
+                          <p className="font-medium mb-1">How to Use Percentage Targets:</p>
+                          <ul className="list-disc list-inside space-y-1 text-xs">
+                            <li><strong>10-30%:</strong> Beginner level - Good for new users</li>
+                            <li><strong>40-60%:</strong> Intermediate level - Standard performance</li>
+                            <li><strong>70-80%:</strong> Advanced level - High performers</li>
+                            <li><strong>90-100%:</strong> Expert level - Top performers</li>
+                          </ul>
+                          <p className="text-xs mt-2 text-blue-600">
+                            The system will automatically calculate the exact target value based on your percentage selection.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {calculatedTargetValue && (
+                      <p className="text-sm text-green-600 mt-2 font-medium">
+                        ✅ {formData.targetPercentage}% = {calculatedTargetValue.toLocaleString()} {targetTypes.find(t => t.id === parseInt(formData.targetTypeId))?.metric_unit || 'units'}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
                 <div>
-                  <Label htmlFor="targetValue">Target Value</Label>
+                  <Label htmlFor="targetValue">
+                    Target Value {calculatedTargetValue && <span className="text-green-600">(Calculated from {formData.targetPercentage}%)</span>}
+                  </Label>
                   <Input
                     id="targetValue"
                     type="number"
                     value={formData.targetValue}
-                    onChange={(e) => setFormData({...formData, targetValue: e.target.value})}
+                    onChange={(e) => setFormData({...formData, targetValue: e.target.value, targetPercentage: ''})}
+                    className={calculatedTargetValue ? 'bg-green-50 border-green-300' : ''}
+                    placeholder={calculatedTargetValue ? 'Calculated from percentage' : 'Enter target value or select percentage'}
                     required
                   />
+                  {calculatedTargetValue && (
+                    <p className="text-xs text-green-600 mt-1">
+                      This value is automatically calculated from the selected percentage
+                    </p>
+                  )}
                 </div>
                 </div>
+                
+                {/* BNPL Platform Selection - Only show for sales targets */}
+                {(() => {
+                  const selectedType = targetTypes.find(type => type.id === parseInt(formData.targetTypeId));
+                  return selectedType?.supports_bnpl ? (
+                    <div className="mt-4">
+                      <Label htmlFor="bnplPlatform">BNPL Platform</Label>
+                      <select 
+                        value={formData.bnplPlatform} 
+                        onChange={(e) => setFormData({...formData, bnplPlatform: e.target.value})}
+                        className="select-soft h-11 w-full"
+                        required
+                      >
+                        <option value="">Select BNPL platform</option>
+                        {bnplPlatforms.map((platform) => (
+                          <option key={platform.value} value={platform.value}>
+                            {platform.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null;
+                })()}
+                
                 <div className="grid grid-cols-3 gap-4 mt-4">
                 <div>
                   <Label htmlFor="periodType">Period Type</Label>
@@ -522,7 +690,7 @@ const TargetManagement = () => {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="userRole">User Role</Label>
               <select 
@@ -568,6 +736,36 @@ const TargetManagement = () => {
                 )}
               </select>
             </div>
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <select 
+                value={filters.location} 
+                onChange={(e) => setFilters({...filters, location: e.target.value})}
+                className="select-soft h-11 w-full"
+              >
+                <option value="">All locations</option>
+                {availableLocations.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="bnplPlatform">BNPL Platform</Label>
+              <select 
+                value={filters.bnplPlatform} 
+                onChange={(e) => setFilters({...filters, bnplPlatform: e.target.value})}
+                className="select-soft h-11 w-full"
+              >
+                <option value="">All platforms</option>
+                {bnplPlatforms.map((platform) => (
+                  <option key={platform.value} value={platform.value}>
+                    {platform.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -584,6 +782,7 @@ const TargetManagement = () => {
                 <TableHead>User</TableHead>
                 <TableHead>Target Type</TableHead>
                 <TableHead>Target Value</TableHead>
+                <TableHead>BNPL Platform</TableHead>
                 <TableHead>Period</TableHead>
                 <TableHead>Date Range</TableHead>
                 <TableHead>Status</TableHead>
@@ -607,6 +806,15 @@ const TargetManagement = () => {
                   </TableCell>
                   <TableCell className="font-medium">
                     {target.target_value.toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    {target.bnpl_platform ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {target.bnpl_platform}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge className={getPeriodTypeColor(target.period_type)}>
@@ -655,8 +863,8 @@ const TargetManagement = () => {
       </Card>
 
       {/* Edit Dialog */}
-      <Modal isOpen={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-        <div className="max-w-2xl">
+      <Modal isOpen={editDialogOpen} onClose={() => setEditDialogOpen(false)} size="lg">
+        <div>
           <h2 className="text-xl font-semibold mb-4">Edit Target</h2>
           <form onSubmit={handleUpdateTarget} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -708,6 +916,23 @@ const TargetManagement = () => {
                 />
               </div>
             </div>
+            
+            {/* BNPL Platform field - only show for sales targets */}
+            {selectedTarget && targetTypes.find(tt => tt.id === selectedTarget.target_type_id)?.supports_bnpl && (
+              <div>
+                <Label htmlFor="edit-bnplPlatform">BNPL Platform</Label>
+                <select 
+                  value={formData.bnplPlatform || ''} 
+                  onChange={(e) => setFormData({...formData, bnplPlatform: e.target.value})}
+                  className="select-soft h-11 w-full"
+                >
+                  <option value="">Select BNPL platform</option>
+                  {bnplPlatforms.map(platform => (
+                    <option key={platform} value={platform}>{platform}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <Label htmlFor="edit-notes">Notes (Optional)</Label>
               <Input
@@ -726,6 +951,11 @@ const TargetManagement = () => {
           </form>
         </div>
       </Modal>
+
+      {/* Target Scale Configuration Section */}
+      <div className="mt-8">
+        <TargetScaleConfiguration />
+      </div>
     </div>
   );
 };

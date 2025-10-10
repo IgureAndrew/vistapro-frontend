@@ -332,18 +332,44 @@ export default function Performance() {
                       </div>
                       
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Weekly Orders:</span>
-                          <span className="font-medium">
-                            {marketer.performance?.weekly?.orders || 0}/{marketer.performance?.weekly?.target || 0}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Monthly Orders:</span>
-                          <span className="font-medium">
-                            {marketer.performance?.monthly?.orders || 0}/{marketer.performance?.monthly?.target || 0}
-                          </span>
-                        </div>
+                        {/* Display all weekly targets */}
+                        {marketer.performance?.weekly?.targets && marketer.performance.weekly.targets.length > 0 ? (
+                          marketer.performance.weekly.targets.map((target, idx) => (
+                            <div key={`weekly-${idx}`} className="flex justify-between text-sm">
+                              <span>Weekly {target.type}{target.bnplPlatform ? ` (${target.bnplPlatform})` : ''}:</span>
+                              <span className="font-medium">
+                                {target.actual}/{target.target}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex justify-between text-sm">
+                            <span>Weekly Orders:</span>
+                            <span className="font-medium">
+                              {marketer.performance?.weekly?.orders || 0}/0
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Display all monthly targets */}
+                        {marketer.performance?.monthly?.targets && marketer.performance.monthly.targets.length > 0 ? (
+                          marketer.performance.monthly.targets.map((target, idx) => (
+                            <div key={`monthly-${idx}`} className="flex justify-between text-sm">
+                              <span>Monthly {target.type}{target.bnplPlatform ? ` (${target.bnplPlatform})` : ''}:</span>
+                              <span className="font-medium">
+                                {target.actual}/{target.target}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex justify-between text-sm">
+                            <span>Monthly Orders:</span>
+                            <span className="font-medium">
+                              {marketer.performance?.monthly?.orders || 0}/0
+                            </span>
+                          </div>
+                        )}
+                        
                         <div className="flex justify-between text-sm">
                           <span>Total Sales:</span>
                           <span className="font-medium text-green-600">₦{marketer.performance?.overall?.totalSales?.toLocaleString() || 0}</span>
