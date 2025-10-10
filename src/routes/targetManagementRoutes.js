@@ -4,6 +4,81 @@
 const express = require('express');
 const router = express.Router();
 
+// Get unique user locations
+router.get('/locations', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    console.log('🔍 Fetching unique user locations...');
+
+    // Get unique locations from users table (excluding NULL and empty values)
+    const result = await pool.query(`
+      SELECT DISTINCT location 
+      FROM users 
+      WHERE location IS NOT NULL 
+      AND location != '' 
+      AND location != 'null'
+      ORDER BY location ASC
+    `);
+
+    await pool.end();
+
+    const locations = result.rows.map(row => row.location);
+    
+    console.log('✅ Found locations:', locations);
+
+    res.json({
+      success: true,
+      locations: locations,
+      count: locations.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching locations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch locations',
+      error: error.message
+    });
+  }
+});
+
+// Validate location exists in users table
+async function validateLocation(location) {
+  if (!location || location === 'All Locations') {
+    return true; // Allow "All Locations" and empty values
+  }
+
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    const result = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM users 
+      WHERE location = $1
+    `, [location]);
+
+    await pool.end();
+
+    return parseInt(result.rows[0].count) > 0;
+  } catch (error) {
+    console.error('❌ Error validating location:', error);
+    return false;
+  }
+}
+
 // Debug endpoint to check and create tables (no auth required for debugging)
 router.get('/debug/check-tables', async (req, res) => {
   try {

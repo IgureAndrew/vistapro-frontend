@@ -1,5 +1,54 @@
 {
+<<<<<<< HEAD
   "devDependencies": {
     "nodemon": "^3.1.10"
   }
+=======
+  "name": "vistapro-backend",
+  "version": "1.0.0",
+  "description": "Vistapro Backend API",
+  "main": "start.js",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "nodemon start.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.0",
+    "cors": "^2.8.5",
+    "cron": "^3.1.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.11.3",
+    "resend": "^6.1.2",
+    "socket.io": "^4.7.4",
+    "streamifier": "^0.1.1",
+    "uuid": "^13.0.0",
+    "winston": "^3.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "postgresql",
+    "vistapro"
+  ],
+  "author": "Vistapro Team",
+  "license": "MIT"
+>>>>>>> 86db6fcf82aa099dc21e98440d97cc0c2fc81473
 }
