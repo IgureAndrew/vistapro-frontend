@@ -11,7 +11,11 @@ import {
   Target,
   Zap,
   Shield,
-  Crown
+  Crown,
+  Filter,
+  Calendar,
+  MapPin,
+  Star
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
@@ -20,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import walletApi from '../api/walletApi'
 import targetApi from '../api/targetApi'
 import { performanceApiService } from '../api/performanceApi'
+import targetPerformanceApiService from '../api/targetPerformanceApi'
 
 export default function Performance() {
   const [loading, setLoading] = useState(true)
@@ -30,6 +35,24 @@ export default function Performance() {
   const [adminsPerformance, setAdminsPerformance] = useState([])
   const [superadminsPerformance, setSuperadminsPerformance] = useState([])
   
+  // Target-based performance states
+  const [targetBasedPerformance, setTargetBasedPerformance] = useState([])
+  const [targetBasedStats, setTargetBasedStats] = useState({})
+  
+  // Filter states for target-based performance
+  const [filters, setFilters] = useState({
+    period: 'monthly',
+    location: 'all',
+    targetType: 'all',
+    performanceRange: 'all',
+    role: null
+  })
+
+  // Available filter options
+  const [availableLocations, setAvailableLocations] = useState(['All Locations'])
+  const [availableTargetTypes, setAvailableTargetTypes] = useState(['All Types'])
+  const [availableRoles] = useState(['Marketer', 'Admin', 'SuperAdmin'])
+  
   // Summary metrics
   const [summaryMetrics, setSummaryMetrics] = useState({
     totalMarketers: 0,
@@ -38,6 +61,66 @@ export default function Performance() {
     totalOrders: 0,
     totalSales: 0
   })
+
+  // Load filter options
+  const loadFilterOptions = async () => {
+    try {
+      // Get locations from target management API
+      const locationsResponse = await fetch('/api/target-management/locations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      
+      if (locationsResponse.ok) {
+        const locationsData = await locationsResponse.json()
+        if (locationsData.success) {
+          setAvailableLocations(['All Locations', ...locationsData.locations])
+        }
+      }
+      
+      // Set target types
+      setAvailableTargetTypes(['All Types', 'orders', 'sales', 'recruitment', 'customers'])
+      
+    } catch (error) {
+      console.error('Error loading filter options:', error)
+    }
+  }
+
+  // Load target-based performance data
+  const loadTargetBasedPerformance = async () => {
+    try {
+      console.log('🚀 Loading target-based performance data with filters:', filters)
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 20000)
+      })
+      
+      const [performanceRes, statsRes] = await Promise.race([
+        Promise.all([
+          targetPerformanceApiService.getAllUsersPerformance(filters),
+          targetPerformanceApiService.getPerformanceStats(filters)
+        ]),
+        timeoutPromise
+      ])
+      
+      const performanceData = performanceRes.data.data || []
+      const statsData = statsRes.data.data || {}
+      
+      console.log('✅ Target-based performance data loaded:', {
+        users: performanceData.length,
+        stats: statsData
+      })
+
+      setTargetBasedPerformance(performanceData)
+      setTargetBasedStats(statsData)
+
+    } catch (err) {
+      console.error('❌ Failed to load target-based performance data:', err)
+      setTargetBasedPerformance([])
+      setTargetBasedStats({})
+    }
+  }
 
   // Load performance data with timeout handling
   const loadPerformanceData = async () => {
@@ -118,8 +201,13 @@ export default function Performance() {
   }
 
   useEffect(() => {
-    loadPerformanceData()
+    loadFilterOptions()
   }, [])
+
+  useEffect(() => {
+    loadPerformanceData()
+    loadTargetBasedPerformance()
+  }, [filters])
 
   const getPerformanceColor = (score) => {
     if (score >= 80) return 'text-green-600 bg-green-100'
@@ -134,6 +222,36 @@ export default function Performance() {
       case 'Medium': return 'text-yellow-600 bg-yellow-100'
       case 'Low': return 'text-red-600 bg-red-100'
       default: return 'text-gray-600 bg-gray-100'
+    }
+  }
+
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }))
+  }
+
+  const getTargetPerformanceColor = (score) => {
+    if (score >= 90) return 'text-green-600 bg-green-100'
+    if (score >= 70) return 'text-blue-600 bg-blue-100'
+    if (score >= 50) return 'text-yellow-600 bg-yellow-100'
+    return 'text-red-600 bg-red-100'
+  }
+
+  const getTargetPerformanceStatus = (score) => {
+    if (score >= 100) return 'Achieved'
+    if (score >= 70) return 'On Track'
+    if (score >= 50) return 'Progressing'
+    return 'Behind Target'
+  }
+
+  const getRoleIcon = (role) => {
+    switch (role) {
+      case 'Marketer': return <Target className="h-4 w-4" />
+      case 'Admin': return <Shield className="h-4 w-4" />
+      case 'SuperAdmin': return <Crown className="h-4 w-4" />
+      default: return <Users className="h-4 w-4" />
     }
   }
 
@@ -281,8 +399,12 @@ export default function Performance() {
           </Button>
         </div>
 
-        <Tabs defaultValue="marketers" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="target-based" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="target-based" className="flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              Target-Based ({targetBasedPerformance.length})
+            </TabsTrigger>
             <TabsTrigger value="marketers" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Marketers ({marketersPerformance.length})
@@ -296,6 +418,258 @@ export default function Performance() {
               SuperAdmins ({superadminsPerformance.length})
             </TabsTrigger>
           </TabsList>
+
+          {/* Target-Based Performance */}
+          <TabsContent value="target-based" className="mt-6">
+            <div className="space-y-6">
+              {/* Filters */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Filter className="h-5 w-5 mr-2" />
+                    Filters
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {/* Period Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Calendar className="h-4 w-4 inline mr-1" />
+                        Time Period
+                      </label>
+                      <select
+                        value={filters.period}
+                        onChange={(e) => handleFilterChange('period', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                      </select>
+                    </div>
+
+                    {/* Location Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <MapPin className="h-4 w-4 inline mr-1" />
+                        Location
+                      </label>
+                      <select
+                        value={filters.location}
+                        onChange={(e) => handleFilterChange('location', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        {availableLocations.map(location => (
+                          <option key={location} value={location === 'All Locations' ? 'all' : location}>
+                            {location}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Target Type Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Target className="h-4 w-4 inline mr-1" />
+                        Target Type
+                      </label>
+                      <select
+                        value={filters.targetType}
+                        onChange={(e) => handleFilterChange('targetType', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        {availableTargetTypes.map(type => (
+                          <option key={type} value={type === 'All Types' ? 'all' : type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Performance Range Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Star className="h-4 w-4 inline mr-1" />
+                        Performance Range
+                      </label>
+                      <select
+                        value={filters.performanceRange}
+                        onChange={(e) => handleFilterChange('performanceRange', e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        <option value="all">All Performance</option>
+                        <option value="top">Top (90%+)</option>
+                        <option value="good">Good (70-89%)</option>
+                        <option value="average">Average (50-69%)</option>
+                        <option value="below">Below Target (&lt;50%)</option>
+                      </select>
+                    </div>
+
+                    {/* Role Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Users className="h-4 w-4 inline mr-1" />
+                        Role
+                      </label>
+                      <select
+                        value={filters.role || 'all'}
+                        onChange={(e) => handleFilterChange('role', e.target.value === 'all' ? null : e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        <option value="all">All Roles</option>
+                        {availableRoles.map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Target-Based Performance Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Total Users</p>
+                        <p className="text-2xl font-bold text-gray-900">{targetBasedStats.total_users || 0}</p>
+                      </div>
+                      <Users className="h-8 w-8 text-blue-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Average Performance</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {targetBasedStats.average_performance ? Math.round(targetBasedStats.average_performance) : 0}%
+                        </p>
+                      </div>
+                      <BarChart3 className="h-8 w-8 text-green-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Targets Achieved</p>
+                        <p className="text-2xl font-bold text-gray-900">{targetBasedStats.achieved_targets || 0}</p>
+                      </div>
+                      <Award className="h-8 w-8 text-purple-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Top Performers</p>
+                        <p className="text-2xl font-bold text-gray-900">{targetBasedStats.top_performers || 0}</p>
+                      </div>
+                      <Crown className="h-8 w-8 text-yellow-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Target-Based Performance Data */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Target-Based Performance Results</CardTitle>
+                  <CardDescription>
+                    Showing {targetBasedPerformance.length} users with target-based performance metrics
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {targetBasedPerformance.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Performance Data Found</h3>
+                      <p className="text-gray-600">No users found matching your filter criteria.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {targetBasedPerformance.map((userData, index) => (
+                        <div key={userData.user.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex items-center space-x-2">
+                                {getRoleIcon(userData.user.role)}
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {userData.user.name}
+                                </h3>
+                                <Badge variant="outline">{userData.user.role}</Badge>
+                              </div>
+                              <Badge variant="outline" className="text-gray-600">
+                                {userData.user.location}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="text-right">
+                                <p className="text-sm text-gray-600">Overall Performance</p>
+                                <p className="text-2xl font-bold text-gray-900">
+                                  {Math.round(userData.performance.overall)}%
+                                </p>
+                              </div>
+                              <Badge className={getTargetPerformanceColor(userData.performance.overall)}>
+                                {getTargetPerformanceStatus(userData.performance.overall)}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Target Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {userData.performance.targets.map((target, targetIndex) => (
+                              <div key={targetIndex} className="bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium text-gray-900 capitalize">
+                                    {target.target_type}
+                                  </h4>
+                                  <Badge variant="outline" className="text-xs">
+                                    {target.period}
+                                  </Badge>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Target:</span>
+                                    <span className="font-medium">{target.target_value}</span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Actual:</span>
+                                    <span className="font-medium">{target.actual_value}</span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Performance:</span>
+                                    <span className={`font-medium ${getTargetPerformanceColor(target.performance).split(' ')[0]}`}>
+                                      {Math.round(target.performance)}%
+                                    </span>
+                                  </div>
+                                  {target.bnpl_platform && (
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-gray-600">Platform:</span>
+                                      <span className="font-medium text-xs">{target.bnpl_platform}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           {/* Marketers Performance */}
           <TabsContent value="marketers" className="mt-6">
