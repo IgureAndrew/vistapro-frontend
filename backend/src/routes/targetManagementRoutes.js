@@ -36,6 +36,15 @@ router.get('/debug/check-tables', async (req, res) => {
       );
     `);
 
+    // Check targets table structure
+    const targetsStructure = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'targets' 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position;
+    `);
+
     await pool.end();
 
     res.json({
@@ -43,7 +52,8 @@ router.get('/debug/check-tables', async (req, res) => {
       tables: {
         target_types: targetTypesCheck.rows[0].exists,
         targets: targetsCheck.rows[0].exists
-      }
+      },
+      targets_structure: targetsStructure.rows
     });
   } catch (error) {
     console.error('Error checking tables:', error);
@@ -179,6 +189,75 @@ router.post('/debug/create-tables', async (req, res) => {
     console.error('Error creating tables:', error);
     res.status(500).json({
       success: false,
+      error: error.message
+    });
+  }
+});
+
+// Debug endpoint to fix missing columns (no auth required for debugging)
+router.post('/debug/fix-columns', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    console.log('🔧 Adding missing columns to targets table...');
+
+    // Add missing columns to targets table
+    const columnsToAdd = [
+      'target_percentage INTEGER',
+      'calculated_target_value DECIMAL(15,2)'
+    ];
+
+    const results = [];
+
+    for (const column of columnsToAdd) {
+      try {
+        const columnName = column.split(' ')[0];
+        console.log(`🔄 Adding column: ${columnName}`);
+        
+        await pool.query(`ALTER TABLE targets ADD COLUMN IF NOT EXISTS ${column};`);
+        results.push(`✅ Added column: ${columnName}`);
+        console.log(`✅ Added column: ${columnName}`);
+      } catch (error) {
+        if (error.code === '42701') {
+          results.push(`⏭️ Column already exists: ${column.split(' ')[0]}`);
+          console.log(`⏭️ Column already exists: ${column.split(' ')[0]}`);
+        } else {
+          results.push(`❌ Error adding column ${column.split(' ')[0]}: ${error.message}`);
+          console.log(`❌ Error adding column ${column.split(' ')[0]}:`, error.message);
+        }
+      }
+    }
+
+    // Check final table structure
+    const tableInfo = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'targets' 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position;
+    `);
+
+    await pool.end();
+
+    console.log('🎉 Missing columns added successfully!');
+
+    res.json({
+      success: true,
+      message: 'Missing columns added to targets table successfully',
+      results: results,
+      finalTableStructure: tableInfo.rows
+    });
+  } catch (error) {
+    console.error('❌ Error adding missing columns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add missing columns',
       error: error.message
     });
   }
