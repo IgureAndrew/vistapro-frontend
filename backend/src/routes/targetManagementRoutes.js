@@ -3,9 +3,6 @@
 
 const express = require('express');
 const router = express.Router();
-const targetManagementController = require('../controllers/targetManagementController');
-const { verifyToken } = require('../middlewares/authMiddleware');
-const { verifyRole } = require('../middlewares/roleMiddleware');
 
 // Debug endpoint to check and create tables (no auth required for debugging)
 router.get('/debug/check-tables', async (req, res) => {
@@ -262,6 +259,10 @@ router.post('/debug/fix-columns', async (req, res) => {
     });
   }
 });
+
+const targetManagementController = require('../controllers/targetManagementController');
+const { verifyToken } = require('../middlewares/authMiddleware');
+const { verifyRole } = require('../middlewares/roleMiddleware');
 
 // Apply authentication to all other routes
 router.use(verifyToken);
