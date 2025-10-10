@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "name": "vistapro-backend",
   "version": "1.0.0",
   "description": "Vistapro Backend API",
@@ -33,32 +32,11 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
-=======
-  "name": "vistapro",
-  "version": "1.0.0",
-  "description": "Vistapro - Phone Distribution Management Platform",
-  "private": true,
-  "scripts": {
-    "start": "cd backend && node start.js",
-    "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "cd backend && npm install",
-    "build:frontend": "cd frontend && npm install && npm run build",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
-  },
-  "dependencies": {
-    "dotenv": "^16.3.1",
-    "node-cron": "^3.0.3"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
->>>>>>> 86db6fcf82aa099dc21e98440d97cc0c2fc81473
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
-<<<<<<< HEAD
   "keywords": [
     "node",
     "express",
@@ -67,10 +45,4 @@
   ],
   "author": "Vistapro Team",
   "license": "MIT"
-=======
-  "workspaces": [
-    "backend",
-    "frontend"
-  ]
->>>>>>> 86db6fcf82aa099dc21e98440d97cc0c2fc81473
 }
