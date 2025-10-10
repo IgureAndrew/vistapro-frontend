@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Modal from "./Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square, Settings } from 'lucide-react';
-import { targetManagementApiService } from '@/api/targetManagementApi';
+import { targetApiService } from '@/api/targetApi';
 import { assignmentApiService } from '@/api/assignmentApi';
 import { useToast } from "./ui/use-toast";
 import TargetScaleConfiguration from './TargetScaleConfiguration';
@@ -96,9 +96,9 @@ const TargetManagement = () => {
     try {
       setLoading(true);
       const [targetsRes, targetTypesRes, statsRes] = await Promise.all([
-        targetManagementApiService.getAllTargets(filters),
-        targetManagementApiService.getTargetTypes(),
-        targetManagementApiService.getTargetStats()
+        targetApiService.getAllTargets(filters),
+        targetApiService.getTargetTypes(),
+        targetApiService.getTargetStats()
       ]);
 
       setTargets(targetsRes.data.data || []);
@@ -106,7 +106,7 @@ const TargetManagement = () => {
       setStats(statsRes.data.data || {});
 
       // Load all users for location extraction
-      const usersRes = await targetManagementApiService.getUsersForTargetCreation();
+      const usersRes = await targetApiService.getUsersForTargetCreation();
       setUsers(usersRes.data.data || []);
       
       // Extract unique locations for filtering
@@ -123,7 +123,7 @@ const TargetManagement = () => {
   // Load filtered users based on role and location
   const loadFilteredUsers = async () => {
     try {
-      const response = await targetManagementApiService.getUsersForTargetCreation(
+      const response = await targetApiService.getUsersForTargetCreation(
         userFilters.role || null,
         userFilters.location || null
       );
@@ -138,7 +138,7 @@ const TargetManagement = () => {
     e.preventDefault();
     try {
       if (creationMode === 'single') {
-      await targetManagementApiService.createTarget(formData);
+      await targetApiService.createTarget(formData);
         showSuccess('Target created successfully');
       } else {
         // Bulk creation
@@ -147,7 +147,7 @@ const TargetManagement = () => {
           userId: userId
         }));
         
-        await targetManagementApiService.bulkCreateTargets({ targets: targetsToCreate });
+        await targetApiService.bulkCreateTargets({ targets: targetsToCreate });
         showSuccess(`${targetsToCreate.length} targets created successfully`);
       }
       
@@ -163,7 +163,7 @@ const TargetManagement = () => {
   const handleUpdateTarget = async (e) => {
     e.preventDefault();
     try {
-      await targetManagementApiService.updateTarget(selectedTarget.id, formData);
+      await targetApiService.updateTarget(selectedTarget.id, formData);
       showSuccess('Target updated successfully');
       setEditDialogOpen(false);
       resetForm();
@@ -177,7 +177,7 @@ const TargetManagement = () => {
   const handleDeleteTarget = async (targetId) => {
     if (window.confirm('Are you sure you want to deactivate this target?')) {
       try {
-        await targetManagementApiService.deactivateTarget(targetId);
+        await targetApiService.deactivateTarget(targetId);
         showSuccess('Target deactivated successfully');
         loadData();
       } catch (error) {
