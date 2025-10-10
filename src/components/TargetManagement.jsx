@@ -465,7 +465,7 @@ const TargetManagement = () => {
                       setFormData({
                         ...formData, 
                         targetTypeId: e.target.value,
-                        bnplPlatform: selectedType?.supports_bnpl ? formData.bnplPlatform : '',
+                        bnplPlatform: selectedType?.name === 'sales' ? formData.bnplPlatform : '',
                         targetPercentage: '',
                         targetValue: ''
                       });
@@ -575,7 +575,7 @@ const TargetManagement = () => {
                 {/* BNPL Platform Selection - Only show for sales targets */}
                 {(() => {
                   const selectedType = targetTypes.find(type => type.id === parseInt(formData.targetTypeId));
-                  return selectedType?.supports_bnpl ? (
+                  return selectedType?.name === 'sales' ? (
                     <div className="mt-4">
                       <Label htmlFor="bnplPlatform">BNPL Platform</Label>
                       <select 
@@ -934,7 +934,7 @@ const TargetManagement = () => {
             </div>
             
             {/* BNPL Platform field - only show for sales targets */}
-            {selectedTarget && targetTypes.find(tt => tt.id === selectedTarget.target_type_id)?.supports_bnpl && (
+            {selectedTarget && targetTypes.find(tt => tt.id === selectedTarget.target_type_id)?.name === 'sales' && (
               <div>
                 <Label htmlFor="edit-bnplPlatform">BNPL Platform</Label>
                 <select 
