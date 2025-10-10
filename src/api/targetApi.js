@@ -48,7 +48,7 @@ export const targetApiService = {
 
   // Get all targets (Master Admin)
   getAllTargets: (filters = {}) => {
-    return targetApi.get('/', { params: filters });
+    return targetApi.get('/all', { params: filters });
   },
 
   // Get targets for a specific user
@@ -63,7 +63,7 @@ export const targetApiService = {
 
   // Get target types
   getTargetTypes: () => {
-    return targetApi.get('/target-types');
+    return targetApi.get('/types');
   },
 
   // Create a new target
