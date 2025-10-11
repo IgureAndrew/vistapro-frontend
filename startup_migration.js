@@ -4,7 +4,7 @@ async function runStartupMigration() {
   let pool;
   
   try {
-    console.log('🔧 Running startup migration...');
+    console.log('🔧 Running startup migration...'); // OTP table fix
     
     // Create database connection
     pool = new Pool({
