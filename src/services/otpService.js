@@ -18,11 +18,15 @@ async function storeOTP(userId, otpCode, expiresInMinutes = 5) {
   try {
     const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
     
-    // Delete any existing unused OTPs for this user
-    await pool.query(`
+    console.log(`🔄 Storing OTP for user ${userId}, deleting existing unused OTPs...`);
+    
+    // Delete ALL existing OTPs for this user (both used and unused) to prevent multiple emails
+    const deleteResult = await pool.query(`
       DELETE FROM user_otps 
-      WHERE user_id = $1 AND used = FALSE
+      WHERE user_id = $1
     `, [userId]);
+    
+    console.log(`🗑️ Deleted ${deleteResult.rowCount} existing OTP records for user ${userId}`);
     
     // Insert new OTP
     const result = await pool.query(`
@@ -31,7 +35,7 @@ async function storeOTP(userId, otpCode, expiresInMinutes = 5) {
       RETURNING id
     `, [userId, otpCode, expiresAt]);
     
-    console.log(`✅ OTP stored for user ${userId}, expires at ${expiresAt}`);
+    console.log(`✅ New OTP stored for user ${userId}, expires at ${expiresAt}, ID: ${result.rows[0].id}`);
     return result.rows[0].id;
   } catch (error) {
     console.error('❌ Error storing OTP:', error);
