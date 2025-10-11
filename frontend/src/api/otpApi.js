@@ -1,5 +1,5 @@
 // OTP API service for VistaPro
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://vistapro-backend.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://vistapro-backend.onrender.com';
 
 /**
  * Send OTP to user's email
@@ -131,3 +131,14 @@ export const sendEmailUpdateReminder = async (token) => {
     throw error;
   }
 };
+
+// Default export for backward compatibility
+const otpApiService = {
+  sendOTP,
+  verifyOTP,
+  getGracePeriodStatus,
+  updateEmail,
+  sendEmailUpdateReminder
+};
+
+export default otpApiService;
