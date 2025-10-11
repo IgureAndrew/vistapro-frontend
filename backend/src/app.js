@@ -205,6 +205,8 @@ app.use('/api/performance',    require('./routes/performanceRoutes'));
 app.use('/api/assignments',    require('./routes/assignmentRoutes'));
 app.use('/api/target-management', require('./routes/targetManagementRoutes'));
 app.use('/api/percentage-mappings', require('./routes/percentageMappingRoutes'));
+app.use('/api/target-performance', require('./routes/targetPerformanceRoutes'));
+app.use('/api/otp', require('./routes/otpRoutes'));
 app.use('/api/stock',          require('./routes/stockupdateRoutes'));
 app.use('/api/verification',   require('./routes/verificationRoutes'));
 // app.use('/api/verification-workflow', require('./routes/verificationWorkflowRoutes')); // DISABLED - conflicting with main verification system
