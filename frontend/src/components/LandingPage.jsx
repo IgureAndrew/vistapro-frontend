@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { updateUserWithAvatar } from "../utils/avatarUtils";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AlertDialog from "@/components/ui/alert-dialog";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Shield } from "lucide-react";
+import OTPInputModal from "./OTPInputModal";
+import GracePeriodAlert from "./GracePeriodAlert";
+import otpApiService from "../api/otpApi";
 
 // Define our colors
 const goldColor = "#C6A768";
@@ -53,6 +56,14 @@ function LandingPage() {
     onConfirm: null
   });
 
+  // OTP and Grace Period state
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [showGracePeriodAlert, setShowGracePeriodAlert] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState(null);
+  const [gracePeriodData, setGracePeriodData] = useState(null);
+  const [loginMethod, setLoginMethod] = useState("password"); // "password" or "otp"
+
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -66,6 +77,128 @@ function LandingPage() {
       confirmText,
       onConfirm: onConfirm || (() => setAlertDialog(prev => ({ ...prev, open: false })))
     });
+  };
+
+  // Check grace period status on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      checkGracePeriodStatus();
+    }
+  }, []);
+
+  // Check grace period status
+  const checkGracePeriodStatus = async () => {
+    try {
+      const response = await otpApiService.getGracePeriodStatus();
+      if (response.data.success) {
+        setGracePeriodData(response.data.data);
+        if (response.data.data.isInGracePeriod && response.data.data.emailUpdateRequired) {
+          setShowGracePeriodAlert(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking grace period status:', error);
+    }
+  };
+
+  // Handle OTP login
+  const handleOTPLogin = async () => {
+    if (!loginData.email) {
+      showAlert("error", "Email Required", "Please enter your email address to receive the OTP code.");
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError(null);
+
+    try {
+      await otpApiService.sendOTP(loginData.email);
+      setShowOTPModal(true);
+    } catch (error) {
+      setOtpError(error.response?.data?.message || "Failed to send OTP. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Verify OTP
+  const handleVerifyOTP = async (otpCode) => {
+    setOtpLoading(true);
+    setOtpError(null);
+
+    try {
+      const response = await otpApiService.verifyOTP(loginData.email, otpCode);
+      if (response.data.success) {
+        localStorage.setItem("token", response.data.token);
+        const updatedUserData = updateUserWithAvatar(response.data.user);
+        localStorage.setItem("user", JSON.stringify(updatedUserData));
+        
+        // Redirect based on role
+        redirectToDashboard(response.data.user.role);
+      }
+    } catch (error) {
+      setOtpError(error.response?.data?.message || "Invalid OTP code. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOTP = async () => {
+    setOtpLoading(true);
+    setOtpError(null);
+
+    try {
+      await otpApiService.sendOTP(loginData.email);
+      setOtpError(null);
+    } catch (error) {
+      setOtpError(error.response?.data?.message || "Failed to resend OTP. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Update email address
+  const handleUpdateEmail = async (newEmail) => {
+    setOtpLoading(true);
+
+    try {
+      await otpApiService.updateEmail(newEmail);
+      setGracePeriodData(prev => ({
+        ...prev,
+        emailUpdateRequired: false
+      }));
+      setShowGracePeriodAlert(false);
+      showAlert("success", "Email Updated", "Your email address has been updated successfully.");
+    } catch (error) {
+      throw error; // Let the GracePeriodAlert handle the error display
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Redirect to dashboard based on role
+  const redirectToDashboard = (role) => {
+    switch (role) {
+      case "SuperAdmin":
+        navigate("/dashboard/superadmin");
+        break;
+      case "MasterAdmin":
+        navigate("/dashboard/masteradmin");
+        break;
+      case "Admin":
+        navigate("/dashboard/admin");
+        break;
+      case "Dealer":
+        navigate("/dashboard/dealer");
+        break;
+      case "Marketer":
+        navigate("/dashboard/marketer");
+        break;
+      default:
+        navigate("/dashboard");
+    }
   };
 
   // Handler for login submission.
@@ -83,27 +216,12 @@ function LandingPage() {
         // Update user data with avatar URL if profile_image exists
         const updatedUserData = updateUserWithAvatar(data.user);
         localStorage.setItem("user", JSON.stringify(updatedUserData));
+        
+        // Check grace period status after successful login
+        await checkGracePeriodStatus();
+        
         // Redirect based on the user's role.
-        switch (data.user.role) {
-          case "SuperAdmin":
-            navigate("/dashboard/superadmin");
-            break;
-          case "MasterAdmin":
-            navigate("/dashboard/masteradmin");
-            break;
-          case "Admin":
-            navigate("/dashboard/admin");
-            break;
-          case "Dealer":
-            navigate("/dashboard/dealer");
-            break;
-          case "Marketer":
-            navigate("/dashboard/marketer");
-            break;
-          default:
-            navigate("/");
-            break;
-        }
+        redirectToDashboard(data.user.role);
       } else {
         if (data.requiresAssignment) {
           showAlert("warning", "Account Pending Assignment", "Your account is pending Admin assignment. Please wait for assignment.");
@@ -205,45 +323,106 @@ function LandingPage() {
             </div>
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-foreground">
+          {/* Login Method Toggle */}
+          <div className="flex space-x-2 mb-4">
+            <Button
+              type="button"
+              variant={loginMethod === "password" ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setLoginMethod("password")}
+            >
+              <Lock className="h-4 w-4 mr-2" />
               Password
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                type={showLoginPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                className="pl-10 pr-10 border-border focus:ring-ring"
-                value={loginData.password}
-                onChange={(e) =>
-                  setLoginData({ ...loginData, password: e.target.value })
-                }
-                required
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowLoginPassword(!showLoginPassword)}
-              >
-                {showLoginPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
-              </Button>
-            </div>
+            </Button>
+            <Button
+              type="button"
+              variant={loginMethod === "otp" ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setLoginMethod("otp")}
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              OTP Code
+            </Button>
           </div>
 
-          <Button
-            type="submit"
-            className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
-          >
-            Sign In
-          </Button>
+          {/* Password Field (only show for password method) */}
+          {loginMethod === "password" && (
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type={showLoginPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  className="pl-10 pr-10 border-border focus:ring-ring"
+                  value={loginData.password}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                >
+                  {showLoginPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* OTP Info (only show for OTP method) */}
+          {loginMethod === "otp" && (
+            <div className="space-y-2">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Shield className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-blue-900">Secure OTP Login</span>
+                </div>
+                <p className="text-xs text-blue-800">
+                  Enter your email above and click "Send OTP" to receive a 6-digit verification code.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Submit Buttons */}
+          {loginMethod === "password" ? (
+            <Button
+              type="submit"
+              className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+            >
+              Sign In
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleOTPLogin}
+              disabled={otpLoading}
+              className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+            >
+              {otpLoading ? "Sending OTP..." : "Send OTP Code"}
+            </Button>
+          )}
+
+          {/* OTP Error Display */}
+          {otpError && loginMethod === "otp" && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-600 text-sm">{otpError}</p>
+            </div>
+          )}
 
           <div className="text-center space-y-2">
             <Button
@@ -485,7 +664,7 @@ function LandingPage() {
             
             <div className="space-y-4">
               <h1 className="text-6xl lg:text-7xl font-bold text-black leading-tight">
-                Vistapro
+                Vistapro - OTP Ready
               </h1>
               <p className="text-xl lg:text-2xl text-gray-700 max-w-lg mx-auto leading-relaxed">
                 Redefine Success in Phone Distribution.
@@ -498,13 +677,13 @@ function LandingPage() {
         <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-16 bg-gray-50">
           <Card className="w-full max-w-md border-0 shadow-xl">
             <CardHeader className="space-y-1 pb-6">
-              <CardDescription className="text-center text-gray-600">
+            <CardDescription className="text-center text-gray-600">
                 {view === "login"
-                  ? "Enter your credentials to access your account"
+                  ? "Enter your credentials to access your account - OTP System Active"
                   : view === "register"
                   ? "Master Admin registration only"
                   : "Enter your email to receive reset instructions"}
-              </CardDescription>
+            </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {renderForm()}
@@ -523,6 +702,36 @@ function LandingPage() {
         onConfirm={alertDialog.onConfirm}
         onCancel={() => setAlertDialog(prev => ({ ...prev, open: false }))}
         showCancel={false}
+      />
+
+      {/* OTP Input Modal */}
+      <OTPInputModal
+        isOpen={showOTPModal}
+        onClose={() => {
+          setShowOTPModal(false);
+          setOtpError(null);
+        }}
+        email={loginData.email}
+        onVerifyOTP={handleVerifyOTP}
+        onResendOTP={handleResendOTP}
+        isLoading={otpLoading}
+        error={otpError}
+        onBackToPassword={() => {
+          setShowOTPModal(false);
+          setLoginMethod("password");
+          setOtpError(null);
+        }}
+      />
+
+      {/* Grace Period Alert */}
+      <GracePeriodAlert
+        isOpen={showGracePeriodAlert}
+        onClose={() => setShowGracePeriodAlert(false)}
+        daysRemaining={gracePeriodData?.daysRemaining || 0}
+        currentEmail={gracePeriodData?.currentEmail || ''}
+        onUpdateEmail={handleUpdateEmail}
+        isLoading={otpLoading}
+        error={otpError}
       />
     </div>
   );
