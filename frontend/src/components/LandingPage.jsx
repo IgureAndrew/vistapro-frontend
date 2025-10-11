@@ -7,11 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AlertDialog from "@/components/ui/alert-dialog";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-
 // Define our colors
 const goldColor = "#C6A768";
 const blackColor = "#000";
-
 // Utility function to check if a password meets the criteria:
 // - At least 12 characters
 // - Contains at least one letter and one digit
@@ -21,12 +19,10 @@ function isPasswordValid(password) {
   const hasDigit = /[0-9]/.test(password);
   return hasLetter && hasDigit;
 }
-
 function LandingPage() {
   // Define which form to show: "login", "register", or "forgot"
   const [view, setView] = useState("login");
   const navigate = useNavigate();
-
   // Form state for each view.
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
@@ -38,11 +34,9 @@ function LandingPage() {
     gender: "",
   });
   const [forgotData, setForgotData] = useState({ email: "" });
-
   // For toggling password visibility in the register and login forms.
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-
   // Alert dialog state
   const [alertDialog, setAlertDialog] = useState({
     open: false,
@@ -52,10 +46,8 @@ function LandingPage() {
     confirmText: "OK",
     onConfirm: null
   });
-
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
-
   // Helper function to show alert dialog
   const showAlert = (type, title, message, confirmText = "OK", onConfirm = null) => {
     setAlertDialog({
@@ -67,7 +59,6 @@ function LandingPage() {
       onConfirm: onConfirm || (() => setAlertDialog(prev => ({ ...prev, open: false })))
     });
   };
-
   // Handler for login submission.
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -118,7 +109,6 @@ function LandingPage() {
       showAlert("error", "Error", "Error logging in");
     }
   };
-
   // Handler for registration submission.
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
@@ -156,7 +146,6 @@ function LandingPage() {
       showAlert("error", "Error", "Error registering");
     }
   };
-
   // Handler for forgot password submission.
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
@@ -179,7 +168,6 @@ function LandingPage() {
       showAlert("error", "Error", "Error sending reset instructions");
     }
   };
-
   // Render the appropriate form based on the current view.
   const renderForm = () => {
     if (view === "login") {
@@ -237,14 +225,12 @@ function LandingPage() {
               </Button>
             </div>
           </div>
-
           <Button
             type="submit"
             className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
           >
             Sign In
           </Button>
-
           <div className="text-center space-y-2">
             <Button
               type="button"
@@ -290,7 +276,6 @@ function LandingPage() {
               required
             />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
@@ -326,7 +311,6 @@ function LandingPage() {
               />
             </div>
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="registerEmail" className="text-sm font-medium text-gray-700">
               Email
@@ -343,7 +327,6 @@ function LandingPage() {
               required
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="registerPassword" className="text-sm font-medium text-gray-700">
               Password
@@ -382,7 +365,6 @@ function LandingPage() {
               <p className="text-green-600 text-xs">✓ Password meets criteria!</p>
             )}
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="gender" className="text-sm font-medium text-gray-700">
               Gender
@@ -402,7 +384,6 @@ function LandingPage() {
               <option value="female">Female</option>
             </select>
           </div>
-
           <Button
             type="submit"
             className="w-full bg-black hover:bg-gray-800 text-white font-medium py-2.5"
@@ -410,7 +391,6 @@ function LandingPage() {
           >
             Create Account
           </Button>
-
           <div className="text-center">
             <Button
               type="button"
@@ -442,14 +422,12 @@ function LandingPage() {
               required
             />
           </div>
-
           <Button
             type="submit"
             className="w-full bg-black hover:bg-gray-800 text-white font-medium py-2.5"
           >
             Send Reset Instructions
           </Button>
-
           <div className="text-center">
             <Button
               type="button"
@@ -464,7 +442,6 @@ function LandingPage() {
       );
     }
   };
-
   return (
     <div className="min-h-screen bg-white font-['Geist',sans-serif]">
       {/* Main content area */}
@@ -493,7 +470,6 @@ function LandingPage() {
             </div>
           </div>
         </div>
-
         {/* Right Section: Form Card */}
         <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-16 bg-gray-50">
           <Card className="w-full max-w-md border-0 shadow-xl">
@@ -512,7 +488,6 @@ function LandingPage() {
           </Card>
         </div>
       </div>
-
       {/* Alert Dialog */}
       <AlertDialog
         open={alertDialog.open}
@@ -527,7 +502,5 @@ function LandingPage() {
     </div>
   );
 }
-
-export default LandingPage;
 
 export default LandingPage;
