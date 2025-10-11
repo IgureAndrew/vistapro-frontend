@@ -44,6 +44,25 @@ async function storeOTP(userId, otpCode, expiresInMinutes = 5) {
  */
 async function verifyOTP(userId, otpCode) {
   try {
+    console.log(`🔐 Verifying OTP for user ${userId} with code ${otpCode}`);
+    
+    // First, let's check what OTP records exist for this user
+    const debugResult = await pool.query(`
+      SELECT 
+        id, user_id, otp_code, expires_at, used, used_at, created_at,
+        (expires_at > NOW()) as is_not_expired,
+        (NOW() - created_at) as age_seconds
+      FROM user_otps 
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 5
+    `, [userId]);
+    
+    console.log(`📊 Found ${debugResult.rows.length} OTP records for user ${userId}:`);
+    debugResult.rows.forEach((record, index) => {
+      console.log(`  ${index + 1}. Code: ${record.otp_code}, Expires: ${record.expires_at}, Used: ${record.used}, Valid: ${record.is_not_expired}`);
+    });
+    
     const result = await pool.query(`
       SELECT * FROM user_otps 
       WHERE user_id = $1 
@@ -54,11 +73,32 @@ async function verifyOTP(userId, otpCode) {
       LIMIT 1
     `, [userId, otpCode]);
 
+    console.log(`🔍 Verification query result: ${result.rows.length} matching records found`);
+
     if (result.rows.length === 0) {
-      throw new Error('Invalid or expired OTP code');
+      // Let's check if the OTP exists but is expired or used
+      const expiredResult = await pool.query(`
+        SELECT 
+          otp_code, expires_at, used, created_at,
+          (expires_at > NOW()) as is_not_expired
+        FROM user_otps 
+        WHERE user_id = $1 AND otp_code = $2
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `, [userId, otpCode]);
+      
+      if (expiredResult.rows.length > 0) {
+        const record = expiredResult.rows[0];
+        console.log(`⚠️  OTP found but invalid - Expired: ${!record.is_not_expired}, Used: ${record.used}`);
+        throw new Error(`Invalid OTP: ${!record.is_not_expired ? 'expired' : 'already used'}`);
+      } else {
+        console.log(`❌ No OTP found for user ${userId} with code ${otpCode}`);
+        throw new Error('Invalid or expired OTP code');
+      }
     }
 
     const otpRecord = result.rows[0];
+    console.log(`✅ Valid OTP found: ${otpRecord.otp_code} for user ${userId}`);
     
     // Mark OTP as used
     await pool.query(`
@@ -66,6 +106,8 @@ async function verifyOTP(userId, otpCode) {
       SET used = TRUE, used_at = NOW() 
       WHERE id = $1
     `, [otpRecord.id]);
+    
+    console.log(`✅ OTP marked as used`);
 
     console.log(`✅ OTP verified for user ${userId}`);
     return true;
