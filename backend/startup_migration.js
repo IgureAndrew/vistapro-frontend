@@ -25,6 +25,8 @@ async function runStartupMigration() {
       'verification_submissions',
       'verification_workflow_logs',
       'additional_pickup_requests',
+      'product_activity_logs',
+      'user_otps',
       'target_types',
       'targets',
       'target_percentage_mappings'
@@ -362,6 +364,112 @@ async function runStartupMigration() {
         }
         
         console.log('✅ additional_pickup_requests table created');
+      }
+      
+      // Create product_activity_logs table if missing
+      if (missingTables.includes('product_activity_logs')) {
+        console.log('📋 Creating product_activity_logs table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS product_activity_logs (
+            id SERIAL PRIMARY KEY,
+            product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+            action_type VARCHAR(50) NOT NULL,
+            actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            actor_name VARCHAR(255),
+            actor_role VARCHAR(50),
+            old_values JSONB,
+            new_values JSONB,
+            quantity_change INTEGER DEFAULT 0,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        
+        // Create indexes for better query performance
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_product_id ON product_activity_logs(product_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_created_at ON product_activity_logs(created_at DESC);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_actor ON product_activity_logs(actor_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_product_activity_action_type ON product_activity_logs(action_type);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for product_activity_logs');
+        }
+        
+        console.log('✅ product_activity_logs table created');
+      }
+      
+      // Create user_otps table if missing
+      if (missingTables.includes('user_otps')) {
+        console.log('📋 Creating user_otps table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS user_otps (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            otp_code VARCHAR(6) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            used_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        
+        // Create indexes for better query performance
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_user_id ON user_otps(user_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_expires_at ON user_otps(expires_at);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_created_at ON user_otps(created_at DESC);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_used ON user_otps(used);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for user_otps');
+        }
+        
+        console.log('✅ user_otps table created');
+      }
+      
+      // Add OTP-related columns to users table if missing
+      try {
+        console.log('🔧 Adding OTP-related columns to users table...');
+        
+        // Check if columns exist and add them if missing
+        const columnsToAdd = [
+          { name: 'email_verified', type: 'BOOLEAN DEFAULT FALSE' },
+          { name: 'otp_enabled', type: 'BOOLEAN DEFAULT FALSE' },
+          { name: 'otp_grace_period_end', type: 'TIMESTAMP' },
+          { name: 'email_update_required', type: 'BOOLEAN DEFAULT FALSE' }
+        ];
+        
+        for (const column of columnsToAdd) {
+          try {
+            await pool.query(`
+              ALTER TABLE users 
+              ADD COLUMN IF NOT EXISTS ${column.name} ${column.type};
+            `);
+            console.log(`✅ Added column ${column.name} to users table`);
+          } catch (error) {
+            if (error.code !== '42701') { // Column already exists
+              console.log(`⚠️  Could not add column ${column.name}:`, error.message);
+            }
+          }
+        }
+        
+        // Set grace period for existing users (2 weeks from now)
+        try {
+          const gracePeriodEnd = new Date();
+          gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 14); // 2 weeks
+          
+          await pool.query(`
+            UPDATE users 
+            SET otp_grace_period_end = $1, email_update_required = TRUE
+            WHERE otp_grace_period_end IS NULL
+          `, [gracePeriodEnd]);
+          
+          console.log('✅ Set grace period for existing users');
+        } catch (error) {
+          console.log('⚠️  Could not set grace period:', error.message);
+        }
+        
+      } catch (error) {
+        console.log('⚠️  Error adding OTP columns to users table:', error.message);
       }
       
       // Create target management tables if missing
