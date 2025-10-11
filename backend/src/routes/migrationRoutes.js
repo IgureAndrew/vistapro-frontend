@@ -1364,6 +1364,81 @@ router.post('/enhance-target-management', async (req, res) => {
   }
 });
 
+// TEMPORARY: Create user_otps table (will be moved to proper endpoint later)
+router.post('/create-user-otps-temp', async (req, res) => {
+  try {
+    console.log('📋 Creating user_otps table...');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Check if table already exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'user_otps'
+      );
+    `);
+    
+    if (tableCheck.rows[0].exists) {
+      await pool.end();
+      return res.status(200).json({
+        success: true,
+        message: 'user_otps table already exists'
+      });
+    }
+    
+    console.log('🔄 Creating user_otps table...');
+    
+    // Create the table
+    await pool.query(`
+      CREATE TABLE user_otps (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        otp_code VARCHAR(6) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    
+    console.log('✅ Created user_otps table');
+    
+    // Create indexes for better query performance
+    try {
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_user_id ON user_otps(user_id);');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_expires_at ON user_otps(expires_at);');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_created_at ON user_otps(created_at DESC);');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_user_otps_used ON user_otps(used);');
+      console.log('✅ Created indexes for user_otps table');
+    } catch (error) {
+      console.log('⚠️  Could not create indexes for user_otps:', error.message);
+    }
+    
+    await pool.end();
+    
+    res.json({
+      success: true,
+      message: 'user_otps table created successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error creating user_otps table:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create user_otps table',
+      error: error.message
+    });
+  }
+});
+
 // Add OTP columns to users table
 router.post('/add-otp-columns', async (req, res) => {
   try {
