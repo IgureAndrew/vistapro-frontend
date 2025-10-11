@@ -1,9 +1,4 @@
 {
-<<<<<<< HEAD
-  "devDependencies": {
-    "nodemon": "^3.1.10"
-  }
-=======
   "name": "vistapro-backend",
   "version": "1.0.0",
   "description": "Vistapro Backend API",
@@ -50,5 +45,4 @@
   ],
   "author": "Vistapro Team",
   "license": "MIT"
->>>>>>> 86db6fcf82aa099dc21e98440d97cc0c2fc81473
 }
