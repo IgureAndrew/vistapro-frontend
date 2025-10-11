@@ -3,14 +3,25 @@
 
 const { Resend } = require('resend');
 
+// Check if Resend API key is configured
+if (!process.env.RESEND_API_KEY) {
+  console.error('❌ RESEND_API_KEY is not configured in environment variables!');
+  console.error('⚠️  OTP email functionality will not work until RESEND_API_KEY is set.');
+}
+
 // Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key_for_startup');
 
 /**
  * Send OTP email to user
  */
 async function sendOTPEmail(userEmail, userName, otpCode) {
   try {
+    // Check if Resend is properly configured
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured. Please add it to your environment variables on Render.');
+    }
+
     console.log(`📧 Sending OTP email to ${userEmail} for user ${userName}`);
     
     const { data, error } = await resend.emails.send({
@@ -38,8 +49,13 @@ async function sendOTPEmail(userEmail, userName, otpCode) {
  */
 async function sendEmailUpdateReminder(userEmail, userName, daysRemaining) {
   try {
-    console.log(`📧 Sending email update reminder to ${userEmail}`);
+    // Check if Resend is properly configured
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured. Please add it to your environment variables on Render.');
+    }
 
+    console.log(`📧 Sending email update reminder to ${userEmail}`);
+    
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
       to: [userEmail],
