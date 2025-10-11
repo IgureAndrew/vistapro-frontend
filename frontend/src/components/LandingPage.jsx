@@ -529,5 +529,5 @@ function LandingPage() {
 }
 
 export default LandingPage;
-/ /   O T P   S y s t e m   U p d a t e   -   T r i g g e r   V e r c e l   D e p l o y m e n t  
- 
+
+export default LandingPage;
