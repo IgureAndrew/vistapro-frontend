@@ -42,14 +42,15 @@ export const getAvatarUrl = (profileImage, fallback = null) => {
 
 /**
  * Gets user initials for avatar fallback
- * @param {Object} user - User object with first_name and last_name
+ * @param {Object} user - User object with first_name/last_name (snake_case) or firstName/lastName (camelCase)
  * @returns {string} User initials (e.g., "AI" for Andrew Igure)
  */
 export const getUserInitials = (user) => {
   if (!user) return 'U';
   
-  const firstName = user.first_name || '';
-  const lastName = user.last_name || '';
+  // Handle both snake_case (regular login) and camelCase (OTP login) formats
+  const firstName = user.first_name || user.firstName || '';
+  const lastName = user.last_name || user.lastName || '';
   
   if (firstName && lastName) {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
