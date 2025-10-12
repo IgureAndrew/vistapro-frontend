@@ -102,7 +102,7 @@ router.post('/verify', async (req, res) => {
     
     // Find user by email
     const userResult = await pool.query(`
-      SELECT id, email, first_name, last_name, role, otp_enabled, otp_grace_period_end, email_update_required
+      SELECT id, unique_id, email, first_name, last_name, role, otp_enabled, otp_grace_period_end, email_update_required
       FROM users 
       WHERE email = $1
     `, [email]);
@@ -119,13 +119,15 @@ router.post('/verify', async (req, res) => {
     // Verify OTP
     await otpService.verifyOTP(user.id, otpCode);
     
-    // Generate JWT token
+    // Generate JWT token (using same format as regular login)
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { 
-        userId: user.id, 
-        email: user.email,
-        role: user.role 
+        id: user.id, 
+        unique_id: user.unique_id, 
+        role: user.role, 
+        first_name: user.first_name, 
+        last_name: user.last_name 
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
