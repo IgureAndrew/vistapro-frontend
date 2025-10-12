@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Plus, Save, X } from 'lucide-react';
+import { targetApiService } from '../api/targetApi';
 
 const PercentageMappingModal = ({ 
   isOpen, 
@@ -25,6 +26,7 @@ const PercentageMappingModal = ({
     location: '',
     is_active: true
   });
+  const [locations, setLocations] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -72,6 +74,27 @@ const PercentageMappingModal = ({
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  // Fetch unique user locations
+  const fetchLocations = async () => {
+    try {
+      const response = await targetApiService.getLocations();
+      if (response.data.success) {
+        // Add "All Locations" option at the beginning
+        const locationsWithAll = ['All Locations', ...response.data.locations];
+        setLocations(locationsWithAll);
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      // Fallback to availableLocations prop or empty array
+      setLocations(availableLocations.length > 0 ? availableLocations : ['All Locations']);
+    }
+  };
+
+  // Load locations when component mounts
+  useEffect(() => {
+    fetchLocations();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -213,7 +236,7 @@ const PercentageMappingModal = ({
                 className="select-soft h-11 w-full border border-gray-300 rounded-md px-3 py-2"
               >
                 <option value="">All Locations</option>
-                {availableLocations.map((location) => (
+                {locations.map((location) => (
                   <option key={location} value={location}>
                     {location}
                   </option>

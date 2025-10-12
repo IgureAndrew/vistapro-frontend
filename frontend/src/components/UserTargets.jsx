@@ -244,6 +244,34 @@ const UserTargets = () => {
                   <p className="text-xs text-blue-600 mt-1">
                     This target represents {target.target_percentage}% of the total {target.target_type_name} capacity for your region/platform.
                   </p>
+                  
+                  {/* Performance Level Indicator */}
+                  <div className="mt-2 p-2 bg-white rounded border border-blue-200">
+                    <p className="text-xs font-medium text-blue-800 mb-1">Your Performance Level:</p>
+                    <div className="flex items-center space-x-2">
+                      {target.target_percentage <= 30 ? (
+                        <>
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <span className="text-xs text-green-700 font-medium">Beginner Level</span>
+                        </>
+                      ) : target.target_percentage <= 60 ? (
+                        <>
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <span className="text-xs text-blue-700 font-medium">Intermediate Level</span>
+                        </>
+                      ) : target.target_percentage <= 80 ? (
+                        <>
+                          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                          <span className="text-xs text-yellow-700 font-medium">Advanced Level</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                          <span className="text-xs text-purple-700 font-medium">Expert Level</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 

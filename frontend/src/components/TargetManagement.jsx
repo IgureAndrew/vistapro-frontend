@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Modal from "./Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Edit, Trash2, Target, Users, TrendingUp, Calendar, CheckSquare, Square, Settings } from 'lucide-react';
-import { targetManagementApiService } from '@/api/targetManagementApi';
+import { targetApiService } from '@/api/targetApi';
 import { assignmentApiService } from '@/api/assignmentApi';
 import { useToast } from "./ui/use-toast";
 import TargetScaleConfiguration from './TargetScaleConfiguration';
@@ -70,7 +70,23 @@ const TargetManagement = () => {
 
   useEffect(() => {
     loadData();
+    fetchLocations();
   }, [filters]);
+
+  // Fetch unique user locations
+  const fetchLocations = async () => {
+    try {
+      const response = await targetApiService.getLocations();
+      if (response.data.success) {
+        // Add "All Locations" option at the beginning
+        const locationsWithAll = ['All Locations', ...response.data.locations];
+        setAvailableLocations(locationsWithAll);
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      showError('Failed to fetch locations');
+    }
+  };
 
   useEffect(() => {
     loadFilteredUsers();
@@ -80,9 +96,9 @@ const TargetManagement = () => {
     try {
       setLoading(true);
       const [targetsRes, targetTypesRes, statsRes] = await Promise.all([
-        targetManagementApiService.getAllTargets(filters),
-        targetManagementApiService.getTargetTypes(),
-        targetManagementApiService.getTargetStats()
+        targetApiService.getAllTargets(filters),
+        targetApiService.getTargetTypes(),
+        targetApiService.getTargetStats()
       ]);
 
       setTargets(targetsRes.data.data || []);
@@ -90,7 +106,7 @@ const TargetManagement = () => {
       setStats(statsRes.data.data || {});
 
       // Load all users for location extraction
-      const usersRes = await targetManagementApiService.getUsersForTargetCreation();
+      const usersRes = await targetApiService.getUsersForTargetCreation();
       setUsers(usersRes.data.data || []);
       
       // Extract unique locations for filtering
@@ -107,7 +123,7 @@ const TargetManagement = () => {
   // Load filtered users based on role and location
   const loadFilteredUsers = async () => {
     try {
-      const response = await targetManagementApiService.getUsersForTargetCreation(
+      const response = await targetApiService.getUsersForTargetCreation(
         userFilters.role || null,
         userFilters.location || null
       );
@@ -122,7 +138,7 @@ const TargetManagement = () => {
     e.preventDefault();
     try {
       if (creationMode === 'single') {
-      await targetManagementApiService.createTarget(formData);
+      await targetApiService.createTarget(formData);
         showSuccess('Target created successfully');
       } else {
         // Bulk creation
@@ -131,7 +147,7 @@ const TargetManagement = () => {
           userId: userId
         }));
         
-        await targetManagementApiService.bulkCreateTargets({ targets: targetsToCreate });
+        await targetApiService.bulkCreateTargets({ targets: targetsToCreate });
         showSuccess(`${targetsToCreate.length} targets created successfully`);
       }
       
@@ -147,7 +163,7 @@ const TargetManagement = () => {
   const handleUpdateTarget = async (e) => {
     e.preventDefault();
     try {
-      await targetManagementApiService.updateTarget(selectedTarget.id, formData);
+      await targetApiService.updateTarget(selectedTarget.id, formData);
       showSuccess('Target updated successfully');
       setEditDialogOpen(false);
       resetForm();
@@ -161,7 +177,7 @@ const TargetManagement = () => {
   const handleDeleteTarget = async (targetId) => {
     if (window.confirm('Are you sure you want to deactivate this target?')) {
       try {
-        await targetManagementApiService.deactivateTarget(targetId);
+        await targetApiService.deactivateTarget(targetId);
         showSuccess('Target deactivated successfully');
         loadData();
       } catch (error) {
@@ -449,7 +465,7 @@ const TargetManagement = () => {
                       setFormData({
                         ...formData, 
                         targetTypeId: e.target.value,
-                        bnplPlatform: selectedType?.supports_bnpl ? formData.bnplPlatform : '',
+                        bnplPlatform: selectedType?.name === 'sales' ? formData.bnplPlatform : '',
                         targetPercentage: '',
                         targetValue: ''
                       });
@@ -503,9 +519,33 @@ const TargetManagement = () => {
                         </option>
                       ))}
                     </select>
+                    
+                    {/* Instructions */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                      <div className="flex items-start space-x-2">
+                        <div className="text-blue-600 mt-0.5">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="text-sm text-blue-800">
+                          <p className="font-medium mb-1">How to Use Percentage Targets:</p>
+                          <ul className="list-disc list-inside space-y-1 text-xs">
+                            <li><strong>10-30%:</strong> Beginner level - Good for new users</li>
+                            <li><strong>40-60%:</strong> Intermediate level - Standard performance</li>
+                            <li><strong>70-80%:</strong> Advanced level - High performers</li>
+                            <li><strong>90-100%:</strong> Expert level - Top performers</li>
+                          </ul>
+                          <p className="text-xs mt-2 text-blue-600">
+                            The system will automatically calculate the exact target value based on your percentage selection.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
                     {calculatedTargetValue && (
-                      <p className="text-sm text-green-600 mt-1">
-                        {formData.targetPercentage}% = {calculatedTargetValue.toLocaleString()} {targetTypes.find(t => t.id === parseInt(formData.targetTypeId))?.metric_unit || 'units'}
+                      <p className="text-sm text-green-600 mt-2 font-medium">
+                        ✅ {formData.targetPercentage}% = {calculatedTargetValue.toLocaleString()} {targetTypes.find(t => t.id === parseInt(formData.targetTypeId))?.metric_unit || 'units'}
                       </p>
                     )}
                   </div>
@@ -535,7 +575,7 @@ const TargetManagement = () => {
                 {/* BNPL Platform Selection - Only show for sales targets */}
                 {(() => {
                   const selectedType = targetTypes.find(type => type.id === parseInt(formData.targetTypeId));
-                  return selectedType?.supports_bnpl ? (
+                  return selectedType?.name === 'sales' ? (
                     <div className="mt-4">
                       <Label htmlFor="bnplPlatform">BNPL Platform</Label>
                       <select 
@@ -894,7 +934,7 @@ const TargetManagement = () => {
             </div>
             
             {/* BNPL Platform field - only show for sales targets */}
-            {selectedTarget && targetTypes.find(tt => tt.id === selectedTarget.target_type_id)?.supports_bnpl && (
+            {selectedTarget && targetTypes.find(tt => tt.id === selectedTarget.target_type_id)?.name === 'sales' && (
               <div>
                 <Label htmlFor="edit-bnplPlatform">BNPL Platform</Label>
                 <select 

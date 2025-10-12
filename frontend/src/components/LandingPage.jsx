@@ -124,21 +124,39 @@ function LandingPage() {
 
   // Verify OTP
   const handleVerifyOTP = async (otpCode) => {
+    console.log('🔍 LandingPage: Starting OTP verification...', { email: loginData.email, otpCode });
     setOtpLoading(true);
     setOtpError(null);
 
     try {
       const response = await otpApiService.verifyOTP(loginData.email, otpCode);
-      if (response.data.success) {
-        localStorage.setItem("token", response.data.token);
-        const updatedUserData = updateUserWithAvatar(response.data.user);
+      console.log('🔍 LandingPage: OTP verification response received:', response);
+      console.log('🔍 LandingPage: Response type:', typeof response);
+      console.log('🔍 LandingPage: Response keys:', Object.keys(response || {}));
+      
+      if (response && response.success === true) {
+        console.log('✅ LandingPage: OTP verification successful!');
+        localStorage.setItem("token", response.token);
+        const updatedUserData = updateUserWithAvatar(response.user);
         localStorage.setItem("user", JSON.stringify(updatedUserData));
         
+        console.log('✅ LandingPage: User data stored, closing modal and redirecting...');
+        
+        // Close OTP modal
+        setShowOTPModal(false);
+        
         // Redirect based on role
-        redirectToDashboard(response.data.user.role);
+        redirectToDashboard(response.user.role);
+      } else {
+        console.log('❌ LandingPage: OTP verification failed - response.success is not true');
+        console.log('❌ LandingPage: response.success value:', response?.success);
+        setOtpError(response?.message || "Invalid OTP code. Please try again.");
       }
     } catch (error) {
-      setOtpError(error.response?.data?.message || "Invalid OTP code. Please try again.");
+      console.error('❌ LandingPage: OTP verification error caught:', error);
+      console.error('❌ LandingPage: Error message:', error.message);
+      console.error('❌ LandingPage: Error response:', error.response);
+      setOtpError(error.message || "Invalid OTP code. Please try again.");
     } finally {
       setOtpLoading(false);
     }

@@ -1,172 +1,227 @@
 // src/services/emailService.js
+// Email service using Resend API for OTP and notifications
+
 const { Resend } = require('resend');
-const crypto = require('crypto');
 
-// Only initialize Resend if API key is provided and not a dummy key
-const resend = process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'dummy_key_for_local_dev' 
-  ? new Resend(process.env.RESEND_API_KEY) 
-  : null;
+// Check if Resend API key is configured
+if (!process.env.RESEND_API_KEY) {
+  console.error('❌ RESEND_API_KEY is not configured in environment variables!');
+  console.error('⚠️  OTP email functionality will not work until RESEND_API_KEY is set.');
+}
 
-/**
- * Generate a secure verification token
- */
-const generateVerificationToken = () => {
-  return crypto.randomBytes(32).toString('hex');
-};
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key_for_startup');
 
 /**
- * Send email verification
+ * Send OTP email to user
  */
-const sendVerificationEmail = async (email, token, firstName = 'User') => {
-  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
-  
-  const htmlContent = `
+async function sendOTPEmail(userEmail, userName, otpCode) {
+  try {
+    // Check if Resend is properly configured
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured. Please add it to your environment variables on Render.');
+    }
+
+    console.log(`📧 Sending OTP email to ${userEmail} for user ${userName}`);
+    
+    const { data, error } = await resend.emails.send({
+      from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
+      to: [userEmail],
+      subject: 'Your VistaPro Login Code',
+      html: generateOTPEmailHTML(userName, otpCode)
+    });
+
+    if (error) {
+      console.error('❌ Resend API error:', error);
+      throw new Error(`Failed to send OTP email: ${error.message}`);
+    }
+
+    console.log('✅ OTP email sent successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Error sending OTP email:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send email update reminder to user
+ */
+async function sendEmailUpdateReminder(userEmail, userName, daysRemaining) {
+  try {
+    // Check if Resend is properly configured
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured. Please add it to your environment variables on Render.');
+    }
+
+    console.log(`📧 Sending email update reminder to ${userEmail}`);
+    
+    const { data, error } = await resend.emails.send({
+      from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
+      to: [userEmail],
+      subject: `Action Required: Update Your Email (${daysRemaining} days remaining)`,
+      html: generateEmailUpdateReminderHTML(userName, daysRemaining)
+    });
+
+    if (error) {
+      console.error('❌ Resend API error:', error);
+      throw new Error(`Failed to send reminder email: ${error.message}`);
+    }
+
+    console.log('✅ Email update reminder sent successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Error sending email update reminder:', error);
+    throw error;
+  }
+}
+
+/**
+ * Generate OTP email HTML template
+ */
+function generateOTPEmailHTML(userName, otpCode) {
+  return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Verify Your Email - Vistapro</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #C6A768; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background: #f9f9f9; }
-        .button { display: inline-block; padding: 12px 24px; background: #C6A768; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-      </style>
+    <title>VistaPro Login Code</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Welcome to Vistapro!</h1>
+<body style="font-family: Arial, sans-serif; background-color: #f9fafb; margin: 0; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header -->
+        <div style="background: #f59e0b; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: bold;">VistaPro</h1>
         </div>
-        <div class="content">
-          <h2>Hi ${firstName},</h2>
-          <p>Thank you for registering with Vistapro. To complete your registration and access your account, please verify your email address by clicking the button below:</p>
-          
-          <a href="${verificationUrl}" class="button">Verify Email Address</a>
-          
-          <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-          <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-          
-          <p>This verification link will expire in 24 hours for security reasons.</p>
-          
-          <p>If you didn't create an account with Vistapro, you can safely ignore this email.</p>
+        
+        <!-- Content -->
+        <div style="padding: 30px;">
+            <h2 style="color: #1f2937; margin-bottom: 20px; font-size: 20px;">Your Login Code</h2>
+            
+            <p style="color: #4b5563; margin-bottom: 20px; line-height: 1.6;">Hi ${userName},</p>
+            
+            <p style="color: #4b5563; margin-bottom: 20px; line-height: 1.6;">Use the code below to complete your login:</p>
+            
+            <!-- OTP Code -->
+            <div style="background: #f3f4f6; padding: 25px; text-align: center; margin: 25px 0; border-radius: 8px; border: 2px dashed #d1d5db;">
+                <span style="font-size: 36px; font-weight: bold; color: #f59e0b; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otpCode}</span>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 20px;">
+                ⏰ This code will expire in <strong>5 minutes</strong>
+            </p>
+            
+            <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                <p style="color: #92400e; margin: 0; font-size: 14px;">
+                    <strong>Security Tip:</strong> Never share this code with anyone. VistaPro will never ask for your login code.
+                </p>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 12px; margin-top: 30px; line-height: 1.5;">
+                If you didn't request this code, please ignore this email or contact support if you have concerns about your account security.
+            </p>
         </div>
-        <div class="footer">
-          <p>&copy; 2024 Vistapro. All rights reserved.</p>
-          <p>This email was sent to ${email}</p>
+        
+        <!-- Footer -->
+        <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                © 2024 VistaPro. All rights reserved.
+            </p>
+            <p style="color: #9ca3af; font-size: 10px; margin: 5px 0 0 0;">
+                This is an automated message. Please do not reply to this email.
+            </p>
         </div>
+        
       </div>
     </body>
     </html>
   `;
-
-  try {
-    // If Resend is not available (local development), just log the email
-    if (!resend) {
-      console.log('📧 [LOCAL DEV] Email verification would be sent to:', email);
-      console.log('📧 [LOCAL DEV] Verification URL:', verificationUrl);
-      return { id: 'local-dev-email-id' };
-    }
-
-    const { data, error } = await resend.emails.send({
-      from: 'Vistapro <noreply@vistapro.ng>',
-      to: [email],
-      subject: 'Verify Your Email - Vistapro',
-      html: htmlContent,
-    });
-
-    if (error) {
-      console.error('Email sending failed:', error);
-      throw new Error('Failed to send verification email');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Email service error:', error);
-    throw error;
-  }
-};
+}
 
 /**
- * Send password reset email
+ * Generate email update reminder HTML template
  */
-const sendPasswordResetEmail = async (email, token, firstName = 'User') => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-  
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Reset Your Password - Vistapro</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #C6A768; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background: #f9f9f9; }
-        .button { display: inline-block; padding: 12px 24px; background: #C6A768; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Password Reset Request</h1>
+function generateEmailUpdateReminderHTML(userName, daysRemaining) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Email Update Required - VistaPro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f9fafb; margin: 0; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header -->
+        <div style="background: #ef4444; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: bold;">⚠️ Action Required</h1>
         </div>
-        <div class="content">
-          <h2>Hi ${firstName},</h2>
-          <p>We received a request to reset your password for your Vistapro account. Click the button below to create a new password:</p>
-          
-          <a href="${resetUrl}" class="button">Reset Password</a>
-          
-          <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-          <p><a href="${resetUrl}">${resetUrl}</a></p>
-          
-          <p>This password reset link will expire in 1 hour for security reasons.</p>
-          
-          <p>If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+        
+        <!-- Content -->
+        <div style="padding: 30px;">
+            <h2 style="color: #1f2937; margin-bottom: 20px; font-size: 20px;">Email Update Required</h2>
+            
+            <p style="color: #4b5563; margin-bottom: 20px; line-height: 1.6;">Hi ${userName},</p>
+            
+            <p style="color: #4b5563; margin-bottom: 20px; line-height: 1.6;">
+                To enhance your account security, VistaPro is implementing OTP (One-Time Password) login via email.
+            </p>
+            
+            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                <h3 style="color: #dc2626; margin: 0 0 10px 0; font-size: 16px;">⏰ Time Remaining: ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}</h3>
+                <p style="color: #7f1d1d; margin: 0; font-size: 14px;">
+                    You must update your email address within ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} to continue using VistaPro.
+                </p>
+            </div>
+            
+            <p style="color: #4b5563; margin-bottom: 20px; line-height: 1.6;">
+                <strong>What you need to do:</strong>
+            </p>
+            
+            <ol style="color: #4b5563; margin-bottom: 20px; padding-left: 20px; line-height: 1.6;">
+                <li>Log in to your VistaPro account</li>
+                <li>Go to your Profile settings</li>
+                <li>Update your email address to a valid, active email</li>
+                <li>Verify your new email address</li>
+            </ol>
+            
+            <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+                <p style="color: #1e40af; margin: 0; font-size: 14px;">
+                    <strong>Why this matters:</strong> OTP login provides an extra layer of security to protect your account from unauthorized access.
+                </p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://www.vistapro.ng/login" style="background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                    Update Email Now
+                </a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 12px; margin-top: 30px; line-height: 1.5;">
+                If you don't update your email within ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}, you may experience login issues. Contact support if you need assistance.
+            </p>
         </div>
-        <div class="footer">
-          <p>&copy; 2024 Vistapro. All rights reserved.</p>
-          <p>This email was sent to ${email}</p>
+        
+        <!-- Footer -->
+        <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                © 2024 VistaPro. All rights reserved.
+            </p>
+            <p style="color: #9ca3af; font-size: 10px; margin: 5px 0 0 0;">
+                This is an automated message. Please do not reply to this email.
+            </p>
         </div>
-      </div>
-    </body>
-    </html>
+        
+    </div>
+</body>
+</html>
   `;
-
-  try {
-    // If Resend is not available (local development), just log the email
-    if (!resend) {
-      console.log('📧 [LOCAL DEV] Password reset email would be sent to:', email);
-      console.log('📧 [LOCAL DEV] Reset URL:', resetUrl);
-      return { id: 'local-dev-email-id' };
-    }
-
-    const { data, error } = await resend.emails.send({
-      from: 'Vistapro <noreply@vistapro.ng>',
-      to: [email],
-      subject: 'Reset Your Password - Vistapro',
-      html: htmlContent,
-    });
-
-    if (error) {
-      console.error('Password reset email sending failed:', error);
-      throw new Error('Failed to send password reset email');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Email service error:', error);
-    throw error;
-  }
-};
+}
 
 module.exports = {
-  generateVerificationToken,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
+  sendOTPEmail,
+  sendEmailUpdateReminder
 };
-

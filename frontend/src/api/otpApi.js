@@ -32,6 +32,8 @@ export const sendOTP = async (email) => {
  */
 export const verifyOTP = async (email, otpCode) => {
   try {
+    console.log('🔍 Frontend: Sending OTP verification request...', { email, otpCode });
+    
     const response = await fetch(`${API_BASE_URL}/api/otp/verify`, {
       method: 'POST',
       headers: {
@@ -40,15 +42,20 @@ export const verifyOTP = async (email, otpCode) => {
       body: JSON.stringify({ email, otpCode }),
     });
 
+    console.log('🔍 Frontend: Response status:', response.status, response.ok);
+    
     const data = await response.json();
+    console.log('🔍 Frontend: Response data:', data);
 
     if (!response.ok) {
+      console.error('❌ Frontend: Response not OK, throwing error:', data.message);
       throw new Error(data.message || 'Invalid OTP code');
     }
 
+    console.log('✅ Frontend: Response OK, returning data:', data);
     return data;
   } catch (error) {
-    console.error('Error verifying OTP:', error);
+    console.error('❌ Frontend: Error in verifyOTP:', error);
     throw error;
   }
 };

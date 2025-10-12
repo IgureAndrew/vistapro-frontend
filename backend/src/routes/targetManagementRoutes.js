@@ -4,6 +4,81 @@
 const express = require('express');
 const router = express.Router();
 
+// Get unique user locations
+router.get('/locations', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    console.log('🔍 Fetching unique user locations...');
+
+    // Get unique locations from users table (excluding NULL and empty values)
+    const result = await pool.query(`
+      SELECT DISTINCT location 
+      FROM users 
+      WHERE location IS NOT NULL 
+      AND location != '' 
+      AND location != 'null'
+      ORDER BY location ASC
+    `);
+
+    await pool.end();
+
+    const locations = result.rows.map(row => row.location);
+    
+    console.log('✅ Found locations:', locations);
+
+    res.json({
+      success: true,
+      locations: locations,
+      count: locations.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching locations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch locations',
+      error: error.message
+    });
+  }
+});
+
+// Validate location exists in users table
+async function validateLocation(location) {
+  if (!location || location === 'All Locations') {
+    return true; // Allow "All Locations" and empty values
+  }
+
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+
+    const result = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM users 
+      WHERE location = $1
+    `, [location]);
+
+    await pool.end();
+
+    return parseInt(result.rows[0].count) > 0;
+  } catch (error) {
+    console.error('❌ Error validating location:', error);
+    return false;
+  }
+}
+
 // Debug endpoint to check and create tables (no auth required for debugging)
 router.get('/debug/check-tables', async (req, res) => {
   try {
@@ -153,24 +228,53 @@ router.post('/debug/create-tables', async (req, res) => {
       CREATE INDEX IF NOT EXISTS idx_percentage_mappings_is_active ON target_percentage_mappings(is_active);
     `);
 
-    // Insert default percentage mappings
+    // Insert default percentage mappings with all percentages (10-100)
     await pool.query(`
       INSERT INTO target_percentage_mappings (percentage, orders_count, target_type, bnpl_platform, location, is_active) VALUES
+      -- Orders targets
       (10, 15, 'orders', NULL, NULL, true),
       (20, 25, 'orders', NULL, NULL, true),
-      (30, 40, 'orders', NULL, NULL, true),
+      (30, 35, 'orders', NULL, NULL, true),
+      (40, 45, 'orders', NULL, NULL, true),
       (50, 60, 'orders', NULL, NULL, true),
-      (100, 100, 'orders', NULL, NULL, true),
+      (60, 75, 'orders', NULL, NULL, true),
+      (70, 85, 'orders', NULL, NULL, true),
+      (80, 95, 'orders', NULL, NULL, true),
+      (90, 110, 'orders', NULL, NULL, true),
+      (100, 125, 'orders', NULL, NULL, true),
+      -- Sales targets
       (10, 5000, 'sales', NULL, NULL, true),
       (20, 10000, 'sales', NULL, NULL, true),
       (30, 15000, 'sales', NULL, NULL, true),
+      (40, 20000, 'sales', NULL, NULL, true),
       (50, 25000, 'sales', NULL, NULL, true),
+      (60, 30000, 'sales', NULL, NULL, true),
+      (70, 35000, 'sales', NULL, NULL, true),
+      (80, 40000, 'sales', NULL, NULL, true),
+      (90, 45000, 'sales', NULL, NULL, true),
       (100, 50000, 'sales', NULL, NULL, true),
+      -- Recruitment targets
       (10, 2, 'recruitment', NULL, NULL, true),
       (20, 3, 'recruitment', NULL, NULL, true),
-      (30, 5, 'recruitment', NULL, NULL, true),
-      (50, 8, 'recruitment', NULL, NULL, true),
-      (100, 15, 'recruitment', NULL, NULL, true)
+      (30, 4, 'recruitment', NULL, NULL, true),
+      (40, 5, 'recruitment', NULL, NULL, true),
+      (50, 6, 'recruitment', NULL, NULL, true),
+      (60, 7, 'recruitment', NULL, NULL, true),
+      (70, 8, 'recruitment', NULL, NULL, true),
+      (80, 9, 'recruitment', NULL, NULL, true),
+      (90, 10, 'recruitment', NULL, NULL, true),
+      (100, 12, 'recruitment', NULL, NULL, true),
+      -- Customer targets
+      (10, 5, 'customers', NULL, NULL, true),
+      (20, 10, 'customers', NULL, NULL, true),
+      (30, 15, 'customers', NULL, NULL, true),
+      (40, 20, 'customers', NULL, NULL, true),
+      (50, 25, 'customers', NULL, NULL, true),
+      (60, 30, 'customers', NULL, NULL, true),
+      (70, 35, 'customers', NULL, NULL, true),
+      (80, 40, 'customers', NULL, NULL, true),
+      (90, 45, 'customers', NULL, NULL, true),
+      (100, 50, 'customers', NULL, NULL, true)
       ON CONFLICT (percentage, target_type, bnpl_platform, location) DO NOTHING;
     `);
 
