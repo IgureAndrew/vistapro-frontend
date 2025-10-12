@@ -25,7 +25,30 @@ export const accountApi = {
   getAccount: async () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const role = user.role?.toLowerCase();
-    const response = await apiClient.get(`/api/${role}/account`);
+    
+    // Handle different route patterns for different roles
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/account`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/account`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/account`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/account`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.get(endpoint);
+    
+    // Handle different response structures
+    if (role === 'masteradmin' && response.data.user) {
+      return response.data.user;
+    }
+    
     return response.data;
   },
 
@@ -33,6 +56,24 @@ export const accountApi = {
   updateAccount: async (accountData) => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const role = user.role?.toLowerCase();
+    
+    // Handle different route patterns for different roles
+    let endpoint;
+    let method = 'PATCH';
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile`;
+      method = 'PUT';
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/account`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/account`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/account`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/account`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
     
     // Handle file upload for profile picture
     const formData = new FormData();
@@ -52,7 +93,10 @@ export const accountApi = {
       formData.append('profile_image', accountData.profile_image);
     }
     
-    const response = await apiClient.patch(`/api/${role}/account`, formData, {
+    const response = await apiClient({
+      method,
+      url: endpoint,
+      data: formData,
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -65,9 +109,31 @@ export const accountApi = {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const role = user.role?.toLowerCase();
     
-    const response = await apiClient.patch(`/api/${role}/account`, {
-      oldPassword: passwordData.currentPassword,
-      newPassword: passwordData.newPassword,
+    // Handle different route patterns for different roles
+    let endpoint;
+    let method = 'PATCH';
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile`;
+      method = 'PUT';
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/account`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/account`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/account`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/account`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient({
+      method,
+      url: endpoint,
+      data: {
+        oldPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      }
     });
     return response.data;
   },
