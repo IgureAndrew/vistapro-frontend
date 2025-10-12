@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, 
+  Home,
   User, 
   Shield, 
   Settings, 
@@ -52,8 +52,14 @@ const AccountSettings = () => {
     loadUserData();
   }, []);
 
-  const handleBack = () => {
-    navigate(-1); // Go back to previous page
+  const handleReturnToOverview = () => {
+    // Navigate to the appropriate dashboard overview based on user role
+    const role = user?.role?.toLowerCase();
+    if (role) {
+      navigate(`/dashboard/${role}`);
+    } else {
+      navigate('/dashboard/masteradmin'); // Default fallback
+    }
   };
 
   const getRoleBadgeColor = (role) => {
@@ -94,42 +100,20 @@ const AccountSettings = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleBack}
-                className="flex items-center space-x-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back</span>
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Account Settings</h1>
-                <p className="text-sm text-gray-500">Manage your profile and preferences</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Badge className={getRoleBadgeColor(user.role)}>
-                {user.role}
-              </Badge>
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user.avatar} />
-                <AvatarFallback className="bg-orange-500 text-white text-sm">
-                  {getUserInitials(user)}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Return to Overview Button */}
+        <div className="flex justify-end mb-6">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleReturnToOverview}
+            className="flex items-center space-x-2"
+          >
+            <Home className="h-4 w-4" />
+            <span>Return to Overview</span>
+          </Button>
+        </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           {/* Tab Navigation */}
           <TabsList className="grid w-full grid-cols-4">
