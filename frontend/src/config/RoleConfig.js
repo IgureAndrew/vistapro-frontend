@@ -24,7 +24,7 @@ import {
 
 // Import existing components
 import DashboardOverview from '../components/DashboardOverview';
-import ProfileUpdate from '../components/ProfileUpdate';
+import AccountSettings from '../components/AccountSettings';
 import UsersManagement from '../components/UsersManagement';
 import MasterAdminWallet from '../components/MasterAdminWallet';
 import SuperAdminWallet from '../components/SuperAdminWallet';
@@ -74,7 +74,7 @@ export const ROLE_CONFIG = {
       { key: "wallet", label: "Wallets", icon: Wallet, component: MasterAdminWallet },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "submissions", label: "Submissions", icon: FileText, component: MasterAdminSubmissions },
-      { key: "profile", label: "Profile", icon: User, component: ProfileUpdate }
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
     ],
     metrics: [
       { key: "totalUsers", label: "Total Users", icon: Users, color: "blue" },
@@ -103,7 +103,7 @@ export const ROLE_CONFIG = {
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
       { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
-      { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "stock", label: "Stock Pickups", icon: Package, component: SuperAdminStockPickups },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: SuperAdminManageOrders },
       { key: "wallet", label: "Wallet", icon: Wallet, component: SuperAdminWallet },
@@ -133,7 +133,7 @@ export const ROLE_CONFIG = {
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
       { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
-      { key: "profile", label: "Profile", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: ManageOrders },
       { key: "stock", label: "Stock Pickups", icon: Package, component: AdminStockPickups },
       { key: "marketers", label: "Assigned Marketers", icon: Users, component: UserAssignmentManagement },
@@ -162,7 +162,7 @@ export const ROLE_CONFIG = {
     color: "#f59e0b",
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
-      { key: "profile", label: "Profile", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: ManageOrders }
     ],
     metrics: [
@@ -186,7 +186,7 @@ export const ROLE_CONFIG = {
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: MarketersOverview },
       { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
-      { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "verification", label: "Verification", icon: CheckCircle, component: VerificationMarketer },
       { key: "stock-pickup", label: "Stock Pickup", icon: Package, component: MarketerStockPickup },
       { key: "order", label: "Orders", icon: ShoppingCart, component: Order },
