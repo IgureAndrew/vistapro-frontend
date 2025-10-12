@@ -23,7 +23,7 @@ router.post('/send', async (req, res) => {
       });
     }
     
-    console.log(`📧 Sending OTP to ${email}`);
+    console.log(`📧 Sending OTP to ${email} - Request received at ${new Date().toISOString()}`);
     
     // Find user by email
     const userResult = await pool.query(`
@@ -53,14 +53,18 @@ router.post('/send', async (req, res) => {
     
     // Generate and store OTP
     const otpCode = otpService.generateOTP();
+    console.log(`🔐 Generated OTP code: ${otpCode} for user ${user.id}`);
     await otpService.storeOTP(user.id, otpCode);
+    console.log(`💾 OTP stored successfully for user ${user.id}`);
     
     // Send OTP email
+    console.log(`📤 Sending OTP email to ${user.email}`);
     await emailService.sendOTPEmail(
       user.email,
       `${user.first_name} ${user.last_name}`,
       otpCode
     );
+    console.log(`✅ OTP email sent successfully to ${user.email}`);
     
     console.log(`✅ OTP sent to user ${user.id} (${user.email})`);
     

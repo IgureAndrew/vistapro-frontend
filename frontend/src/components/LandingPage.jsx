@@ -104,18 +104,27 @@ function LandingPage() {
 
   // Handle OTP login
   const handleOTPLogin = async () => {
+    // Prevent multiple clicks
+    if (otpLoading) {
+      console.log('🚫 OTP request already in progress, ignoring click');
+      return;
+    }
+
     if (!loginData.email) {
       showAlert("error", "Email Required", "Please enter your email address to receive the OTP code.");
       return;
     }
 
+    console.log('📧 Sending OTP request...', { email: loginData.email });
     setOtpLoading(true);
     setOtpError(null);
 
     try {
       await otpApiService.sendOTP(loginData.email);
+      console.log('✅ OTP sent successfully, showing modal');
       setShowOTPModal(true);
     } catch (error) {
+      console.error('❌ Failed to send OTP:', error);
       setOtpError(error.response?.data?.message || "Failed to send OTP. Please try again.");
     } finally {
       setOtpLoading(false);
@@ -199,22 +208,22 @@ function LandingPage() {
   // Redirect to dashboard based on role
   const redirectToDashboard = (role) => {
     switch (role) {
-      case "SuperAdmin":
-        navigate("/dashboard/superadmin");
-        break;
-      case "MasterAdmin":
-        navigate("/dashboard/masteradmin");
-        break;
-      case "Admin":
-        navigate("/dashboard/admin");
-        break;
-      case "Dealer":
-        navigate("/dashboard/dealer");
-        break;
-      case "Marketer":
-        navigate("/dashboard/marketer");
-        break;
-      default:
+          case "SuperAdmin":
+            navigate("/dashboard/superadmin");
+            break;
+          case "MasterAdmin":
+            navigate("/dashboard/masteradmin");
+            break;
+          case "Admin":
+            navigate("/dashboard/admin");
+            break;
+          case "Dealer":
+            navigate("/dashboard/dealer");
+            break;
+          case "Marketer":
+            navigate("/dashboard/marketer");
+            break;
+          default:
         navigate("/dashboard");
     }
   };
@@ -367,38 +376,38 @@ function LandingPage() {
 
           {/* Password Field (only show for password method) */}
           {loginMethod === "password" && (
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showLoginPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  className="pl-10 pr-10 border-border focus:ring-ring"
-                  value={loginData.password}
-                  onChange={(e) =>
-                    setLoginData({ ...loginData, password: e.target.value })
-                  }
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowLoginPassword(!showLoginPassword)}
-                >
-                  {showLoginPassword ? (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </Button>
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-medium text-foreground">
+              Password
+            </Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="password"
+                type={showLoginPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                className="pl-10 pr-10 border-border focus:ring-ring"
+                value={loginData.password}
+                onChange={(e) =>
+                  setLoginData({ ...loginData, password: e.target.value })
+                }
+                required
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowLoginPassword(!showLoginPassword)}
+              >
+                {showLoginPassword ? (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
             </div>
+          </div>
           )}
 
           {/* OTP Info (only show for OTP method) */}
@@ -418,18 +427,18 @@ function LandingPage() {
 
           {/* Submit Buttons */}
           {loginMethod === "password" ? (
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
-            >
-              Sign In
-            </Button>
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+          >
+            Sign In
+          </Button>
           ) : (
             <Button
               type="button"
               onClick={handleOTPLogin}
               disabled={otpLoading}
-              className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+              className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {otpLoading ? "Sending OTP..." : "Send OTP Code"}
             </Button>
@@ -695,13 +704,13 @@ function LandingPage() {
         <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-16 bg-gray-50">
           <Card className="w-full max-w-md border-0 shadow-xl">
             <CardHeader className="space-y-1 pb-6">
-            <CardDescription className="text-center text-gray-600">
+              <CardDescription className="text-center text-gray-600">
                 {view === "login"
                   ? "Enter your credentials to access your account - OTP System Active"
                   : view === "register"
                   ? "Master Admin registration only"
                   : "Enter your email to receive reset instructions"}
-            </CardDescription>
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {renderForm()}
