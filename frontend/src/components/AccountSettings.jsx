@@ -159,6 +159,7 @@ const AccountSettings = () => {
   // Form submission handlers
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    console.log('💾 Starting profile update...');
     setSaving(true);
     setMessage({ type: '', text: '' });
 
@@ -171,7 +172,13 @@ const AccountSettings = () => {
         profile_image: profileImage
       };
 
-      await accountApi.updateAccount(updateData);
+      console.log('📤 Sending profile update data:', {
+        ...updateData,
+        profile_image: profileImage ? `File: ${profileImage.name} (${profileImage.size} bytes)` : 'No file'
+      });
+
+      const result = await accountApi.updateAccount(updateData);
+      console.log('✅ Profile update successful:', result);
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       
       // Update localStorage user data
@@ -180,7 +187,8 @@ const AccountSettings = () => {
       setUser(updatedUser);
       
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('❌ Error updating profile:', error);
+      console.error('❌ Error response:', error.response);
       setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to update profile' });
     } finally {
       setSaving(false);
@@ -258,22 +266,34 @@ const AccountSettings = () => {
   };
 
   const handleProfileImageChange = (e) => {
+    console.log('🖼️ File input changed:', e.target.files);
     const file = e.target.files[0];
     if (file) {
+      console.log('📁 File selected:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+      
       // Validate file size (2MB limit)
       if (file.size > 2 * 1024 * 1024) {
+        console.log('❌ File too large:', file.size);
         setMessage({ type: 'error', text: 'File size must be less than 2MB' });
         return;
       }
       
       // Validate file type
       if (!file.type.startsWith('image/')) {
+        console.log('❌ Invalid file type:', file.type);
         setMessage({ type: 'error', text: 'Please select an image file' });
         return;
       }
       
+      console.log('✅ File validation passed, setting profile image');
       setProfileImage(file);
       setMessage({ type: 'success', text: 'Image selected successfully! Click "Save Changes" to upload.' });
+    } else {
+      console.log('❌ No file selected');
     }
   };
 
@@ -380,7 +400,7 @@ const AccountSettings = () => {
                     <div className="relative">
                       <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
                         <AvatarImage 
-                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image || user?.avatar)} 
+                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image ? `https://vistapro-backend.onrender.com/uploads/${user.profile_image}` : user?.avatar)} 
                           alt="Profile" 
                           className="object-cover"
                         />
