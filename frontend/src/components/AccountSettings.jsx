@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { getUserInitials } from '../utils/avatarUtils';
 import otpApiService from '../api/otpApi';
+import EmailVerificationStatus from './EmailVerificationStatus';
 
 const AccountSettings = () => {
   const navigate = useNavigate();
@@ -700,6 +701,25 @@ const AccountSettings = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Email Verification Status */}
+                <EmailVerificationStatus 
+                  user={user}
+                  onVerificationUpdate={() => {
+                    // Refresh user data after verification
+                    const loadUserData = async () => {
+                      try {
+                        const accountData = await accountApi.getAccount();
+                        setUser(prev => ({ ...prev, ...accountData }));
+                      } catch (error) {
+                        console.error('Error refreshing user data:', error);
+                      }
+                    };
+                    loadUserData();
+                  }}
+                />
+                
+                <Separator />
+                
                 {/* Password Change */}
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
