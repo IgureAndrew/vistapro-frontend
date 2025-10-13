@@ -134,7 +134,13 @@ const AccountSettings = () => {
   // Check grace period status
   const checkGracePeriodStatus = async () => {
     try {
-      const response = await otpApiService.getGracePeriodStatus();
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, skipping grace period check');
+        return;
+      }
+      
+      const response = await otpApiService.getGracePeriodStatus(token);
       if (response.data.success) {
         setGracePeriodData(response.data.data);
       }
@@ -179,7 +185,12 @@ const AccountSettings = () => {
   const handleEmailUpdate = async (newEmail) => {
     setEmailUpdateLoading(true);
     try {
-      await otpApiService.updateEmail(newEmail);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      await otpApiService.updateEmail(token, newEmail);
       setProfileData(prev => ({ ...prev, email: newEmail }));
       setGracePeriodData(prev => ({
         ...prev,

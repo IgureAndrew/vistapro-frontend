@@ -98,7 +98,13 @@ function LandingPage() {
   // Check grace period status
   const checkGracePeriodStatus = async () => {
     try {
-      const response = await otpApiService.getGracePeriodStatus();
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, skipping grace period check');
+        return;
+      }
+      
+      const response = await otpApiService.getGracePeriodStatus(token);
       if (response.data.success) {
         setGracePeriodData(response.data.data);
         if (response.data.data.isInGracePeriod && response.data.data.emailUpdateRequired) {
