@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AlertDialog from "@/components/ui/alert-dialog";
-import { Eye, EyeOff, Mail, Lock, Shield } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Shield, AlertTriangle } from "lucide-react";
 import OTPInputModal from "./OTPInputModal";
 import GracePeriodAlert from "./GracePeriodAlert";
+import GracePeriodBanner from "./GracePeriodBanner";
 import otpApiService from "../api/otpApi";
 
 // Define our colors
@@ -63,6 +64,8 @@ function LandingPage() {
   const [otpError, setOtpError] = useState(null);
   const [gracePeriodData, setGracePeriodData] = useState(null);
   const [loginMethod, setLoginMethod] = useState("password"); // "password" or "otp"
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -82,8 +85,13 @@ function LandingPage() {
   // Check grace period status on component mount
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    const user = localStorage.getItem('user');
+    
+    if (token && user) {
+      setIsLoggedIn(true);
       checkGracePeriodStatus();
+    } else {
+      setIsLoggedIn(false);
     }
   }, []);
 
@@ -95,6 +103,11 @@ function LandingPage() {
         setGracePeriodData(response.data.data);
         if (response.data.data.isInGracePeriod && response.data.data.emailUpdateRequired) {
           setShowGracePeriodAlert(true);
+        }
+        
+        // If grace period has ended, force OTP login
+        if (!response.data.data.isInGracePeriod) {
+          setLoginMethod("otp");
         }
       }
     } catch (error) {
@@ -205,6 +218,11 @@ function LandingPage() {
     }
   };
 
+  // Handle banner dismiss
+  const handleBannerDismiss = () => {
+    setBannerDismissed(true);
+  };
+
   // Redirect to dashboard based on role
   const redirectToDashboard = (role) => {
     switch (role) {
@@ -250,7 +268,10 @@ function LandingPage() {
         // Redirect based on the user's role.
         redirectToDashboard(data.user.role);
       } else {
-        if (data.requiresAssignment) {
+        if (data.requiresOTP) {
+          showAlert("warning", "Password Login Disabled", "Password login has been disabled. Please use OTP login with your verified email address.");
+          setLoginMethod("otp");
+        } else if (data.requiresAssignment) {
           showAlert("warning", "Account Pending Assignment", "Your account is pending Admin assignment. Please wait for assignment.");
         } else if (data.accountLocked) {
           showAlert("error", "Account Locked", "Your account is locked. Please contact your assigned Admin.");
@@ -358,9 +379,13 @@ function LandingPage() {
               size="sm"
               className="flex-1"
               onClick={() => setLoginMethod("password")}
+              disabled={gracePeriodData && !gracePeriodData.isInGracePeriod}
             >
               <Lock className="h-4 w-4 mr-2" />
               Password
+              {gracePeriodData && !gracePeriodData.isInGracePeriod && (
+                <span className="ml-1 text-xs">(Disabled)</span>
+              )}
             </Button>
             <Button
               type="button"
@@ -371,8 +396,23 @@ function LandingPage() {
             >
               <Shield className="h-4 w-4 mr-2" />
               OTP Code
+              {gracePeriodData && !gracePeriodData.isInGracePeriod && (
+                <span className="ml-1 text-xs">(Required)</span>
+              )}
             </Button>
           </div>
+          
+          {/* Grace Period Ended Notice */}
+          {gracePeriodData && !gracePeriodData.isInGracePeriod && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+                <p className="text-sm text-red-800">
+                  <strong>Password login has been disabled.</strong> Please use OTP login with your verified email address.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Password Field (only show for password method) */}
           {loginMethod === "password" && (
@@ -673,6 +713,14 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white font-['Geist',sans-serif]">
+      {/* Grace Period Countdown Banner */}
+      <GracePeriodBanner
+        gracePeriodData={gracePeriodData}
+        onUpdateEmail={() => setShowGracePeriodAlert(true)}
+        onDismiss={handleBannerDismiss}
+        isLoggedIn={isLoggedIn}
+      />
+      
       {/* Main content area */}
       <div className="flex flex-col lg:flex-row min-h-screen">
         {/* Left Section: Title, Tagline & Image */}

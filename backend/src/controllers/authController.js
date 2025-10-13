@@ -52,6 +52,14 @@ const loginUser = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // Check grace period - disable password login after grace period ends
+    if (user.otp_grace_period_end && new Date() > new Date(user.otp_grace_period_end)) {
+      return res.status(403).json({
+        message: 'Password login has been disabled. Please use OTP login with your verified email address.',
+        requiresOTP: true
+      });
+    }
+
     // Email verification check removed - all users can login immediately
 
     // Special access control for Marketers

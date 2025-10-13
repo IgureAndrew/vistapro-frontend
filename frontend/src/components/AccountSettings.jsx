@@ -16,7 +16,8 @@ import {
   History,
   Palette,
   Globe,
-  Volume2
+  Volume2,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,12 +28,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { getUserInitials } from '../utils/avatarUtils';
+import otpApiService from '../api/otpApi';
 
 const AccountSettings = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
+  const [gracePeriodData, setGracePeriodData] = useState(null);
+  const [emailUpdateLoading, setEmailUpdateLoading] = useState(false);
   
   // Form states
   const [profileData, setProfileData] = useState({
@@ -84,6 +88,9 @@ const AccountSettings = () => {
               location: accountData.location || ''
             });
             
+            // Check grace period status
+            await checkGracePeriodStatus();
+            
             // Load preferences
             try {
               const prefs = await accountApi.getPreferences();
@@ -124,6 +131,18 @@ const AccountSettings = () => {
     loadUserData();
   }, []);
 
+  // Check grace period status
+  const checkGracePeriodStatus = async () => {
+    try {
+      const response = await otpApiService.getGracePeriodStatus();
+      if (response.data.success) {
+        setGracePeriodData(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error checking grace period status:', error);
+    }
+  };
+
   const handleReturnToOverview = () => {
     // Navigate to the appropriate dashboard overview based on user role
     const role = user?.role?.toLowerCase();
@@ -154,6 +173,24 @@ const AccountSettings = () => {
       'Dealer': 'bg-orange-100 text-orange-800'
     };
     return colors[role] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Handle email update for OTP
+  const handleEmailUpdate = async (newEmail) => {
+    setEmailUpdateLoading(true);
+    try {
+      await otpApiService.updateEmail(newEmail);
+      setProfileData(prev => ({ ...prev, email: newEmail }));
+      setGracePeriodData(prev => ({
+        ...prev,
+        emailUpdateRequired: false
+      }));
+      setMessage({ type: 'success', text: 'Email updated successfully! You can now use OTP login.' });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to update email' });
+    } finally {
+      setEmailUpdateLoading(false);
+    }
   };
 
   // Form submission handlers
@@ -537,7 +574,28 @@ const AccountSettings = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email Address *</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="email">Email Address *</Label>
+                        {gracePeriodData?.isInGracePeriod && gracePeriodData?.emailUpdateRequired && (
+                          <Badge variant="destructive" className="text-xs">
+                            Update Required
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {/* Grace Period Warning */}
+                      {gracePeriodData?.isInGracePeriod && gracePeriodData?.emailUpdateRequired && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center space-x-2">
+                            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                            <p className="text-sm text-yellow-800">
+                              <strong>Action Required:</strong> Update your email to use OTP login. 
+                              Password login will be disabled in {gracePeriodData.daysRemaining} day{gracePeriodData.daysRemaining !== 1 ? 's' : ''}.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="relative">
                         <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                         <Input 
@@ -550,6 +608,18 @@ const AccountSettings = () => {
                           required
                         />
                       </div>
+                      
+                      {/* Email Update Button for Grace Period */}
+                      {gracePeriodData?.isInGracePeriod && gracePeriodData?.emailUpdateRequired && (
+                        <Button
+                          type="button"
+                          onClick={() => handleEmailUpdate(profileData.email)}
+                          disabled={emailUpdateLoading || !profileData.email}
+                          className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                        >
+                          {emailUpdateLoading ? 'Updating...' : 'Update Email for OTP Login'}
+                        </Button>
+                      )}
                     </div>
 
                     <div className="space-y-2">
