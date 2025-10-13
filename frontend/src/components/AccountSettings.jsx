@@ -127,9 +127,20 @@ const AccountSettings = () => {
   const handleReturnToOverview = () => {
     // Navigate to the appropriate dashboard overview based on user role
     const role = user?.role?.toLowerCase();
-    if (role) {
-      navigate(`/dashboard/${role}`);
+    console.log('Return to Overview clicked, user role:', role);
+    
+    if (role === 'masteradmin') {
+      navigate('/dashboard/masteradmin');
+    } else if (role === 'superadmin') {
+      navigate('/dashboard/superadmin');
+    } else if (role === 'admin') {
+      navigate('/dashboard/admin');
+    } else if (role === 'marketer') {
+      navigate('/dashboard/marketer');
+    } else if (role === 'dealer') {
+      navigate('/dashboard/dealer');
     } else {
+      console.log('Unknown role, navigating to default dashboard');
       navigate('/dashboard/masteradmin'); // Default fallback
     }
   };
@@ -249,7 +260,20 @@ const AccountSettings = () => {
   const handleProfileImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Validate file size (2MB limit)
+      if (file.size > 2 * 1024 * 1024) {
+        setMessage({ type: 'error', text: 'File size must be less than 2MB' });
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setMessage({ type: 'error', text: 'Please select an image file' });
+        return;
+      }
+      
       setProfileImage(file);
+      setMessage({ type: 'success', text: 'Image selected successfully! Click "Save Changes" to upload.' });
     }
   };
 
@@ -294,6 +318,28 @@ const AccountSettings = () => {
             <span>Return to Overview</span>
           </Button>
         </div>
+
+        {/* Message Display */}
+        {message.text && (
+          <div className={`mb-6 p-4 rounded-lg ${
+            message.type === 'success' 
+              ? 'bg-green-50 border border-green-200 text-green-800' 
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center">
+              {message.type === 'success' ? (
+                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span>{message.text}</span>
+            </div>
+          </div>
+        )}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           {/* Tab Navigation */}
           <TabsList className="grid w-full grid-cols-4">
@@ -331,31 +377,70 @@ const AccountSettings = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-col items-center space-y-4">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={user.avatar} />
-                      <AvatarFallback className="bg-orange-500 text-white text-2xl">
-                        {getUserInitials(user)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="text-center space-y-2">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleProfileImageChange}
-                        className="hidden"
-                        id="profile-image-upload"
-                      />
-                      <label htmlFor="profile-image-upload">
-                        <Button variant="outline" size="sm" asChild>
-                          <span className="cursor-pointer">
-                            <Camera className="h-4 w-4 mr-2" />
-                            Change Picture
-                          </span>
-                        </Button>
-                      </label>
-                      <p className="text-xs text-gray-500">
-                        PNG, JPG, GIF up to 2MB
-                      </p>
+                    <div className="relative">
+                      <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
+                        <AvatarImage 
+                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image || user?.avatar)} 
+                          alt="Profile" 
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-2xl">
+                          {getUserInitials(user)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {profileImage && (
+                        <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-center space-y-3">
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfileImageChange}
+                          className="hidden"
+                          id="profile-image-upload"
+                        />
+                        <label htmlFor="profile-image-upload">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                            asChild
+                          >
+                            <span>
+                              <Camera className="h-4 w-4 mr-2" />
+                              {profileImage ? 'Change Picture' : 'Upload Picture'}
+                            </span>
+                          </Button>
+                        </label>
+                        
+                        {profileImage && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setProfileImage(null)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <p>Supported formats: PNG, JPG, GIF</p>
+                        <p>Maximum file size: 2MB</p>
+                        {profileImage && (
+                          <p className="text-green-600 font-medium">
+                            Selected: {profileImage.name}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
