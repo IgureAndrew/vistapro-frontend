@@ -28,6 +28,7 @@ import Performance from './Performance';
 import UsersManagement from './UsersManagement';
 import MasterAdminWallet from './MasterAdminWallet';
 import MarketerVerificationDashboard from './MarketerVerificationDashboard';
+import OTPTransitionDashboard from './OTPTransitionDashboard';
 import UserTargets from './UserTargets';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
@@ -442,6 +443,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                           <TabsTrigger value="analytics">Analytics</TabsTrigger>
                           <TabsTrigger value="users">Users</TabsTrigger>
                           <TabsTrigger value="wallet">Wallet</TabsTrigger>
+                          <TabsTrigger value="otp-transition">OTP Transition</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="overview" className="space-y-4 sm:space-y-6">
@@ -458,6 +460,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
                         <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
                           <MasterAdminWallet userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
+                        </TabsContent>
+
+                        <TabsContent value="otp-transition" className="space-y-4 sm:space-y-6">
+                          <OTPTransitionDashboard />
                         </TabsContent>
                       </Tabs>
                     </div>
