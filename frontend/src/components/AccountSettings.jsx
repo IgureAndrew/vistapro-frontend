@@ -183,8 +183,18 @@ const AccountSettings = () => {
       
       // Update localStorage user data
       const updatedUser = { ...user, ...updateData };
+      
+      // If profile image was uploaded, update the profile_image field
+      if (profileImage && result.user && result.user.profile_image) {
+        updatedUser.profile_image = result.user.profile_image;
+        console.log('🖼️ Updated profile_image in user data:', result.user.profile_image);
+      }
+      
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
+      
+      // Clear the selected file after successful upload
+      setProfileImage(null);
       
     } catch (error) {
       console.error('❌ Error updating profile:', error);
@@ -400,9 +410,16 @@ const AccountSettings = () => {
                     <div className="relative">
                       <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
                         <AvatarImage 
-                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image ? `https://vistapro-backend.onrender.com/uploads/${user.profile_image}` : user?.avatar)} 
+                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image && typeof user.profile_image === 'string' ? `https://vistapro-backend.onrender.com/uploads/${user.profile_image}` : user?.avatar)} 
                           alt="Profile" 
                           className="object-cover"
+                          onError={(e) => {
+                            console.log('❌ Profile image failed to load:', e.target.src);
+                            e.target.style.display = 'none';
+                          }}
+                          onLoad={() => {
+                            console.log('✅ Profile image loaded successfully');
+                          }}
                         />
                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-2xl">
                           {getUserInitials(user)}
