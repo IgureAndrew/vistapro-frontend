@@ -8,13 +8,6 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import otpTransitionApi from '../api/otpTransitionApi';
 
 const OTPTransitionDashboard = () => {
@@ -252,41 +245,33 @@ const OTPTransitionDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <Label>Status</Label>
-              <Select
+              <select
                 value={filters.status}
-                onValueChange={(value) => setFilters({ ...filters, status: value, page: 1 })}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="not_verified">Not Verified</SelectItem>
-                  <SelectItem value="verified">Verified</SelectItem>
-                  <SelectItem value="in_grace_period">In Grace Period</SelectItem>
-                  <SelectItem value="otp_enabled">OTP Enabled</SelectItem>
-                  <SelectItem value="past_grace_period">Past Grace Period</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="all">All Status</option>
+                <option value="not_verified">Not Verified</option>
+                <option value="verified">Verified</option>
+                <option value="in_grace_period">In Grace Period</option>
+                <option value="otp_enabled">OTP Enabled</option>
+                <option value="past_grace_period">Past Grace Period</option>
+              </select>
             </div>
 
             <div>
               <Label>Role</Label>
-              <Select
+              <select
                 value={filters.role}
-                onValueChange={(value) => setFilters({ ...filters, role: value, page: 1 })}
+                onChange={(e) => setFilters({ ...filters, role: e.target.value, page: 1 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="SuperAdmin">SuperAdmin</SelectItem>
-                  <SelectItem value="Admin">Admin</SelectItem>
-                  <SelectItem value="Marketer">Marketer</SelectItem>
-                  <SelectItem value="Dealer">Dealer</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="all">All Roles</option>
+                <option value="SuperAdmin">SuperAdmin</option>
+                <option value="Admin">Admin</option>
+                <option value="Marketer">Marketer</option>
+                <option value="Dealer">Dealer</option>
+              </select>
             </div>
 
             <div className="md:col-span-2">
