@@ -9,6 +9,8 @@ const { initSocket } = require('./src/socket');
 console.log('✅ Socket config loaded');
 const runStartupMigration = require('./startup_migration');
 console.log('✅ Startup migration loaded');
+const { startGracePeriodReminderJob } = require('./src/jobs/gracePeriodReminderJob');
+console.log('✅ Grace period reminder job loaded');
 
 // Create an HTTP server from your Express app.
 const server = http.createServer(app);
@@ -50,6 +52,9 @@ connectDB()
   .then(async () => {
     // Run startup migration to create missing tables
     await runStartupMigration();
+    
+    // Start grace period reminder cron job
+    startGracePeriodReminderJob();
     
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

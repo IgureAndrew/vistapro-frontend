@@ -32,6 +32,8 @@ const OTPTransitionDashboard = () => {
   const [pagination, setPagination] = useState(null);
   const [sending, setSending] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [reminderStats, setReminderStats] = useState(null);
+  const [triggeringReminders, setTriggeringReminders] = useState(false);
 
   const token = localStorage.getItem('token');
 
@@ -42,18 +44,54 @@ const OTPTransitionDashboard = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsData, usersData] = await Promise.all([
+      const [statsData, usersData, reminderStatsData] = await Promise.all([
         otpTransitionApi.getTransitionStats(token),
-        otpTransitionApi.getTransitionUsers(token, filters)
+        otpTransitionApi.getTransitionUsers(token, filters),
+        fetch(`${import.meta.env.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://vistapro-backend.onrender.com'}/api/reminders/stats`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => res.json()).catch(() => null)
       ]);
 
       setStats(statsData.data);
       setUsers(usersData.data.users);
       setPagination(usersData.data.pagination);
+      if (reminderStatsData?.success) {
+        setReminderStats(reminderStatsData.data);
+      }
     } catch (error) {
       console.error('Error loading OTP transition data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTriggerReminders = async () => {
+    if (!confirm('This will send grace period reminder emails to all eligible users. Continue?')) {
+      return;
+    }
+
+    setTriggeringReminders(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || process.env.REACT_APP_API_URL || 'https://vistapro-backend.onrender.com'}/api/reminders/trigger`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        alert(`Reminders sent successfully!\n\n${JSON.stringify(data.data, null, 2)}`);
+        loadData(); // Refresh stats
+      } else {
+        alert('Failed to send reminders: ' + data.message);
+      }
+    } catch (error) {
+      alert('Error sending reminders: ' + error.message);
+    } finally {
+      setTriggeringReminders(false);
     }
   };
 
@@ -284,7 +322,51 @@ const OTPTransitionDashboard = () => {
               <Download className="h-4 w-4 mr-2" />
               {exporting ? 'Exporting...' : 'Export CSV'}
             </Button>
+
+            <Button
+              onClick={handleTriggerReminders}
+              disabled={triggeringReminders}
+              variant="outline"
+              size="sm"
+              className="border-purple-600 text-purple-700 hover:bg-purple-50"
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              {triggeringReminders ? 'Triggering...' : 'Trigger All Reminders'}
+            </Button>
           </div>
+
+          {/* Reminder Stats */}
+          {reminderStats && (
+            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <h4 className="font-medium text-purple-900 text-sm mb-2">Automated Reminder System</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <span className="text-purple-700">Total Sent:</span>
+                  <span className="ml-2 font-semibold text-purple-900">{reminderStats.total_reminders_sent || 0}</span>
+                </div>
+                <div>
+                  <span className="text-purple-700">In Window:</span>
+                  <span className="ml-2 font-semibold text-purple-900">{reminderStats.users_in_reminder_window || 0}</span>
+                </div>
+                <div>
+                  <span className="text-purple-700">Critical:</span>
+                  <span className="ml-2 font-semibold text-red-600">{reminderStats.critical_users || 0}</span>
+                </div>
+                <div>
+                  <span className="text-purple-700">Last Run:</span>
+                  <span className="ml-2 font-semibold text-purple-900">
+                    {reminderStats.last_reminder_time 
+                      ? new Date(reminderStats.last_reminder_time).toLocaleDateString()
+                      : 'Never'
+                    }
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-purple-600 mt-2">
+                Automated reminders run daily at 9:00 AM. Milestones: 14, 7, 3, and 1 day before grace period ends.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

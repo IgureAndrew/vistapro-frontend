@@ -632,6 +632,30 @@ async function runStartupMigration() {
     } else {
       console.log('✅ All required tables already exist');
     }
+
+    // Add last_reminder_sent column to users table if it doesn't exist
+    console.log('🔧 Checking for last_reminder_sent column in users table...');
+    try {
+      const columnCheck = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'last_reminder_sent'
+      `);
+
+      if (columnCheck.rows.length === 0) {
+        console.log('Adding last_reminder_sent column to users table...');
+        await pool.query(`
+          ALTER TABLE users 
+          ADD COLUMN last_reminder_sent TIMESTAMP DEFAULT NULL
+        `);
+        console.log('✅ last_reminder_sent column added successfully');
+      } else {
+        console.log('✅ last_reminder_sent column already exists');
+      }
+    } catch (columnError) {
+      console.error('Error checking/adding last_reminder_sent column:', columnError.message);
+    }
     
   } catch (error) {
     console.error('❌ Error in startup migration:', error.message);
