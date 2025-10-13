@@ -267,11 +267,41 @@ const resendVerificationEmail = async (req, res, next) => {
     const verificationToken = generateVerificationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Update user with new token
-    await pool.query(
-      'UPDATE users SET email_verification_token = $1, email_verification_expires = $2, email_verification_sent_at = NOW() WHERE id = $3',
-      [verificationToken, expiresAt, user.id]
-    );
+    // Update user with new token - handle missing columns gracefully
+    try {
+      // First check if the columns exist
+      const columnCheck = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name IN ('email_verification_token', 'email_verification_expires')
+      `);
+      
+      const existingColumns = columnCheck.rows.map(row => row.column_name);
+      
+      if (existingColumns.includes('email_verification_token') && existingColumns.includes('email_verification_expires')) {
+        await pool.query(
+          'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
+          [verificationToken, expiresAt, user.id]
+        );
+      } else {
+        // Fallback: try to add the columns first
+        try {
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255)');
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP');
+          await pool.query(
+            'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
+            [verificationToken, expiresAt, user.id]
+          );
+        } catch (alterError) {
+          console.error('Error adding verification columns:', alterError);
+          throw new Error('Database schema needs to be updated. Please contact administrator.');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating verification token:', error);
+      throw error;
+    }
 
     // Send verification email
     try {
