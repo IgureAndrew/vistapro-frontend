@@ -54,7 +54,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
       if (storedUser) {
         const userData = JSON.parse(storedUser);
         // Ensure user has avatar URL constructed from profile_image
-        if (userData.profile_image && !userData.avatar) {
+        if (userData.profile_image) {
           userData.avatar = getAvatarUrl(userData.profile_image);
           setUser(userData);
           // Update localStorage with avatar URL
@@ -267,12 +267,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
         <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
           <Avatar className="w-10 h-10">
             <AvatarImage 
-              src={user?.avatar} 
+              src={user?.profile_image ? getAvatarUrl(user.profile_image) : user?.avatar} 
               onError={(e) => {
-                // Try fallback URL if original fails
-                if (user?.profile_image && !user?.avatar?.includes('/api/uploads/')) {
-                  const fallbackUrl = getAvatarUrl(user.profile_image);
-                }
+                console.log('❌ Avatar failed to load:', e.target.src);
+                e.target.style.display = 'none';
               }}
             />
             <AvatarFallback className="bg-orange-500 text-white">
@@ -392,9 +390,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   >
                     <Avatar className="w-8 h-8">
                       <AvatarImage 
-                        src={user?.avatar} 
+                        src={user?.profile_image ? getAvatarUrl(user.profile_image) : user?.avatar} 
                         onError={(e) => {
-                          // Handle avatar load error silently
+                          console.log('❌ Header avatar failed to load:', e.target.src);
+                          e.target.style.display = 'none';
                         }}
                       />
                       <AvatarFallback className="bg-orange-500 text-white text-xs">

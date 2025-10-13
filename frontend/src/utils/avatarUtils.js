@@ -19,12 +19,17 @@ export const getAvatarUrl = (profileImage, fallback = null) => {
     return profileImage;
   }
   
-  // Handle both legacy (uploads/filename) and new (filename) formats
+  // Check if it's already a Cloudinary URL (starts with https://res.cloudinary.com)
+  if (profileImage.startsWith('https://res.cloudinary.com/')) {
+    return profileImage;
+  }
+  
+  // Handle legacy local uploads (uploads/filename) and new (filename) formats
   const imageName = profileImage.startsWith('uploads/') 
     ? profileImage.replace(/^uploads\//, '') 
     : profileImage;
   
-  // Use proxy URL to avoid CORS issues
+  // Use proxy URL to avoid CORS issues for local uploads
   const isDevelopment = import.meta.env.DEV;
   let fullUrl;
   
