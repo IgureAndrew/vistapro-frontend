@@ -140,37 +140,145 @@ export const accountApi = {
 
   // Get login history
   getLoginHistory: async () => {
-    const response = await apiClient.get('/api/profile/login-history');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role?.toLowerCase();
+    
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile/login-history`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/profile/login-history`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/profile/login-history`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/profile/login-history`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/profile/login-history`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.get(endpoint);
     return response.data;
   },
 
   // Toggle OTP
   toggleOTP: async (enabled) => {
-    const response = await apiClient.patch('/api/profile/otp-toggle', { enabled });
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role?.toLowerCase();
+    
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile/otp-toggle`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/profile/otp-toggle`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/profile/otp-toggle`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/profile/otp-toggle`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/profile/otp-toggle`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.patch(endpoint, { enable: enabled });
     return response.data;
   },
 
   // Get user preferences
   getPreferences: async () => {
-    const response = await apiClient.get('/api/profile/preferences');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role?.toLowerCase();
+    
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile/preferences`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/profile/preferences`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/profile/preferences`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/profile/preferences`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/profile/preferences`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.get(endpoint);
     return response.data;
   },
 
   // Update user preferences
   updatePreferences: async (preferences) => {
-    const response = await apiClient.patch('/api/profile/preferences', preferences);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role?.toLowerCase();
+    
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile/preferences`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/profile/preferences`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/profile/preferences`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/profile/preferences`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/profile/preferences`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.patch(endpoint, preferences);
     return response.data;
   },
 
   // Get notification preferences
   getNotificationPreferences: async () => {
-    const response = await apiClient.get('/api/profile/notification-preferences');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role?.toLowerCase();
+    
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile/notification-preferences`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/profile/notification-preferences`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/profile/notification-preferences`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/profile/notification-preferences`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/profile/notification-preferences`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.get(endpoint);
     return response.data;
   },
 
   // Update notification preferences
   updateNotificationPreferences: async (preferences) => {
-    const response = await apiClient.patch('/api/profile/notification-preferences', preferences);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role?.toLowerCase();
+    
+    let endpoint;
+    if (role === 'masteradmin') {
+      endpoint = `/api/master-admin/profile/notification-preferences`;
+    } else if (role === 'superadmin') {
+      endpoint = `/api/super-admin/profile/notification-preferences`;
+    } else if (role === 'admin') {
+      endpoint = `/api/admin/profile/notification-preferences`;
+    } else if (role === 'marketer') {
+      endpoint = `/api/marketer/profile/notification-preferences`;
+    } else if (role === 'dealer') {
+      endpoint = `/api/dealer/profile/notification-preferences`;
+    } else {
+      throw new Error(`Unsupported role: ${role}`);
+    }
+    
+    const response = await apiClient.patch(endpoint, preferences);
     return response.data;
   },
 
