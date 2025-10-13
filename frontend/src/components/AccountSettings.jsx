@@ -432,6 +432,17 @@ const AccountSettings = () => {
                             size="sm" 
                             className="cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors"
                             asChild
+                            onClick={() => {
+                              console.log('🔧 BUTTON CLICKED - Opening file dialog');
+                              // Manually trigger file input
+                              const fileInput = document.getElementById('profile-image-upload');
+                              if (fileInput) {
+                                console.log('🔧 File input found, clicking...');
+                                fileInput.click();
+                              } else {
+                                console.log('❌ File input not found!');
+                              }
+                            }}
                           >
                             <span>
                               <Camera className="h-4 w-4 mr-2" />
@@ -439,6 +450,23 @@ const AccountSettings = () => {
                             </span>
                           </Button>
                         </label>
+                        
+                        {/* Debug: Direct file input for testing */}
+                        <div className="mt-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              console.log('🔧 DIRECT FILE INPUT TEST:', e.target.files);
+                              if (e.target.files[0]) {
+                                console.log('🔧 DIRECT FILE SELECTED:', e.target.files[0]);
+                                handleProfileImageChange(e);
+                              }
+                            }}
+                            className="text-xs"
+                          />
+                          <p className="text-xs text-gray-400 mt-1">Debug: Direct file input</p>
+                        </div>
                         
                         {profileImage && (
                           <Button 
