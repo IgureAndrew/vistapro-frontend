@@ -30,12 +30,18 @@ import MasterAdminWallet from './MasterAdminWallet';
 import MarketerVerificationDashboard from './MarketerVerificationDashboard';
 import OTPTransitionDashboard from './OTPTransitionDashboard';
 import UserTargets from './UserTargets';
+import EmailVerificationPrompt from './EmailVerificationPrompt';
+import GracePeriodWarningBanner from './GracePeriodWarningBanner';
+import OTPSetupWizard from './OTPSetupWizard';
+import OTPHelpCenter from './OTPHelpCenter';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeModule, setActiveModule] = useState('overview');
   const [activeTab, setActiveTab] = useState('overview');
+  const [showOTPWizard, setShowOTPWizard] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(false);
   const [user, setUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -348,6 +354,17 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </Button>
 
+              {/* OTP Help Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHelpCenter(true)}
+                className="relative"
+                title="OTP Help"
+              >
+                <HelpCircle className="w-5 h-5" />
+              </Button>
+
               {/* Notifications */}
               <NotificationBell />
 
@@ -447,6 +464,21 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                         </TabsList>
 
                         <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                          {/* OTP Transition UI Components */}
+                          {user && !user.email_verified && (
+                            <EmailVerificationPrompt 
+                              user={user} 
+                              isDismissible={true}
+                            />
+                          )}
+                          
+                          {user && user.email_verified && !user.otp_enabled && (
+                            <GracePeriodWarningBanner 
+                              user={user}
+                              isDismissible={false}
+                            />
+                          )}
+                          
                           {getCurrentModuleComponent()}
                         </TabsContent>
 
@@ -491,6 +523,24 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           }}
         />
       )}
+
+      {/* OTP Setup Wizard */}
+      <OTPSetupWizard
+        isOpen={showOTPWizard}
+        onClose={() => setShowOTPWizard(false)}
+        user={user}
+        onComplete={() => {
+          setShowOTPWizard(false);
+          // Refresh user data
+          window.location.reload();
+        }}
+      />
+
+      {/* OTP Help Center */}
+      <OTPHelpCenter
+        isOpen={showHelpCenter}
+        onClose={() => setShowHelpCenter(false)}
+      />
     </div>
   );
 };
