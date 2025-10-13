@@ -219,6 +219,19 @@ const updateProfile = async (req, res, next) => {
       // File upload via multer - upload to Cloudinary
       try {
         console.log('🖼️ Uploading file to Cloudinary for user:', userId);
+        console.log('📁 File details:', {
+          fieldname: req.file.fieldname,
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          bufferLength: req.file.buffer ? req.file.buffer.length : 'undefined'
+        });
+        
+        if (!req.file.buffer) {
+          console.error('❌ File buffer is undefined');
+          return res.status(400).json({ message: 'File buffer is missing' });
+        }
+        
         const result = await uploadToCloudinary(req.file.buffer, {
           folder: 'vistapro/profile-images',
           public_id: `profile_${userId}_${Date.now()}`,
@@ -233,7 +246,7 @@ const updateProfile = async (req, res, next) => {
         console.log('✅ Profile image uploaded to Cloudinary:', result.secure_url);
       } catch (error) {
         console.error('❌ Error uploading to Cloudinary:', error);
-        return res.status(400).json({ message: 'Failed to upload image' });
+        return res.status(400).json({ message: 'Failed to upload image: ' + error.message });
       }
     } else if (profileImage && profileImage.startsWith('data:image/')) {
       // Base64 fallback - upload to Cloudinary

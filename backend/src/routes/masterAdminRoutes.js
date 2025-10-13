@@ -48,20 +48,28 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer storage config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
-});
+// Multer storage config - use memory storage for Cloudinary uploads
+const memoryStorage = multer.memoryStorage();
 
 // Multer handlers
 const uploadImage = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }
+  storage: memoryStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
 });
 
 const uploadPDF = multer({
-  storage,
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+  }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.fieldname === 'registrationCertificate') {
