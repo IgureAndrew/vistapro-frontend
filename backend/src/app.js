@@ -209,6 +209,7 @@ app.use('/api/percentage-mappings', require('./routes/percentageMappingRoutes'))
 app.use('/api/target-performance', require('./routes/targetPerformanceRoutes'));
 app.use('/api/otp', require('./routes/otpRoutes'));
 app.use('/api/otp-transition', require('./routes/otpTransitionRoutes'));
+app.use('/api/otp-notifications', require('./routes/otpNotificationRoutes'));
 app.use('/api/reminders', require('./routes/reminderRoutes'));
 app.use('/api/stock',          require('./routes/stockupdateRoutes'));
 app.use('/api/verification',   require('./routes/verificationRoutes'));

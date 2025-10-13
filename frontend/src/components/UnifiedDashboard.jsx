@@ -34,6 +34,7 @@ import EmailVerificationPrompt from './EmailVerificationPrompt';
 import GracePeriodWarningBanner from './GracePeriodWarningBanner';
 import OTPSetupWizard from './OTPSetupWizard';
 import OTPHelpCenter from './OTPHelpCenter';
+import OTPNotificationPanel from './OTPNotificationPanel';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
@@ -42,6 +43,7 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showOTPWizard, setShowOTPWizard] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
+  const [showOTPNotifications, setShowOTPNotifications] = useState(false);
   const [user, setUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -354,6 +356,17 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </Button>
 
+              {/* OTP Notifications Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowOTPNotifications(true)}
+                className="relative"
+                title="OTP Notifications"
+              >
+                <Bell className="w-5 h-5" />
+              </Button>
+
               {/* OTP Help Button */}
               <Button
                 variant="ghost"
@@ -540,6 +553,12 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
       <OTPHelpCenter
         isOpen={showHelpCenter}
         onClose={() => setShowHelpCenter(false)}
+      />
+
+      {/* OTP Notifications Panel */}
+      <OTPNotificationPanel
+        isOpen={showOTPNotifications}
+        onClose={() => setShowOTPNotifications(false)}
       />
     </div>
   );

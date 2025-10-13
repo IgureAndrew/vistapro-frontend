@@ -7,6 +7,7 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 const otpService = require('../services/otpService');
 const emailService = require('../services/emailService');
 const { pool } = require('../config/database');
+const { notifyOTPEnabled } = require('../services/otpNotificationService');
 
 /**
  * Send OTP to user's email
@@ -144,6 +145,13 @@ router.post('/verify', async (req, res) => {
         SET otp_enabled = TRUE, email_update_required = FALSE
         WHERE id = $1
       `, [user.id]);
+      
+      // Send OTP enabled notification
+      try {
+        await notifyOTPEnabled(user.id);
+      } catch (notifError) {
+        console.error('Error sending OTP enabled notification:', notifError);
+      }
     }
     
     console.log(`✅ OTP verified and user ${user.id} logged in successfully`);
