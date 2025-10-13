@@ -19,7 +19,8 @@ import {
   User as UserIcon,
   Settings,
   Clock,
-  Bell
+  Bell,
+  HelpCircle
 } from 'lucide-react';
 import { getRoleConfig } from '../config/RoleConfig';
 import { useAuth } from '../contexts/AuthContext';
