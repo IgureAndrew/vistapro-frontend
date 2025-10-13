@@ -211,9 +211,15 @@ const updateProfile = async (req, res, next) => {
       hashedPassword = await bcrypt.hash(newPassword, 10);
     }
 
-    // Handle image data - convert Base64 to file or use existing file
+    // Handle image data - prioritize file upload over Base64
     let profileImageData = null;
-    if (profileImage && profileImage.startsWith('data:image/')) {
+    
+    if (req.file) {
+      // File upload via multer
+      profileImageData = req.file.filename;
+      console.log('🖼️ Received file upload for user:', userId, 'filename:', req.file.filename);
+    } else if (profileImage && profileImage.startsWith('data:image/')) {
+      // Base64 fallback
       try {
         // Convert Base64 to file
         const base64Data = profileImage.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -239,10 +245,6 @@ const updateProfile = async (req, res, next) => {
         console.error('❌ Error converting Base64 to file:', error);
         return res.status(400).json({ message: 'Failed to process image' });
       }
-    } else if (req.file) {
-      // Legacy file upload handling
-      profileImageData = req.file.filename;
-      console.log('🖼️ Received file upload for user:', userId);
     }
 
     const query = `
