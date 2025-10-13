@@ -15,12 +15,23 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+// Multer storage config - use memory storage for Cloudinary uploads
+const memoryStorage = multer.memoryStorage();
+
 // Configure Multer for file uploads (for profile image upload)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+const upload = multer({ 
+  storage: memoryStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'profile_image') {
+      if (file.mimetype.startsWith('image/')) {
+        return cb(null, true);
+      }
+      return cb(new Error('Only image files allowed for profile image'), false);
+    }
+    cb(null, true);
+  }
 });
-const upload = multer({ storage });
 
 // GET /api/admin/account - Get Admin account details
 router.get('/account', verifyToken, verifyRole(['Admin']), getAccount);
