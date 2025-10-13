@@ -739,7 +739,7 @@ function LandingPage() {
             
             <div className="space-y-4">
               <h1 className="text-6xl lg:text-7xl font-bold text-black leading-tight">
-                Vistapro - OTP Ready
+                Vistapro
               </h1>
               <p className="text-xl lg:text-2xl text-gray-700 max-w-lg mx-auto leading-relaxed">
                 Redefine Success in Phone Distribution.
@@ -754,7 +754,7 @@ function LandingPage() {
             <CardHeader className="space-y-1 pb-6">
               <CardDescription className="text-center text-gray-600">
                 {view === "login"
-                  ? "Enter your credentials to access your account - OTP System Active"
+                  ? "Enter your credentials to access your account"
                   : view === "register"
                   ? "Master Admin registration only"
                   : "Enter your email to receive reset instructions"}
