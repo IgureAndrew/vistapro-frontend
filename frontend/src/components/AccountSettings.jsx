@@ -193,6 +193,11 @@ const AccountSettings = () => {
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
       
+      // Trigger global user update event for real-time avatar synchronization
+      window.dispatchEvent(new CustomEvent('userUpdated', {
+        detail: { user: updatedUser }
+      }));
+      
       // Clear the selected file after successful upload
       setProfileImage(null);
       

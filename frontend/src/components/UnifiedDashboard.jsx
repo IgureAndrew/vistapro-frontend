@@ -40,43 +40,24 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
 
   // Hooks
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user: globalUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const roleConfig = getRoleConfig(userRole);
 
   // Computed: Check if current theme is dark
   const isDarkMode = theme === 'dark';
 
-  // Load user data and listen for updates
+  // Use global user state from AuthContext for real-time updates
   useEffect(() => {
-    const loadUser = () => {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
-        // Ensure user has avatar URL constructed from profile_image
-        if (userData.profile_image) {
-          userData.avatar = getAvatarUrl(userData.profile_image);
-          setUser(userData);
-          // Update localStorage with avatar URL
-          localStorage.setItem('user', JSON.stringify(userData));
-        } else {
-          setUser(userData);
-        }
+    if (globalUser) {
+      // Ensure user has avatar URL constructed from profile_image
+      const userData = { ...globalUser };
+      if (userData.profile_image) {
+        userData.avatar = getAvatarUrl(userData.profile_image);
       }
-    };
-
-    // Load user initially
-    loadUser();
-
-    // Listen for user updates from profile changes
-    const handleUserUpdate = (event) => {
-      const { user: updatedUser } = event.detail;
-      setUser(updatedUser);
-    };
-
-    window.addEventListener('userUpdated', handleUserUpdate);
-    return () => window.removeEventListener('userUpdated', handleUserUpdate);
-  }, []);
+      setUser(userData);
+    }
+  }, [globalUser]);
 
   // Check verification status for marketers (only on initial load)
   useEffect(() => {

@@ -1,14 +1,31 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Moon, Sun } from "lucide-react";
 import { getAvatarUrl, getUserInitials } from "../utils/avatarUtils";
 
 function AvatarDropdown({ user, handleLogout, toggleDarkMode, isDarkMode, setActiveModule }) {
   const [open, setOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(user);
+
+  // Listen for user updates from profile changes
+  useEffect(() => {
+    const handleUserUpdate = (event) => {
+      const { user: updatedUser } = event.detail;
+      setCurrentUser(updatedUser);
+    };
+
+    window.addEventListener('userUpdated', handleUserUpdate);
+    return () => window.removeEventListener('userUpdated', handleUserUpdate);
+  }, []);
+
+  // Update current user when prop changes
+  useEffect(() => {
+    setCurrentUser(user);
+  }, [user]);
 
   // Get avatar URL from profile_image, fallback to initials
   const getAvatarSrc = () => {
-    if (user?.profile_image) {
-      return getAvatarUrl(user.profile_image);
+    if (currentUser?.profile_image) {
+      return getAvatarUrl(currentUser.profile_image);
     }
     return null;
   };
@@ -35,7 +52,7 @@ function AvatarDropdown({ user, handleLogout, toggleDarkMode, isDarkMode, setAct
             className="font-bold text-gray-700 dark:text-gray-200"
             style={{ display: getAvatarSrc() ? 'none' : 'flex' }}
           >
-            {getUserInitials(user)}
+            {getUserInitials(currentUser)}
           </span>
         </div>
       </button>
