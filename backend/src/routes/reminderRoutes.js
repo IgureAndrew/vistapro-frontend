@@ -1,7 +1,7 @@
 // Reminder Routes for Grace Period Notifications
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middlewares/authMiddleware');
+const { verifyToken, verifyRole } = require('../middlewares/authMiddleware');
 const {
   triggerReminders,
   getStats,
@@ -10,7 +10,7 @@ const {
 
 // All routes require MasterAdmin authentication
 router.use(verifyToken);
-router.use(checkRole(['MasterAdmin']));
+router.use(verifyRole(['MasterAdmin']));
 
 // POST /api/reminders/trigger - Manually trigger all scheduled reminders
 router.post('/trigger', triggerReminders);

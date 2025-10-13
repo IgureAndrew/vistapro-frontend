@@ -1,7 +1,7 @@
 // OTP Transition Management Routes for MasterAdmin
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middlewares/authMiddleware');
+const { verifyToken, verifyRole } = require('../middlewares/authMiddleware');
 const {
   getTransitionStats,
   getTransitionUsers,
@@ -11,7 +11,7 @@ const {
 
 // All routes require MasterAdmin authentication
 router.use(verifyToken);
-router.use(checkRole(['MasterAdmin']));
+router.use(verifyRole(['MasterAdmin']));
 
 // GET /api/otp-transition/stats - Get transition statistics
 router.get('/stats', getTransitionStats);
