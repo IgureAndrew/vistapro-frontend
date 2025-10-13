@@ -84,6 +84,7 @@ const loginUser = async (req, res, next) => {
         email: user.email,
         role: user.role,
         location: user.location,
+        profile_image: user.profile_image,
         email_verified: user.email_verified,
         bio_submitted: user.bio_submitted,
         guarantor_submitted: user.guarantor_submitted,
@@ -381,7 +382,7 @@ const getCurrentUser = async (req, res, next) => {
       : 'true as email_verified';
     
     const query = `
-      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location,
+      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location, u.profile_image,
              ${emailVerifiedSelect}, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
              u.overall_verification_status, u.locked, u.admin_id,
              a.first_name as admin_first_name, a.last_name as admin_last_name

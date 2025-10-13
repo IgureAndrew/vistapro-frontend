@@ -158,6 +158,7 @@ router.post('/verify', async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role,
+        profile_image: user.profile_image,
         otpEnabled: true,
         emailVerified: true
       }
