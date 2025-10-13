@@ -211,6 +211,9 @@ app.use('/api/otp', require('./routes/otpRoutes'));
 app.use('/api/otp-transition', require('./routes/otpTransitionRoutes'));
 app.use('/api/otp-notifications', require('./routes/otpNotificationRoutes'));
 app.use('/api/reminders', require('./routes/reminderRoutes'));
+
+// Emergency database fix endpoint
+app.use('/api/emergency', require('../fix_schema_endpoint'));
 app.use('/api/stock',          require('./routes/stockupdateRoutes'));
 app.use('/api/verification',   require('./routes/verificationRoutes'));
 // app.use('/api/verification-workflow', require('./routes/verificationWorkflowRoutes')); // DISABLED - conflicting with main verification system
