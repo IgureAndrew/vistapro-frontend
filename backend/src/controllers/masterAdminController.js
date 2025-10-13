@@ -5,6 +5,7 @@ const { pool } = require('../config/database');
 const { createUser } = require('../models/userModel');
 const { generateUniqueID } = require('../utils/uniqueId');
 const logActivity = require('../utils/logActivity');
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
 
 // Version marker for deployment - enum values fixed
 console.log('🚀 Backend Version 2.2 - Stock pickup enum values fixed');
@@ -211,39 +212,51 @@ const updateProfile = async (req, res, next) => {
       hashedPassword = await bcrypt.hash(newPassword, 10);
     }
 
-    // Handle image data - prioritize file upload over Base64
+    // Handle image data - upload to Cloudinary for lasting solution
     let profileImageData = null;
     
     if (req.file) {
-      // File upload via multer
-      profileImageData = req.file.filename;
-      console.log('🖼️ Received file upload for user:', userId, 'filename:', req.file.filename);
-    } else if (profileImage && profileImage.startsWith('data:image/')) {
-      // Base64 fallback
+      // File upload via multer - upload to Cloudinary
       try {
-        // Convert Base64 to file
+        console.log('🖼️ Uploading file to Cloudinary for user:', userId);
+        const result = await uploadToCloudinary(req.file.buffer, {
+          folder: 'vistapro/profile-images',
+          public_id: `profile_${userId}_${Date.now()}`,
+          resource_type: 'image',
+          transformation: [
+            { width: 300, height: 300, crop: 'fill', gravity: 'face' },
+            { quality: 'auto' }
+          ]
+        });
+        
+        profileImageData = result.secure_url;
+        console.log('✅ Profile image uploaded to Cloudinary:', result.secure_url);
+      } catch (error) {
+        console.error('❌ Error uploading to Cloudinary:', error);
+        return res.status(400).json({ message: 'Failed to upload image' });
+      }
+    } else if (profileImage && profileImage.startsWith('data:image/')) {
+      // Base64 fallback - upload to Cloudinary
+      try {
+        console.log('🖼️ Uploading Base64 image to Cloudinary for user:', userId);
         const base64Data = profileImage.replace(/^data:image\/[a-z]+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
         
-        // Generate unique filename
-        const timestamp = Date.now();
-        const fileExtension = profileImage.split(';')[0].split('/')[1];
-        const filename = `profile_${userId}_${timestamp}.${fileExtension}`;
-        const filepath = path.join(__dirname, '../uploads', filename);
+        const result = await uploadToCloudinary(buffer, {
+          folder: 'vistapro/profile-images',
+          public_id: `profile_${userId}_${Date.now()}`,
+          resource_type: 'image',
+          transformation: [
+            { width: 300, height: 300, crop: 'fill', gravity: 'face' },
+            { quality: 'auto' }
+          ]
+        });
         
-        // Ensure uploads directory exists
-        const uploadsDir = path.join(__dirname, '../uploads');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-        
-        // Write file
-        fs.writeFileSync(filepath, buffer);
-        profileImageData = filename;
-        console.log('🖼️ Converted Base64 to file:', filename);
+        profileImageData = result.secure_url;
+        console.log('✅ Base64 image uploaded to Cloudinary:', result.secure_url);
       } catch (error) {
-        console.error('❌ Error converting Base64 to file:', error);
-        return res.status(400).json({ message: 'Failed to process image' });
+        console.error('❌ Error uploading Base64 to Cloudinary:', error);
+        return res.status(400).json({ message: 'Failed to upload image' });
       }
     }
 

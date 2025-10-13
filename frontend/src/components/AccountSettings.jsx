@@ -410,7 +410,7 @@ const AccountSettings = () => {
                     <div className="relative">
                       <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
                         <AvatarImage 
-                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image && typeof user.profile_image === 'string' ? `https://vistapro-backend.onrender.com/uploads/${user.profile_image}` : user?.avatar)} 
+                          src={profileImage ? URL.createObjectURL(profileImage) : (user?.profile_image && typeof user.profile_image === 'string' ? user.profile_image : user?.avatar)} 
                           alt="Profile" 
                           className="object-cover"
                           onError={(e) => {
@@ -418,7 +418,7 @@ const AccountSettings = () => {
                             e.target.style.display = 'none';
                           }}
                           onLoad={() => {
-                            console.log('✅ Profile image loaded successfully');
+                            console.log('✅ Profile image loaded successfully from:', e.target.src);
                           }}
                         />
                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-2xl">
@@ -468,22 +468,6 @@ const AccountSettings = () => {
                           </Button>
                         </label>
                         
-                        {/* Debug: Direct file input for testing */}
-                        <div className="mt-2">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              console.log('🔧 DIRECT FILE INPUT TEST:', e.target.files);
-                              if (e.target.files[0]) {
-                                console.log('🔧 DIRECT FILE SELECTED:', e.target.files[0]);
-                                handleProfileImageChange(e);
-                              }
-                            }}
-                            className="text-xs"
-                          />
-                          <p className="text-xs text-gray-400 mt-1">Debug: Direct file input</p>
-                        </div>
                         
                         {profileImage && (
                           <Button 
