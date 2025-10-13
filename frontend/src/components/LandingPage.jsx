@@ -10,6 +10,7 @@ import { Eye, EyeOff, Mail, Lock, Shield, AlertTriangle } from "lucide-react";
 import OTPInputModal from "./OTPInputModal";
 import GracePeriodAlert from "./GracePeriodAlert";
 import GracePeriodBanner from "./GracePeriodBanner";
+import OTPTransitionBanner from "./OTPTransitionBanner";
 import otpApiService from "../api/otpApi";
 
 // Define our colors
@@ -66,6 +67,7 @@ function LandingPage() {
   const [loginMethod, setLoginMethod] = useState("password"); // "password" or "otp"
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [transitionBannerDismissed, setTransitionBannerDismissed] = useState(false);
 
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -227,6 +229,11 @@ function LandingPage() {
   // Handle banner dismiss
   const handleBannerDismiss = () => {
     setBannerDismissed(true);
+  };
+
+  // Handle transition banner dismiss
+  const handleTransitionBannerDismiss = () => {
+    setTransitionBannerDismissed(true);
   };
 
   // Redirect to dashboard based on role
@@ -719,13 +726,20 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white font-['Geist',sans-serif]">
-      {/* Grace Period Countdown Banner */}
-      <GracePeriodBanner
-        gracePeriodData={gracePeriodData}
-        onUpdateEmail={() => setShowGracePeriodAlert(true)}
-        onDismiss={handleBannerDismiss}
-        isLoggedIn={isLoggedIn}
-      />
+      {/* OTP Transition Banner - Shows for all users */}
+      {!transitionBannerDismissed && (
+        <OTPTransitionBanner onDismiss={handleTransitionBannerDismiss} />
+      )}
+      
+      {/* Grace Period Countdown Banner - Shows only for logged-in users */}
+      {isLoggedIn && (
+        <GracePeriodBanner
+          gracePeriodData={gracePeriodData}
+          onUpdateEmail={() => setShowGracePeriodAlert(true)}
+          onDismiss={handleBannerDismiss}
+          isLoggedIn={isLoggedIn}
+        />
+      )}
       
       {/* Main content area */}
       <div className="flex flex-col lg:flex-row min-h-screen">
