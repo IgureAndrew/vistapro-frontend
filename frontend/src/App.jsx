@@ -12,8 +12,8 @@ import { ToastContainer } from "./components/ui/toast";
 
 function App() {
   // Force deployment update - Domain accessibility fix
-  console.log('VistaPro App loaded successfully');
-  console.log('🔍 App component rendering with Routes');
+  console.log('VistaPro App loaded successfully - DEPLOYMENT TEST');
+  console.log('🔍 App component rendering with Routes - LATEST VERSION');
   return (
     <>
       <ToastContainer />
