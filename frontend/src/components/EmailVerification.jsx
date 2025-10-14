@@ -20,7 +20,8 @@ export default function EmailVerification() {
     }
 
     // Call backend verification endpoint
-    axios.post(`${import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com'}/api/auth/verify-email/${token}`)
+    const API_BASE = import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com';
+    axios.post(`${API_BASE}/api/auth/verify-email`, { token })
       .then((response) => {
         setStatus('success');
         setMessage('Email verified successfully! You can now log in to your account.');

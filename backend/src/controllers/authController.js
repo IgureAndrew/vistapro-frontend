@@ -204,7 +204,12 @@ const registerUser = async (req, res, next) => {
  */
 const verifyEmail = async (req, res, next) => {
   try {
-    const { token } = req.params;
+    // Accept token from both body and params for flexibility
+    const token = req.body?.token || req.params?.token;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required.' });
+    }
 
     // Find user with this token
     const query = `
