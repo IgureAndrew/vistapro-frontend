@@ -242,10 +242,12 @@ async function sendVerificationEmail(userEmail, userName, verificationToken) {
     console.log(`📧 Sending verification email to ${userEmail} for user ${userName}`);
     
     // Use environment variable or fallback to working URL
-    const frontendUrl = process.env.FRONTEND_URL || 'https://vistapro.ng';
+    // TEMPORARY FIX: Use Vercel default domain since vistapro.ng is not accessible
+    const frontendUrl = process.env.FRONTEND_URL || 'https://vistapro-4xlusoclj-vistapros-projects.vercel.app';
     const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
     
     console.log(`🔗 Email verification URL: ${verificationUrl}`);
+    console.log(`⚠️  TEMPORARY FIX: Using Vercel default domain due to vistapro.ng accessibility issue`);
 
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
@@ -279,7 +281,7 @@ async function sendPasswordResetEmail(userEmail, userName, resetToken) {
 
     console.log(`📧 Sending password reset email to ${userEmail} for user ${userName}`);
     
-    const resetUrl = `${process.env.FRONTEND_URL || 'https://vistapro.ng'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://vistapro-4xlusoclj-vistapros-projects.vercel.app'}/reset-password?token=${resetToken}`;
     
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,

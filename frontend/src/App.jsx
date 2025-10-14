@@ -11,7 +11,8 @@ import EnhancedPasswordReset from "./components/EnhancedPasswordReset";
 import { ToastContainer } from "./components/ui/toast";
 
 function App() {
-  // Force deployment update - DNS issue investigation
+  // Force deployment update - Domain accessibility fix
+  console.log('VistaPro App loaded successfully');
   return (
     <>
       <ToastContainer />
