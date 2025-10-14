@@ -24,7 +24,7 @@ async function getUsersNeedingReminder(daysRemaining) {
         otp_grace_period_end IS NOT NULL
         AND otp_grace_period_end > NOW()
         AND otp_enabled = false
-        AND role NOT IN ('MasterAdmin')
+        AND role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
         AND EXTRACT(DAY FROM (otp_grace_period_end - NOW())) <= $1
         AND EXTRACT(DAY FROM (otp_grace_period_end - NOW())) >= $1 - 1
         AND email_verification_token IS NOT NULL

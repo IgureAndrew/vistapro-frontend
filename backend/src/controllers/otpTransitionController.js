@@ -220,7 +220,7 @@ const getTransitionUsers = async (req, res, next) => {
       limit = 20
     } = req.query;
 
-    let whereConditions = ["role NOT IN ('MasterAdmin')"];
+    let whereConditions = ["role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')"];
     const queryParams = [];
     let paramCount = 1;
 
@@ -387,7 +387,7 @@ const exportTransitionData = async (req, res, next) => {
   try {
     const { status, role } = req.query;
 
-    let whereConditions = ["role NOT IN ('MasterAdmin')"];
+    let whereConditions = ["role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')"];
     const queryParams = [];
     let paramCount = 1;
 
