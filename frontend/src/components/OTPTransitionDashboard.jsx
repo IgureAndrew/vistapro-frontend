@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Mail, CheckCircle, XCircle, Clock, Download, 
-  Send, Search, Filter, RefreshCw, AlertTriangle 
+  Send, Search, Filter, RefreshCw, AlertTriangle, Shield, TrendingUp 
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -175,7 +175,7 @@ const OTPTransitionDashboard = () => {
         </Button>
       </div>
 
-      {/* Statistics Cards */}
+      {/* Primary Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -221,19 +221,174 @@ const OTPTransitionDashboard = () => {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">In Grace Period</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Fully Migrated</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold">{stats?.metrics.usersInGracePeriod || 0}</div>
-                <div className="text-sm text-gray-500">{stats?.metrics.gracePeriodPercentage}%</div>
+                <div className="text-2xl font-bold">{stats?.metrics.fullyMigratedUsers || 0}</div>
+                <div className="text-sm text-gray-500">{stats?.metrics.transitionCompletePercentage}%</div>
               </div>
-              <Clock className="h-8 w-8 text-yellow-500" />
+              <Shield className="h-8 w-8 text-indigo-500" />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Enhanced Email Verification Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Pending Verification</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold">{stats?.metrics.pendingEmailVerifications || 0}</div>
+                <div className="text-sm text-gray-500">Need email verification</div>
+              </div>
+              <XCircle className="h-8 w-8 text-red-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Pending OTP Adoption</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold">{stats?.metrics.pendingOTPAdoptions || 0}</div>
+                <div className="text-sm text-gray-500">Verified but not migrated</div>
+              </div>
+              <Clock className="h-8 w-8 text-orange-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">OTP Adoption Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold">{stats?.metrics.otpAdoptionRate || 0}%</div>
+                <div className="text-sm text-gray-500">Of verified users</div>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Reminders Sent</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold">{stats?.metrics.usersReceivedReminders || 0}</div>
+                <div className="text-sm text-gray-500">Users contacted</div>
+              </div>
+              <Send className="h-8 w-8 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Location-Based Analytics */}
+      {stats?.locationBreakdown && stats.locationBreakdown.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Location-Based Verification Analytics</CardTitle>
+            <CardDescription>Email verification and OTP adoption rates by location</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Location</th>
+                    <th className="text-right p-2">Total Users</th>
+                    <th className="text-right p-2">Verified</th>
+                    <th className="text-right p-2">OTP Enabled</th>
+                    <th className="text-right p-2">Verification Rate</th>
+                    <th className="text-right p-2">OTP Adoption Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.locationBreakdown.map((location, index) => (
+                    <tr key={index} className="border-b hover:bg-gray-50">
+                      <td className="p-2 font-medium">{location.location}</td>
+                      <td className="p-2 text-right">{location.total}</td>
+                      <td className="p-2 text-right">{location.verified}</td>
+                      <td className="p-2 text-right">{location.otp_enabled}</td>
+                      <td className="p-2 text-right">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          parseFloat(location.verification_rate) >= 80 ? 'bg-green-100 text-green-800' :
+                          parseFloat(location.verification_rate) >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {location.verification_rate}%
+                        </span>
+                      </td>
+                      <td className="p-2 text-right">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          parseFloat(location.otp_adoption_rate) >= 80 ? 'bg-green-100 text-green-800' :
+                          parseFloat(location.otp_adoption_rate) >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {location.otp_adoption_rate}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Verification Funnel Analytics */}
+      {stats?.funnelAnalytics && stats.funnelAnalytics.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Verification Funnel Analytics</CardTitle>
+            <CardDescription>User progression through the email verification and OTP adoption process</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stats.funnelAnalytics.map((stage, index) => {
+                const percentage = parseFloat(stage.percentage);
+                const isLastStage = index === stats.funnelAnalytics.length - 1;
+                
+                return (
+                  <div key={stage.stage} className="flex items-center space-x-4">
+                    <div className="w-32 text-sm font-medium">{stage.stage}</div>
+                    <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
+                      <div 
+                        className={`h-6 rounded-full transition-all duration-500 ${
+                          stage.stage === 'Total Users' ? 'bg-blue-500' :
+                          stage.stage === 'Email Verified' ? 'bg-green-500' :
+                          stage.stage === 'OTP Enabled' ? 'bg-purple-500' :
+                          'bg-indigo-500'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white">
+                        {stage.count} ({percentage}%)
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters and Actions */}
       <Card>

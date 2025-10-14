@@ -6,7 +6,7 @@ const { pool } = require('../config/database');
  */
 const getTransitionStats = async (req, res, next) => {
   try {
-    // Get overall statistics
+    // Get overall statistics with enhanced email verification metrics
     const statsQuery = `
       SELECT 
         COUNT(*) as total_users,
@@ -15,7 +15,11 @@ const getTransitionStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE otp_grace_period_end IS NOT NULL AND otp_grace_period_end > NOW()) as users_in_grace_period,
         COUNT(*) FILTER (WHERE otp_grace_period_end IS NOT NULL AND otp_grace_period_end <= NOW()) as users_past_grace_period,
         COUNT(*) FILTER (WHERE email_update_required = true) as users_need_email_update,
-        COUNT(*) FILTER (WHERE email_verified = false) as users_not_verified
+        COUNT(*) FILTER (WHERE email_verified = false) as users_not_verified,
+        COUNT(*) FILTER (WHERE email_verification_token IS NOT NULL) as users_with_pending_verification,
+        COUNT(*) FILTER (WHERE email_verified = true AND otp_enabled = true) as fully_migrated_users,
+        COUNT(*) FILTER (WHERE email_verified = true AND otp_enabled = false) as verified_but_not_migrated,
+        COUNT(*) FILTER (WHERE last_reminder_sent IS NOT NULL) as users_received_reminders
       FROM users
       WHERE role NOT IN ('MasterAdmin')
     `;
@@ -23,21 +27,42 @@ const getTransitionStats = async (req, res, next) => {
     const { rows: statsRows } = await pool.query(statsQuery);
     const stats = statsRows[0];
 
-    // Calculate percentages
+    // Calculate percentages and enhanced metrics
     const totalUsers = parseInt(stats.total_users);
+    const verifiedUsers = parseInt(stats.verified_users);
+    const otpEnabledUsers = parseInt(stats.otp_enabled_users);
+    
     const metrics = {
       totalUsers,
-      verifiedUsers: parseInt(stats.verified_users),
-      verifiedPercentage: totalUsers > 0 ? ((parseInt(stats.verified_users) / totalUsers) * 100).toFixed(1) : 0,
-      otpEnabledUsers: parseInt(stats.otp_enabled_users),
-      otpEnabledPercentage: totalUsers > 0 ? ((parseInt(stats.otp_enabled_users) / totalUsers) * 100).toFixed(1) : 0,
+      verifiedUsers,
+      verifiedPercentage: totalUsers > 0 ? ((verifiedUsers / totalUsers) * 100).toFixed(1) : 0,
+      otpEnabledUsers,
+      otpEnabledPercentage: totalUsers > 0 ? ((otpEnabledUsers / totalUsers) * 100).toFixed(1) : 0,
       usersInGracePeriod: parseInt(stats.users_in_grace_period),
       gracePeriodPercentage: totalUsers > 0 ? ((parseInt(stats.users_in_grace_period) / totalUsers) * 100).toFixed(1) : 0,
       usersPastGracePeriod: parseInt(stats.users_past_grace_period),
       usersNeedEmailUpdate: parseInt(stats.users_need_email_update),
       usersNotVerified: parseInt(stats.users_not_verified),
-      transitionComplete: parseInt(stats.otp_enabled_users),
-      transitionCompletePercentage: totalUsers > 0 ? ((parseInt(stats.otp_enabled_users) / totalUsers) * 100).toFixed(1) : 0
+      
+      // Enhanced email verification metrics
+      usersWithPendingVerification: parseInt(stats.users_with_pending_verification),
+      fullyMigratedUsers: parseInt(stats.fully_migrated_users),
+      verifiedButNotMigrated: parseInt(stats.verified_but_not_migrated),
+      usersReceivedReminders: parseInt(stats.users_received_reminders),
+      
+      // Email verification completion rate
+      emailVerificationCompletionRate: totalUsers > 0 ? ((verifiedUsers / totalUsers) * 100).toFixed(1) : 0,
+      
+      // OTP adoption rate (of verified users)
+      otpAdoptionRate: verifiedUsers > 0 ? ((otpEnabledUsers / verifiedUsers) * 100).toFixed(1) : 0,
+      
+      // Transition completion rate
+      transitionComplete: otpEnabledUsers,
+      transitionCompletePercentage: totalUsers > 0 ? ((otpEnabledUsers / totalUsers) * 100).toFixed(1) : 0,
+      
+      // Pending actions
+      pendingEmailVerifications: parseInt(stats.users_not_verified),
+      pendingOTPAdoptions: parseInt(stats.verified_but_not_migrated)
     };
 
     // Get transition status breakdown by role
@@ -79,11 +104,91 @@ const getTransitionStats = async (req, res, next) => {
     
     const { rows: recentTransitions } = await pool.query(recentTransitionsQuery);
 
+    // Get location-based verification statistics
+    const locationBreakdownQuery = `
+      SELECT 
+        COALESCE(location, 'Unknown') as location,
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE email_verified = true) as verified,
+        COUNT(*) FILTER (WHERE otp_enabled = true) as otp_enabled,
+        ROUND((COUNT(*) FILTER (WHERE email_verified = true) * 100.0 / COUNT(*)), 1) as verification_rate,
+        ROUND((COUNT(*) FILTER (WHERE otp_enabled = true) * 100.0 / COUNT(*)), 1) as otp_adoption_rate
+      FROM users
+      WHERE role NOT IN ('MasterAdmin')
+      GROUP BY location
+      ORDER BY total DESC
+    `;
+    
+    const { rows: locationBreakdown } = await pool.query(locationBreakdownQuery);
+
+    // Get daily verification trends (last 30 days)
+    const dailyTrendsQuery = `
+      SELECT 
+        DATE(updated_at) as date,
+        COUNT(*) FILTER (WHERE email_verified = true AND DATE(updated_at) = DATE(updated_at)) as daily_verifications,
+        COUNT(*) FILTER (WHERE otp_enabled = true AND DATE(updated_at) = DATE(updated_at)) as daily_otp_enabled
+      FROM users
+      WHERE role NOT IN ('MasterAdmin')
+        AND updated_at >= NOW() - INTERVAL '30 days'
+        AND (email_verified = true OR otp_enabled = true)
+      GROUP BY DATE(updated_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `;
+    
+    const { rows: dailyTrends } = await pool.query(dailyTrendsQuery);
+
+    // Get verification funnel analytics
+    const funnelQuery = `
+      SELECT 
+        'Total Users' as stage,
+        COUNT(*) as count,
+        '100.0' as percentage
+      FROM users WHERE role NOT IN ('MasterAdmin')
+      
+      UNION ALL
+      
+      SELECT 
+        'Email Verified' as stage,
+        COUNT(*) as count,
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('MasterAdmin'))), 1) as percentage
+      FROM users WHERE role NOT IN ('MasterAdmin') AND email_verified = true
+      
+      UNION ALL
+      
+      SELECT 
+        'OTP Enabled' as stage,
+        COUNT(*) as count,
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('MasterAdmin'))), 1) as percentage
+      FROM users WHERE role NOT IN ('MasterAdmin') AND otp_enabled = true
+      
+      UNION ALL
+      
+      SELECT 
+        'Fully Migrated' as stage,
+        COUNT(*) as count,
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('MasterAdmin'))), 1) as percentage
+      FROM users WHERE role NOT IN ('MasterAdmin') AND email_verified = true AND otp_enabled = true
+      
+      ORDER BY 
+        CASE stage 
+          WHEN 'Total Users' THEN 1
+          WHEN 'Email Verified' THEN 2
+          WHEN 'OTP Enabled' THEN 3
+          WHEN 'Fully Migrated' THEN 4
+        END
+    `;
+    
+    const { rows: funnelAnalytics } = await pool.query(funnelQuery);
+
     res.json({
       success: true,
       data: {
         metrics,
         roleBreakdown,
+        locationBreakdown,
+        dailyTrends,
+        funnelAnalytics,
         recentTransitions
       }
     });
