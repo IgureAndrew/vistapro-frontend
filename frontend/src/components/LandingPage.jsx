@@ -27,6 +27,34 @@ function isPasswordValid(password) {
   return hasLetter && hasDigit;
 }
 
+  // Check email verification status
+  const checkEmailVerificationStatus = async (email) => {
+    if (!email || !email.includes('@')) return;
+    
+    setCheckingEmailStatus(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com'}/api/auth/check-email-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEmailVerificationStatus(data);
+      } else {
+        setEmailVerificationStatus({ email_verified: false });
+      }
+    } catch (error) {
+      console.error('Error checking email status:', error);
+      setEmailVerificationStatus({ email_verified: false });
+    } finally {
+      setCheckingEmailStatus(false);
+    }
+  };
+
 function LandingPage() {
   // Define which form to show: "login", "register", or "forgot"
   const [view, setView] = useState("login");
@@ -47,6 +75,10 @@ function LandingPage() {
   // For toggling password visibility in the register and login forms.
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  
+  // For OTP-only mode
+  const [emailVerificationStatus, setEmailVerificationStatus] = useState(null);
+  const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
 
   // Alert dialog state
   const [alertDialog, setAlertDialog] = useState({
@@ -376,44 +408,65 @@ function LandingPage() {
                 placeholder="Enter your email"
                 className="pl-10 border-border focus:ring-ring"
                 value={loginData.email}
-                onChange={(e) =>
-                  setLoginData({ ...loginData, email: e.target.value })
-                }
+                onChange={(e) => {
+                  setLoginData({ ...loginData, email: e.target.value });
+                  // Check email verification status when email changes
+                  const email = e.target.value;
+                  if (email && email.includes('@')) {
+                    checkEmailVerificationStatus(email);
+                  } else {
+                    setEmailVerificationStatus(null);
+                  }
+                }}
                 required
               />
             </div>
           </div>
           
-          {/* Login Method Toggle */}
-          <div className="flex space-x-2 mb-4">
-            <Button
-              type="button"
-              variant={loginMethod === "password" ? "default" : "outline"}
-              size="sm"
-              className="flex-1"
-              onClick={() => setLoginMethod("password")}
-              disabled={gracePeriodData && !gracePeriodData.isInGracePeriod}
-            >
-              <Lock className="h-4 w-4 mr-2" />
-              Password
-              {gracePeriodData && !gracePeriodData.isInGracePeriod && (
-                <span className="ml-1 text-xs">(Disabled)</span>
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant={loginMethod === "otp" ? "default" : "outline"}
-              size="sm"
-              className="flex-1"
-              onClick={() => setLoginMethod("otp")}
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              OTP Code
-              {gracePeriodData && !gracePeriodData.isInGracePeriod && (
-                <span className="ml-1 text-xs">(Required)</span>
-              )}
-            </Button>
-          </div>
+          {/* Login Method Toggle - Hide for verified users */}
+          {!emailVerificationStatus?.email_verified && (
+            <div className="flex space-x-2 mb-4">
+              <Button
+                type="button"
+                variant={loginMethod === "password" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setLoginMethod("password")}
+                disabled={gracePeriodData && !gracePeriodData.isInGracePeriod}
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Password
+                {gracePeriodData && !gracePeriodData.isInGracePeriod && (
+                  <span className="ml-1 text-xs">(Disabled)</span>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant={loginMethod === "otp" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setLoginMethod("otp")}
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                OTP Code
+                {gracePeriodData && !gracePeriodData.isInGracePeriod && (
+                  <span className="ml-1 text-xs">(Required)</span>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* OTP-Only Notice for Verified Users */}
+          {emailVerificationStatus?.email_verified && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <Shield className="h-4 w-4 text-green-500" />
+                <p className="text-sm text-green-800">
+                  <strong>Email verified!</strong> You can now use OTP login with your verified email address.
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Grace Period Ended Notice */}
           {gracePeriodData && !gracePeriodData.isInGracePeriod && (
@@ -427,8 +480,8 @@ function LandingPage() {
             </div>
           )}
 
-          {/* Password Field (only show for password method) */}
-          {loginMethod === "password" && (
+          {/* Password Field (only show for password method and unverified users) */}
+          {loginMethod === "password" && !emailVerificationStatus?.email_verified && (
           <div className="space-y-2">
             <Label htmlFor="password" className="text-sm font-medium text-foreground">
               Password
@@ -461,16 +514,18 @@ function LandingPage() {
               </Button>
             </div>
             
-            {/* Forgot Password Link */}
-            <div className="text-right">
-              <button
-                type="button"
-                onClick={() => navigate('/reset-password')}
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                Forgot Password?
-              </button>
-            </div>
+            {/* Forgot Password Link - Only show for unverified users */}
+            {!emailVerificationStatus?.email_verified && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => navigate('/reset-password')}
+                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+            )}
           </div>
           )}
 
@@ -485,12 +540,12 @@ function LandingPage() {
                 <p className="text-xs text-blue-800">
                   Enter your email above and click "Send OTP" to receive a 6-digit verification code.
                 </p>
-              </div>
             </div>
+          </div>
           )}
 
           {/* Submit Buttons */}
-          {loginMethod === "password" ? (
+          {(loginMethod === "password" && !emailVerificationStatus?.email_verified) ? (
           <Button
             type="submit"
             className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
@@ -751,7 +806,7 @@ function LandingPage() {
           isLoggedIn={isLoggedIn}
         />
       )}
-      
+
       {/* Main content area */}
       <div className="flex flex-col lg:flex-row min-h-screen">
         {/* Left Section: Title, Tagline & Image */}

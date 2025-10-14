@@ -591,6 +591,41 @@ const logoutUser = async (req, res, next) => {
   }
 };
 
+/**
+ * checkEmailStatus - Check if email is verified and user status
+ */
+const checkEmailStatus = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    // Find user by email
+    const { rows } = await pool.query(
+      'SELECT id, email, email_verified, otp_enabled, otp_grace_period_end FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+
+    res.json({
+      email: user.email,
+      email_verified: user.email_verified || false,
+      otp_enabled: user.otp_enabled || false,
+      in_grace_period: user.otp_grace_period_end ? new Date() < new Date(user.otp_grace_period_end) : false,
+      grace_period_end: user.otp_grace_period_end
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   loginUser,
   registerUser,
@@ -600,5 +635,6 @@ module.exports = {
   resetPassword,
   checkPasswordResetStatus,
   getCurrentUser,
-  logoutUser
+  logoutUser,
+  checkEmailStatus
 };

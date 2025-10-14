@@ -28,6 +28,11 @@ const EmailVerificationPage = () => {
         setSuccess(true);
         setUserEmail(result.email);
         setError(null);
+        
+        // Auto-redirect to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
       } catch (error) {
         setError(error.message || 'Failed to verify email');
         setSuccess(false);

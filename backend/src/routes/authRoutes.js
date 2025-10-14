@@ -11,7 +11,8 @@ const {
   resetPassword,
   checkPasswordResetStatus,
   getCurrentUser,
-  logoutUser
+  logoutUser,
+  checkEmailStatus
 } = require('../controllers/authController');
 const { verifyToken } = require("../middlewares/authMiddleware");
 
@@ -127,6 +128,21 @@ router.post(
       return res.status(422).json({ errors: errors.array() });
     }
     checkPasswordResetStatus(req, res, next);
+  }
+);
+
+// POST /api/auth/check-email-status
+router.post(
+  '/check-email-status',
+  [
+    body('email').isEmail().withMessage('A valid email is required.')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+    checkEmailStatus(req, res, next);
   }
 );
 
