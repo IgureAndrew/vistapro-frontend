@@ -241,10 +241,9 @@ async function sendVerificationEmail(userEmail, userName, verificationToken) {
 
     console.log(`📧 Sending verification email to ${userEmail} for user ${userName}`);
     
-    // Use environment variable or fallback to working URL
-    // FIXED: Use working Vercel domain since vistapro.ng is not accessible
+    // Use standalone email verification page for now
     const frontendUrl = process.env.FRONTEND_URL || 'https://vistapro-4xlusoclj-vistapros-projects.vercel.app';
-    const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${frontendUrl}/email-verification-standalone.html?token=${verificationToken}`;
     
     console.log(`🔗 Email verification URL: ${verificationUrl}`);
     console.log(`⚠️  TEMPORARY FIX: Using Vercel default domain due to vistapro.ng accessibility issue`);
