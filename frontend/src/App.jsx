@@ -19,9 +19,8 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
-        <Route path="/email-verification/*" element={<EmailVerification />} />
+        <Route path="/email-verification" element={<EmailVerification />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
-        <Route path="/verify-email/*" element={<EmailVerificationPage />} />
         <Route path="/reset-password" element={<EnhancedPasswordReset />} />
         <Route 
           path="/dashboard/masteradmin" 
