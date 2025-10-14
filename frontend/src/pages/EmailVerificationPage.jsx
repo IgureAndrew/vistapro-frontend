@@ -12,6 +12,7 @@ const EmailVerificationPage = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
   const [userEmail, setUserEmail] = useState('');
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     const verifyEmail = async () => {
@@ -29,10 +30,18 @@ const EmailVerificationPage = () => {
         setUserEmail(result.email);
         setError(null);
         
-        // Auto-redirect to login after 3 seconds
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
+        // Auto-redirect to login after 3 seconds with countdown
+        const countdownInterval = setInterval(() => {
+          setCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              console.log('Redirecting to login page...');
+              navigate('/login');
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
       } catch (error) {
         setError(error.message || 'Failed to verify email');
         setSuccess(false);
@@ -42,7 +51,7 @@ const EmailVerificationPage = () => {
     };
 
     verifyEmail();
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   const handleGoToLogin = () => {
     navigate('/login');
@@ -109,12 +118,18 @@ const EmailVerificationPage = () => {
                 </ul>
               </div>
 
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  <strong>Redirecting to login page in {countdown} seconds...</strong>
+                </p>
+              </div>
+
               <div className="flex space-x-3">
                 <Button
                   onClick={handleGoToLogin}
                   className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
                 >
-                  Go to Login
+                  Go to Login Now
                 </Button>
                 <Button
                   onClick={handleGoHome}
