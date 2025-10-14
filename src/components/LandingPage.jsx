@@ -43,6 +43,9 @@ function LandingPage() {
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
+  // For email verification status checking
+  const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
+
   // Alert dialog state
   const [alertDialog, setAlertDialog] = useState({
     open: false,
@@ -66,6 +69,32 @@ function LandingPage() {
       confirmText,
       onConfirm: onConfirm || (() => setAlertDialog(prev => ({ ...prev, open: false })))
     });
+  };
+
+  // Check email verification status
+  const checkEmailVerificationStatus = async (email) => {
+    if (!email || !email.includes('@')) return;
+    
+    setCheckingEmailStatus(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/check-email-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Handle email status response if needed
+        console.log('Email verification status:', data);
+      }
+    } catch (error) {
+      console.error('Error checking email status:', error);
+    } finally {
+      setCheckingEmailStatus(false);
+    }
   };
 
   // Handler for login submission.
