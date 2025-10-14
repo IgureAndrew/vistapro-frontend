@@ -29,6 +29,8 @@ import UsersManagement from './UsersManagement';
 import MasterAdminWallet from './MasterAdminWallet';
 import MarketerVerificationDashboard from './MarketerVerificationDashboard';
 import UserTargets from './UserTargets';
+import AccountSettings from './AccountSettings';
+import OTPTransitionDashboard from './OTPTransitionDashboard';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
