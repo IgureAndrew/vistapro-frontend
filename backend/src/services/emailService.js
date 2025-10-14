@@ -195,7 +195,7 @@ function generateEmailUpdateReminderHTML(userName, daysRemaining) {
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="https://vistapro-frontend.vercel.app/login" style="background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                <a href="https://vistapro.ng/login" style="background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                     Update Email Now
                 </a>
             </div>
@@ -241,7 +241,11 @@ async function sendVerificationEmail(userEmail, userName, verificationToken) {
 
     console.log(`📧 Sending verification email to ${userEmail} for user ${userName}`);
     
-    const verificationUrl = `${process.env.FRONTEND_URL || 'https://vistapro-frontend.vercel.app'}/verify-email?token=${verificationToken}`;
+    // Use environment variable or fallback to working URL
+    const frontendUrl = process.env.FRONTEND_URL || 'https://vistapro.ng';
+    const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    
+    console.log(`🔗 Email verification URL: ${verificationUrl}`);
 
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
@@ -275,7 +279,7 @@ async function sendPasswordResetEmail(userEmail, userName, resetToken) {
 
     console.log(`📧 Sending password reset email to ${userEmail} for user ${userName}`);
     
-    const resetUrl = `${process.env.FRONTEND_URL || 'https://vistapro-frontend.vercel.app'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://vistapro.ng'}/reset-password?token=${resetToken}`;
     
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
@@ -349,7 +353,7 @@ function generateVerificationEmailHTML(userName, verificationUrl) {
                         ⚠️ <strong>Important:</strong> This verification link will expire in 24 hours. Please verify your email soon to avoid any login issues.
                     </p>
                 </div>
-            </div>
+        </div>
             
             <!-- Footer -->
             <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
