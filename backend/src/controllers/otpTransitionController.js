@@ -148,36 +148,37 @@ const getTransitionStats = async (req, res, next) => {
 
     // Get verification funnel analytics
     const funnelQuery = `
-      SELECT 
-        'Total Users' as stage,
-        COUNT(*) as count,
-        '100.0' as percentage
-      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
-      
-      UNION ALL
-      
-      SELECT 
-        'Email Verified' as stage,
-        COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
-      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND email_verified = true
-      
-      UNION ALL
-      
-      SELECT 
-        'OTP Enabled' as stage,
-        COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
-      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND otp_enabled = true
-      
-      UNION ALL
-      
-      SELECT 
-        'Fully Migrated' as stage,
-        COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
-      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND email_verified = true AND otp_enabled = true
-      
+      SELECT * FROM (
+        SELECT 
+          'Total Users' as stage,
+          COUNT(*) as count,
+          '100.0' as percentage
+        FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
+        
+        UNION ALL
+        
+        SELECT 
+          'Email Verified' as stage,
+          COUNT(*) as count,
+          ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
+        FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND email_verified = true
+        
+        UNION ALL
+        
+        SELECT 
+          'OTP Enabled' as stage,
+          COUNT(*) as count,
+          ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
+        FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND otp_enabled = true
+        
+        UNION ALL
+        
+        SELECT 
+          'Fully Migrated' as stage,
+          COUNT(*) as count,
+          ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
+        FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND email_verified = true AND otp_enabled = true
+      ) AS funnel_data
       ORDER BY 
         CASE stage 
           WHEN 'Total Users' THEN 1

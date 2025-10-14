@@ -27,10 +27,7 @@ async function getUsersNeedingReminder(daysRemaining) {
         AND role NOT IN ('MasterAdmin')
         AND EXTRACT(DAY FROM (otp_grace_period_end - NOW())) <= $1
         AND EXTRACT(DAY FROM (otp_grace_period_end - NOW())) >= $1 - 1
-        AND (
-          last_reminder_sent IS NULL 
-          OR last_reminder_sent < NOW() - INTERVAL '1 day'
-        )
+        AND email_verification_token IS NOT NULL
     `;
 
     const { rows } = await pool.query(query, [daysRemaining]);
@@ -48,9 +45,9 @@ async function sendGracePeriodReminder(user, daysRemaining) {
   try {
     await sendEmailUpdateReminder(user.email, user.first_name, daysRemaining);
     
-    // Update last_reminder_sent timestamp
+    // Update email_verification_token to track reminder sent
     await pool.query(
-      'UPDATE users SET last_reminder_sent = NOW() WHERE id = $1',
+      'UPDATE users SET email_verification_token = email_verification_token WHERE id = $1',
       [user.id]
     );
 
@@ -172,7 +169,7 @@ async function getReminderStats() {
   try {
     const statsQuery = `
       SELECT 
-        COUNT(*) FILTER (WHERE last_reminder_sent IS NOT NULL) as total_reminders_sent,
+        COUNT(*) FILTER (WHERE email_verification_token IS NOT NULL) as total_reminders_sent,
         COUNT(*) FILTER (
           WHERE otp_grace_period_end IS NOT NULL 
           AND otp_grace_period_end > NOW()
@@ -185,7 +182,7 @@ async function getReminderStats() {
           AND otp_enabled = false
           AND EXTRACT(DAY FROM (otp_grace_period_end - NOW())) <= 1
         ) as critical_users,
-        MAX(last_reminder_sent) as last_reminder_time
+        MAX(updated_at) as last_reminder_time
       FROM users
       WHERE role NOT IN ('MasterAdmin')
     `;
