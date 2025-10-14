@@ -6,7 +6,7 @@ import UnifiedDashboard from "./components/UnifiedDashboard";
 import AccountSettings from "./components/AccountSettings";
 import PrivateRoute from "./components/PrivateRoute";
 import SubmissionUnderReview from "./components/SubmissionUnderReview";
-import EmailVerification from "./components/EmailVerification";
+import EmailVerificationPage from "./pages/EmailVerificationPage";
 import EnhancedPasswordReset from "./components/EnhancedPasswordReset";
 import { ToastContainer } from "./components/ui/toast";
 
@@ -17,7 +17,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
-        <Route path="/verify-email" element={<EmailVerification />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/reset-password" element={<EnhancedPasswordReset />} />
         <Route 
           path="/dashboard/masteradmin" 
