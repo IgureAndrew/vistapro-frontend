@@ -21,7 +21,7 @@ const getTransitionStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE email_verified = true AND otp_enabled = false) as verified_but_not_migrated,
         COUNT(*) FILTER (WHERE last_reminder_sent IS NOT NULL) as users_received_reminders
       FROM users
-      WHERE role NOT IN ('MasterAdmin')
+      WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
     `;
     
     const { rows: statsRows } = await pool.query(statsQuery);
@@ -74,7 +74,7 @@ const getTransitionStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE otp_enabled = true) as otp_enabled,
         COUNT(*) FILTER (WHERE otp_grace_period_end IS NOT NULL AND otp_grace_period_end > NOW()) as in_grace_period
       FROM users
-      WHERE role NOT IN ('MasterAdmin')
+      WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
       GROUP BY role
       ORDER BY role
     `;
@@ -96,7 +96,7 @@ const getTransitionStats = async (req, res, next) => {
         email_verification_sent_at,
         updated_at
       FROM users
-      WHERE role NOT IN ('MasterAdmin')
+      WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
         AND (email_verified = true OR otp_enabled = true)
       ORDER BY updated_at DESC
       LIMIT 10
@@ -114,7 +114,7 @@ const getTransitionStats = async (req, res, next) => {
         ROUND((COUNT(*) FILTER (WHERE email_verified = true) * 100.0 / COUNT(*)), 1) as verification_rate,
         ROUND((COUNT(*) FILTER (WHERE otp_enabled = true) * 100.0 / COUNT(*)), 1) as otp_adoption_rate
       FROM users
-      WHERE role NOT IN ('MasterAdmin')
+      WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
       GROUP BY location
       ORDER BY total DESC
     `;
@@ -128,7 +128,7 @@ const getTransitionStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE email_verified = true AND DATE(updated_at) = DATE(updated_at)) as daily_verifications,
         COUNT(*) FILTER (WHERE otp_enabled = true AND DATE(updated_at) = DATE(updated_at)) as daily_otp_enabled
       FROM users
-      WHERE role NOT IN ('MasterAdmin')
+      WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
         AND updated_at >= NOW() - INTERVAL '30 days'
         AND (email_verified = true OR otp_enabled = true)
       GROUP BY DATE(updated_at)
@@ -144,31 +144,31 @@ const getTransitionStats = async (req, res, next) => {
         'Total Users' as stage,
         COUNT(*) as count,
         '100.0' as percentage
-      FROM users WHERE role NOT IN ('MasterAdmin')
+      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
       
       UNION ALL
       
       SELECT 
         'Email Verified' as stage,
         COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('MasterAdmin'))), 1) as percentage
-      FROM users WHERE role NOT IN ('MasterAdmin') AND email_verified = true
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
+      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND email_verified = true
       
       UNION ALL
       
       SELECT 
         'OTP Enabled' as stage,
         COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('MasterAdmin'))), 1) as percentage
-      FROM users WHERE role NOT IN ('MasterAdmin') AND otp_enabled = true
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
+      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND otp_enabled = true
       
       UNION ALL
       
       SELECT 
         'Fully Migrated' as stage,
         COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('MasterAdmin'))), 1) as percentage
-      FROM users WHERE role NOT IN ('MasterAdmin') AND email_verified = true AND otp_enabled = true
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer'))), 1) as percentage
+      FROM users WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer') AND email_verified = true AND otp_enabled = true
       
       ORDER BY 
         CASE stage 
