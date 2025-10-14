@@ -101,6 +101,7 @@ function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [transitionBannerDismissed, setTransitionBannerDismissed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -303,6 +304,7 @@ function LandingPage() {
   // Handler for login submission.
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
@@ -336,6 +338,8 @@ function LandingPage() {
     } catch (error) {
       console.error("Error logging in:", error);
       showAlert("error", "Error", "Error logging in");
+    } finally {
+      setLoading(false);
     }
   };
 
