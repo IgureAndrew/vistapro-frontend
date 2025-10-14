@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { updateUserWithAvatar } from "../utils/avatarUtils";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AlertDialog from "@/components/ui/alert-dialog";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Shield, Clock, AlertTriangle } from "lucide-react";
+import OTPInputModal from "./OTPInputModal";
+import GracePeriodBanner from "./GracePeriodBanner";
+import EmailVerificationPrompt from "./EmailVerificationPrompt";
 
 // Define our colors
 const goldColor = "#C6A768";
@@ -45,6 +48,18 @@ function LandingPage() {
 
   // For email verification status checking
   const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
+
+  // OTP and Grace Period state
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [showGracePeriodAlert, setShowGracePeriodAlert] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState(null);
+  const [gracePeriodData, setGracePeriodData] = useState(null);
+  const [loginMethod, setLoginMethod] = useState("password"); // "password" or "otp"
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [transitionBannerDismissed, setTransitionBannerDismissed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Alert dialog state
   const [alertDialog, setAlertDialog] = useState({
@@ -95,6 +110,101 @@ function LandingPage() {
     } finally {
       setCheckingEmailStatus(false);
     }
+  };
+
+  // OTP Functions
+  const handleSendOTP = async (email) => {
+    setOtpLoading(true);
+    setOtpError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/otp/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setShowOTPModal(true);
+        showAlert("success", "OTP Sent", "Please check your email for the verification code.");
+      } else {
+        setOtpError(data.message || "Failed to send OTP");
+        showAlert("error", "OTP Error", data.message || "Failed to send OTP");
+      }
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      setOtpError("Network error. Please try again.");
+      showAlert("error", "Network Error", "Unable to send OTP. Please check your connection.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (otpCode) => {
+    setOtpLoading(true);
+    setOtpError(null);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/otp/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: loginData.email, 
+          otp: otpCode 
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem("token", data.token);
+        const updatedUserData = updateUserWithAvatar(data.user);
+        localStorage.setItem("user", JSON.stringify(updatedUserData));
+        
+        setShowOTPModal(false);
+        setIsLoggedIn(true);
+        
+        // Redirect based on role
+        switch (data.user.role) {
+          case "SuperAdmin":
+            navigate("/dashboard/superadmin");
+            break;
+          case "MasterAdmin":
+            navigate("/dashboard/masteradmin");
+            break;
+          case "Admin":
+            navigate("/dashboard/admin");
+            break;
+          case "Marketer":
+            navigate("/dashboard/marketer");
+            break;
+          case "Dealer":
+            navigate("/dashboard/dealer");
+            break;
+          default:
+            navigate("/dashboard/masteradmin");
+        }
+      } else {
+        setOtpError(data.message || "Invalid OTP code");
+        showAlert("error", "Verification Failed", data.message || "Invalid OTP code");
+      }
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      setOtpError("Network error. Please try again.");
+      showAlert("error", "Network Error", "Unable to verify OTP. Please check your connection.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    await handleSendOTP(loginData.email);
   };
 
   // Handler for login submission.
@@ -213,7 +323,7 @@ function LandingPage() {
   const renderForm = () => {
     if (view === "login") {
       return (
-        <form className="space-y-4" onSubmit={handleLoginSubmit}>
+        <form className="space-y-4" onSubmit={loginMethod === "password" ? handleLoginSubmit : (e) => { e.preventDefault(); handleSendOTP(loginData.email); }}>
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium text-foreground">
               Email
@@ -234,44 +344,79 @@ function LandingPage() {
             </div>
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-foreground">
+          {/* Login Method Toggle */}
+          <div className="flex space-x-2">
+            <Button
+              type="button"
+              variant={loginMethod === "password" ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setLoginMethod("password")}
+            >
+              <Lock className="w-4 h-4 mr-2" />
               Password
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                type={showLoginPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                className="pl-10 pr-10 border-border focus:ring-ring"
-                value={loginData.password}
-                onChange={(e) =>
-                  setLoginData({ ...loginData, password: e.target.value })
-                }
-                required
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowLoginPassword(!showLoginPassword)}
-              >
-                {showLoginPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
-              </Button>
-            </div>
+            </Button>
+            <Button
+              type="button"
+              variant={loginMethod === "otp" ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setLoginMethod("otp")}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              OTP
+            </Button>
           </div>
+
+          {/* Password Field - Only show for password login */}
+          {loginMethod === "password" && (
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type={showLoginPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  className="pl-10 pr-10 border-border focus:ring-ring"
+                  value={loginData.password}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                >
+                  {showLoginPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <Button
             type="submit"
             className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+            disabled={loading || otpLoading}
           >
-            Sign In
+            {loading || otpLoading ? (
+              <>
+                <Clock className="w-4 h-4 mr-2 animate-spin" />
+                {loginMethod === "otp" ? "Sending OTP..." : "Signing In..."}
+              </>
+            ) : (
+              loginMethod === "otp" ? "Send OTP" : "Sign In"
+            )}
           </Button>
 
           <div className="text-center space-y-2">
@@ -553,6 +698,33 @@ function LandingPage() {
         onCancel={() => setAlertDialog(prev => ({ ...prev, open: false }))}
         showCancel={false}
       />
+
+      {/* OTP Input Modal */}
+      <OTPInputModal
+        isOpen={showOTPModal}
+        onClose={() => {
+          setShowOTPModal(false);
+          setOtpError(null);
+        }}
+        email={loginData.email}
+        onVerifyOTP={handleVerifyOTP}
+        onResendOTP={handleResendOTP}
+        onBackToPassword={() => {
+          setShowOTPModal(false);
+          setLoginMethod("password");
+        }}
+        isLoading={otpLoading}
+        error={otpError}
+      />
+
+      {/* Grace Period Banner */}
+      {!transitionBannerDismissed && (
+        <GracePeriodBanner
+          user={null}
+          isDismissible={true}
+          onDismiss={() => setTransitionBannerDismissed(true)}
+        />
+      )}
     </div>
   );
 }
