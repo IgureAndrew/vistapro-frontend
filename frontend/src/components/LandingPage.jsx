@@ -666,7 +666,7 @@ function LandingPage() {
               type="button"
               variant="link"
               className="text-sm text-muted-foreground hover:text-foreground p-0 h-auto"
-              onClick={() => setView("forgot")}
+              onClick={() => navigate('/reset-password')}
             >
               Forgot your password?
             </Button>

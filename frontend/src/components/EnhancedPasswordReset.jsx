@@ -114,6 +114,20 @@ const EnhancedPasswordReset = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Grace Period Information Banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+          <div className="flex items-start space-x-2">
+            <Clock className="h-4 w-4 text-blue-500 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900">About Password Reset</p>
+              <p className="text-xs text-blue-800 mt-1">
+                Password reset is available during the grace period or if you haven't enabled OTP login yet. 
+                After the grace period ends, you'll need to use OTP login for enhanced security.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <form onSubmit={handleRequestReset} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
@@ -138,20 +152,40 @@ const EnhancedPasswordReset = () => {
                 {resetStatus.passwordResetAllowed ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
-                  <XCircle className="h-4 w-4 text-red-500" />
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
                 )}
-                <p className={`text-sm ${
-                  resetStatus.passwordResetAllowed ? 'text-green-700' : 'text-red-700'
-                }`}>
-                  {resetStatus.message}
-                </p>
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    resetStatus.passwordResetAllowed ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {resetStatus.passwordResetAllowed ? 'Password Reset Available' : 'Password Reset Not Available'}
+                  </p>
+                  <p className={`text-xs mt-1 ${
+                    resetStatus.passwordResetAllowed ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {resetStatus.message}
+                  </p>
+                </div>
               </div>
               
-              {resetStatus.isInGracePeriod && (
-                <div className="mt-2 flex items-center space-x-2">
+              {resetStatus.isInGracePeriod && resetStatus.daysRemaining && (
+                <div className="mt-2 flex items-center space-x-2 bg-yellow-50 border border-yellow-200 rounded p-2">
                   <Clock className="h-4 w-4 text-yellow-500" />
-                  <p className="text-sm text-yellow-700">
-                    Grace period active: {resetStatus.daysRemaining} days remaining
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-800">
+                      Grace Period Active
+                    </p>
+                    <p className="text-xs text-yellow-700">
+                      {resetStatus.daysRemaining} {resetStatus.daysRemaining === 1 ? 'day' : 'days'} remaining to reset your password
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!resetStatus.passwordResetAllowed && (
+                <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+                  <p className="text-xs text-blue-800">
+                    💡 <strong>Tip:</strong> Use OTP login with your verified email address to access your account.
                   </p>
                 </div>
               )}
