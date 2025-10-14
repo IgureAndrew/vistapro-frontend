@@ -53,6 +53,8 @@ import SuperAdminSubmissionsNew from '../components/SuperAdminSubmissionsNew';
 import MasterAdminSubmissions from '../components/MasterAdminSubmissions';
 import MasterAdminBlockedAccounts from '../components/MasterAdminBlockedAccounts';
 import MarketersOverview from '../components/MarketersOverview';
+import AccountSettings from '../components/AccountSettings';
+import OTPTransitionDashboard from '../components/OTPTransitionDashboard';
 
 export const ROLE_CONFIG = {
   masteradmin: {
@@ -74,7 +76,8 @@ export const ROLE_CONFIG = {
       { key: "wallet", label: "Wallets", icon: Wallet, component: MasterAdminWallet },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "submissions", label: "Submissions", icon: FileText, component: MasterAdminSubmissions },
-      { key: "profile", label: "Profile", icon: User, component: ProfileUpdate }
+      { key: "otp-transition", label: "OTP Transition", icon: Shield, component: OTPTransitionDashboard },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
     ],
     metrics: [
       { key: "totalUsers", label: "Total Users", icon: Users, color: "blue" },
@@ -110,7 +113,8 @@ export const ROLE_CONFIG = {
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
       { key: "submissions", label: "Submissions", icon: FileText, component: SuperAdminSubmissionsNew },
-      { key: "assigned", label: "Assigned Users", icon: UserPlus, component: SuperAdminAssignedUsers }
+      { key: "assigned", label: "Assigned Users", icon: UserPlus, component: SuperAdminAssignedUsers },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
     ],
     metrics: [
       { key: "assignedUsers", label: "Assigned Users", icon: Users, color: "blue" },
@@ -140,7 +144,8 @@ export const ROLE_CONFIG = {
       { key: "submissions", label: "Submissions", icon: FileText, component: AdminSubmissionsNew },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
-      { key: "wallet", label: "Wallet", icon: Wallet, component: AdminWallet }
+      { key: "wallet", label: "Wallet", icon: Wallet, component: AdminWallet },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
     ],
     metrics: [
       { key: "assignedMarketers", label: "Assigned Marketers", icon: Users, color: "blue" },
@@ -162,7 +167,7 @@ export const ROLE_CONFIG = {
     color: "#f59e0b",
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
-      { key: "profile", label: "Profile", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: ManageOrders }
     ],
     metrics: [
