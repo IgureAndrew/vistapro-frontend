@@ -79,6 +79,7 @@ function LandingPage() {
   // For OTP-only mode
   const [emailVerificationStatus, setEmailVerificationStatus] = useState(null);
   const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
+  const [otpSuccess, setOtpSuccess] = useState(false);
 
   // Alert dialog state
   const [alertDialog, setAlertDialog] = useState({
@@ -175,10 +176,18 @@ function LandingPage() {
     try {
       await otpApiService.sendOTP(loginData.email);
       console.log('✅ OTP sent successfully, showing modal');
+      setOtpSuccess(true);
+      setOtpError(null);
       setShowOTPModal(true);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setOtpSuccess(false);
+      }, 5000);
     } catch (error) {
       console.error('❌ Failed to send OTP:', error);
       setOtpError(error.response?.data?.message || "Failed to send OTP. Please try again.");
+      setOtpSuccess(false);
     } finally {
       setOtpLoading(false);
     }
@@ -468,6 +477,19 @@ function LandingPage() {
             </div>
           )}
           
+          {/* Grace Period Active Notice */}
+          {gracePeriodData && gracePeriodData.isInGracePeriod && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-yellow-500" />
+                <div className="text-sm text-yellow-800">
+                  <p><strong>Grace Period Active:</strong> You have {gracePeriodData.daysRemaining} days left to verify your email.</p>
+                  <p className="text-xs mt-1">After this period, password login will be disabled and OTP login will be required.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Grace Period Ended Notice */}
           {gracePeriodData && !gracePeriodData.isInGracePeriod && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
@@ -529,16 +551,21 @@ function LandingPage() {
           </div>
           )}
 
-          {/* OTP Info (only show for OTP method) */}
-          {loginMethod === "otp" && (
+          {/* OTP Info (show for OTP method or verified users) */}
+          {(loginMethod === "otp" || emailVerificationStatus?.email_verified) && (
             <div className="space-y-2">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex items-center space-x-2 mb-2">
                   <Shield className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium text-blue-900">Secure OTP Login</span>
+                  <span className="text-sm font-medium text-blue-900">
+                    {emailVerificationStatus?.email_verified ? 'Email Verified - OTP Login Required' : 'Secure OTP Login'}
+                  </span>
                 </div>
                 <p className="text-xs text-blue-800">
-                  Enter your email above and click "Send OTP" to receive a 6-digit verification code.
+                  {emailVerificationStatus?.email_verified 
+                    ? 'Your email is verified. Please use OTP login for enhanced security.'
+                    : 'Enter your email above and click "Send OTP" to receive a 6-digit verification code.'
+                  }
                 </p>
             </div>
           </div>
@@ -548,25 +575,89 @@ function LandingPage() {
           {(loginMethod === "password" && !emailVerificationStatus?.email_verified) ? (
           <Button
             type="submit"
-            className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+            disabled={loading}
+            className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign In
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Signing in...
+              </>
+            ) : (
+              "Sign In"
+            )}
           </Button>
           ) : (
             <Button
               type="button"
               onClick={handleOTPLogin}
-              disabled={otpLoading}
+              disabled={otpLoading || !loginData.email}
               className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {otpLoading ? "Sending OTP..." : "Send OTP Code"}
-            </Button>
+              {otpLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Sending OTP...
+                </>
+              ) : (
+                emailVerificationStatus?.email_verified ? "Send OTP Code" : "Send OTP Code"
+              )}
+          </Button>
           )}
 
-          {/* OTP Error Display */}
-          {otpError && loginMethod === "otp" && (
+          {/* Success Display */}
+          {otpSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <div>
+                  <p className="text-green-800 text-sm font-medium">OTP Sent Successfully!</p>
+                  <p className="text-green-600 text-xs">Check your email for the 6-digit code. It expires in 10 minutes.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Display */}
+          {otpError && (loginMethod === "otp" || emailVerificationStatus?.email_verified) && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-red-600 text-sm">{otpError}</p>
+              <div className="flex items-center space-x-2">
+                <XCircle className="h-4 w-4 text-red-500" />
+                <p className="text-red-600 text-sm">{otpError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* General Error Display */}
+          {alertDialog.open && alertDialog.type === "error" && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <XCircle className="h-4 w-4 text-red-500" />
+                <div>
+                  <p className="text-red-800 text-sm font-medium">{alertDialog.title}</p>
+                  <p className="text-red-600 text-xs">{alertDialog.message}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Helpful Tips */}
+          {!emailVerificationStatus?.email_verified && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+              <div className="flex items-start space-x-2">
+                <div className="flex-shrink-0 mt-0.5">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                </div>
+                <div className="text-xs text-gray-700">
+                  <p className="font-medium mb-1">💡 Quick Tips:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• Verify your email to use secure OTP login</li>
+                    <li>• Check your spam folder for verification emails</li>
+                    <li>• OTP codes expire after 10 minutes</li>
+                    <li>• Contact support if you need help</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
 
