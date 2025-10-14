@@ -19,10 +19,11 @@ function App() {
       <ToastContainer />
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/test" element={<div style={{padding: '20px', fontSize: '24px', color: 'green'}}>🚀 Frontend is working! React Router is functional.</div>} />
         <Route path="/login" element={<LandingPage />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/verify-email/*" element={<EmailVerificationPage />} />
-        <Route path="/test-verify" element={<div>Test Route Working!</div>} />
+        <Route path="/test-verify" element={<div style={{padding: '20px', fontSize: '24px', color: 'blue'}}>✅ Test Route Working! Frontend is loading correctly.</div>} />
         <Route path="/reset-password" element={<EnhancedPasswordReset />} />
         <Route 
           path="/dashboard/masteradmin" 
