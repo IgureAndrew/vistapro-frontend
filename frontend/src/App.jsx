@@ -11,6 +11,7 @@ import EnhancedPasswordReset from "./components/EnhancedPasswordReset";
 import { ToastContainer } from "./components/ui/toast";
 
 function App() {
+  // Force deployment update
   return (
     <>
       <ToastContainer />
