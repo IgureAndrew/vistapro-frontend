@@ -195,7 +195,7 @@ function generateEmailUpdateReminderHTML(userName, daysRemaining) {
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="https://www.vistapro.ng/login" style="background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                <a href="https://vistapro-frontend.vercel.app/login" style="background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                     Update Email Now
                 </a>
             </div>
@@ -241,8 +241,8 @@ async function sendVerificationEmail(userEmail, userName, verificationToken) {
 
     console.log(`📧 Sending verification email to ${userEmail} for user ${userName}`);
     
-    const verificationUrl = `${process.env.FRONTEND_URL || 'https://vistapro.ng'}/verify-email?token=${verificationToken}`;
-    
+    const verificationUrl = `${process.env.FRONTEND_URL || 'https://vistapro-frontend.vercel.app'}/verify-email?token=${verificationToken}`;
+
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
       to: [userEmail],
@@ -275,7 +275,7 @@ async function sendPasswordResetEmail(userEmail, userName, resetToken) {
 
     console.log(`📧 Sending password reset email to ${userEmail} for user ${userName}`);
     
-    const resetUrl = `${process.env.FRONTEND_URL || 'https://vistapro.ng'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://vistapro-frontend.vercel.app'}/reset-password?token=${resetToken}`;
     
     const { data, error } = await resend.emails.send({
       from: `VistaPro <${process.env.RESEND_FROM_EMAIL || 'noreply@vistapro.ng'}>`,
@@ -305,7 +305,7 @@ function generateVerificationEmailHTML(userName, verificationUrl) {
     <!DOCTYPE html>
     <html>
     <head>
-        <meta charset="utf-8">
+      <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Verify Your Email - VistaPro</title>
     </head>
@@ -316,7 +316,7 @@ function generateVerificationEmailHTML(userName, verificationUrl) {
             <div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); padding: 30px; text-align: center;">
                 <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">VistaPro</h1>
                 <p style="color: #d1d5db; margin: 10px 0 0 0; font-size: 16px;">Verify Your Email Address</p>
-            </div>
+        </div>
             
             <!-- Content -->
             <div style="padding: 40px 30px;">
@@ -359,9 +359,9 @@ function generateVerificationEmailHTML(userName, verificationUrl) {
                 <p style="color: #9ca3af; font-size: 10px; margin: 5px 0 0 0;">
                     This is an automated message. Please do not reply to this email.
                 </p>
-            </div>
-            
         </div>
+            
+      </div>
     </body>
     </html>
   `;

@@ -33,7 +33,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://www.vistapro.ng",
-  "https://vistapro.ng"
+  "https://vistapro.ng",
+  "https://vistapro-frontend.vercel.app"
 ];
 
 // Handle preflight requests manually
