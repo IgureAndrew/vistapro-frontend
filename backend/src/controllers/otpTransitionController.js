@@ -21,12 +21,12 @@ const getTransitionStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE otp_enabled = true) as otp_enabled_users,
         COUNT(*) FILTER (WHERE otp_grace_period_end IS NOT NULL AND otp_grace_period_end > NOW()) as users_in_grace_period,
         COUNT(*) FILTER (WHERE otp_grace_period_end IS NOT NULL AND otp_grace_period_end <= NOW()) as users_past_grace_period,
-        COUNT(*) FILTER (WHERE email_update_required = true) as users_need_email_update,
+        COUNT(*) FILTER (WHERE email_verified = false) as users_need_email_update,
         COUNT(*) FILTER (WHERE email_verified = false) as users_not_verified,
         COUNT(*) FILTER (WHERE email_verification_token IS NOT NULL) as users_with_pending_verification,
         COUNT(*) FILTER (WHERE email_verified = true AND otp_enabled = true) as fully_migrated_users,
         COUNT(*) FILTER (WHERE email_verified = true AND otp_enabled = false) as verified_but_not_migrated,
-        COUNT(*) FILTER (WHERE last_reminder_sent IS NOT NULL) as users_received_reminders
+        COUNT(*) FILTER (WHERE email_verification_token IS NOT NULL) as users_received_reminders
       FROM users
       WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
     `;
@@ -102,7 +102,6 @@ const getTransitionStats = async (req, res, next) => {
         email_verified,
         otp_enabled,
         otp_grace_period_end,
-        email_verification_sent_at,
         updated_at
       FROM users
       WHERE role IN ('MasterAdmin', 'SuperAdmin', 'Admin', 'Marketer', 'Dealer')
@@ -279,9 +278,7 @@ const getTransitionUsers = async (req, res, next) => {
         role,
         email_verified,
         otp_enabled,
-        email_update_required,
         otp_grace_period_end,
-        email_verification_sent_at,
         created_at,
         updated_at,
         CASE 
@@ -423,7 +420,6 @@ const exportTransitionData = async (req, res, next) => {
         role,
         email_verified,
         otp_enabled,
-        email_update_required,
         otp_grace_period_end,
         created_at,
         CASE 
@@ -466,7 +462,7 @@ const exportTransitionData = async (req, res, next) => {
         row.role,
         row.email_verified ? 'Yes' : 'No',
         row.otp_enabled ? 'Yes' : 'No',
-        row.email_update_required ? 'Yes' : 'No',
+        row.email_verified ? 'No' : 'Yes',
         row.otp_grace_period_end || 'N/A',
         row.created_at?.toISOString() || 'N/A',
         row.transition_status
