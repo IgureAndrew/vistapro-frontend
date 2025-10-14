@@ -6,6 +6,13 @@ const { pool } = require('../config/database');
  */
 const getTransitionStats = async (req, res, next) => {
   try {
+    console.log('🔍 OTP Transition Stats: Starting query...');
+    
+    // First, let's check if there are any users at all
+    const testQuery = `SELECT COUNT(*) as total_count FROM users`;
+    const { rows: testRows } = await pool.query(testQuery);
+    console.log('🔍 Total users in database:', testRows[0].total_count);
+    
     // Get overall statistics with enhanced email verification metrics
     const statsQuery = `
       SELECT 
@@ -26,6 +33,8 @@ const getTransitionStats = async (req, res, next) => {
     
     const { rows: statsRows } = await pool.query(statsQuery);
     const stats = statsRows[0];
+    
+    console.log('🔍 OTP Transition Stats: Query result:', stats);
 
     // Calculate percentages and enhanced metrics
     const totalUsers = parseInt(stats.total_users);
