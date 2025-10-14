@@ -13,6 +13,7 @@ import { ToastContainer } from "./components/ui/toast";
 function App() {
   // Force deployment update - Domain accessibility fix
   console.log('VistaPro App loaded successfully');
+  console.log('🔍 App component rendering with Routes');
   return (
     <>
       <ToastContainer />
@@ -21,6 +22,7 @@ function App() {
         <Route path="/login" element={<LandingPage />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/verify-email/*" element={<EmailVerificationPage />} />
+        <Route path="/test-verify" element={<div>Test Route Working!</div>} />
         <Route path="/reset-password" element={<EnhancedPasswordReset />} />
         <Route 
           path="/dashboard/masteradmin" 
