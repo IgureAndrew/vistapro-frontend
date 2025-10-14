@@ -422,6 +422,7 @@ const OTPTransitionDashboard = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Roles</option>
+                <option value="MasterAdmin">MasterAdmin</option>
                 <option value="SuperAdmin">SuperAdmin</option>
                 <option value="Admin">Admin</option>
                 <option value="Marketer">Marketer</option>
