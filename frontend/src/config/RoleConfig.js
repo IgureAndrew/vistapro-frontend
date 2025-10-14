@@ -53,6 +53,7 @@ import SuperAdminSubmissionsNew from '../components/SuperAdminSubmissionsNew';
 import MasterAdminSubmissions from '../components/MasterAdminSubmissions';
 import MasterAdminBlockedAccounts from '../components/MasterAdminBlockedAccounts';
 import MarketersOverview from '../components/MarketersOverview';
+import OTPTransitionDashboard from '../components/OTPTransitionDashboard';
 
 export const ROLE_CONFIG = {
   masteradmin: {
@@ -74,6 +75,7 @@ export const ROLE_CONFIG = {
       { key: "wallet", label: "Wallets", icon: Wallet, component: MasterAdminWallet },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "submissions", label: "Submissions", icon: FileText, component: MasterAdminSubmissions },
+      { key: "otp-transition", label: "OTP Transition", icon: Shield, component: OTPTransitionDashboard },
       { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
     ],
     metrics: [
@@ -215,6 +217,7 @@ export const MOBILE_NAV_CONFIG = {
     { key: 'wallet', label: 'Wallet', icon: Wallet },
     { key: 'users', label: 'Users', icon: Users },
     { key: 'manage-orders', label: 'Orders', icon: ShoppingCart },
+    { key: 'otp-transition', label: 'OTP', icon: Shield },
     { key: 'performance', label: 'Stats', icon: BarChart3 },
     { key: 'more', label: 'More', icon: Settings }
   ],
