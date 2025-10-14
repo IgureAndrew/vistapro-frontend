@@ -1,186 +1,93 @@
-// src/components/EmailVerification.jsx
-import React, { useState } from 'react';
-
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, XCircle, Mail, RefreshCw } from 'lucide-react';
-import api from '../api';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { CheckCircle, XCircle, Loader } from 'lucide-react';
 
 export default function EmailVerification() {
+  const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
-  
-  const [status, setStatus] = useState(token ? 'verifying' : 'pending');
+  const [status, setStatus] = useState('verifying'); // 'verifying', 'success', 'error'
   const [message, setMessage] = useState('');
-  const [email, setEmail] = useState('');
-  const [resending, setResending] = useState(false);
 
-  // Verify email if token is present
-  React.useEffect(() => {
-    if (token) {
-      verifyEmail(token);
-    }
-  }, [token]);
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const token = queryParams.get('token');
 
-  const verifyEmail = async (verificationToken) => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/verify-email/${verificationToken}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setStatus('success');
-        setMessage(data.message);
-        setEmail(data.email);
-      } else {
-        setStatus('error');
-        setMessage(data.message);
-      }
-    } catch (error) {
+    if (!token) {
       setStatus('error');
-      setMessage('An error occurred while verifying your email. Please try again.');
-    }
-  };
-
-  const resendVerification = async () => {
-    if (!email) {
-      setMessage('Please enter your email address first.');
+      setMessage('Invalid verification link. No token provided.');
       return;
     }
 
-    setResending(true);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/resend-verification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+    // Call backend verification endpoint
+    axios.post(`${import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com'}/api/auth/verify-email/${token}`)
+      .then((response) => {
+        setStatus('success');
+        setMessage('Email verified successfully! You can now log in to your account.');
+        
+        // Redirect to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      })
+      .catch((error) => {
+        setStatus('error');
+        setMessage(error.response?.data?.message || 'Invalid or expired verification link.');
       });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setMessage('Verification email sent successfully! Please check your inbox.');
-      } else {
-        setMessage(data.message || 'Failed to send verification email. Please try again.');
-      }
-    } catch (error) {
-      setMessage('An error occurred. Please try again.');
-    } finally {
-      setResending(false);
-    }
-  };
-
-  const handleLogin = () => {
-    navigate('/');
-  };
-
-  if (status === 'verifying') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
-          <div className="text-center">
-            <RefreshCw className="mx-auto h-12 w-12 text-blue-500 animate-spin" />
-            <h2 className="mt-4 text-xl font-semibold text-gray-900">Verifying your email...</h2>
-            <p className="mt-2 text-gray-600">Please wait while we verify your email address.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, [location, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
-        <div className="text-center">
-          {status === 'success' ? (
-            <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-          ) : status === 'error' ? (
-            <XCircle className="mx-auto h-12 w-12 text-red-500" />
-          ) : (
-            <Mail className="mx-auto h-12 w-12 text-blue-500" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+        <div className="mb-6">
+          {status === 'verifying' && (
+            <>
+              <Loader className="h-16 w-16 text-blue-500 animate-spin mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Verifying Email</h1>
+              <p className="text-gray-600">Please wait while we verify your email address...</p>
+            </>
           )}
           
-          <h2 className="mt-4 text-xl font-semibold text-gray-900">
-            {status === 'success' ? 'Email Verified!' : 
-             status === 'error' ? 'Verification Failed' : 
-             'Verify Your Email'}
-          </h2>
-          
-          <p className="mt-2 text-gray-600">{message}</p>
-
           {status === 'success' && (
-            <div className="mt-6">
-              <button
-                onClick={handleLogin}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Continue to Login
-              </button>
-            </div>
+            <>
+              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-green-900 mb-2">Email Verified!</h1>
+              <p className="text-green-700 mb-4">{message}</p>
+              <p className="text-sm text-gray-500">Redirecting to login page in 3 seconds...</p>
+            </>
           )}
-
+          
           {status === 'error' && (
-            <div className="mt-6 space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter your email to resend verification
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            <>
+              <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-red-900 mb-2">Verification Failed</h1>
+              <p className="text-red-700 mb-6">{message}</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Go to Login
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Go Home
+                </button>
               </div>
-              <button
-                onClick={resendVerification}
-                disabled={resending}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {resending ? 'Sending...' : 'Resend Verification Email'}
-              </button>
-            </div>
+            </>
           )}
-
-          {status === 'pending' && (
-            <div className="mt-6 space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter your email to send verification
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <button
-                onClick={resendVerification}
-                disabled={resending}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {resending ? 'Sending...' : 'Send Verification Email'}
-              </button>
-            </div>
-          )}
-
-          <div className="mt-6">
-            <button
-              onClick={handleLogin}
-              className="text-blue-600 hover:text-blue-800 text-sm"
-            >
-              Back to Login
-            </button>
-          </div>
         </div>
+        
+        {status === 'success' && (
+          <div className="mt-6 p-4 bg-green-50 rounded-lg">
+            <p className="text-sm text-green-800">
+              <strong>What's next?</strong> You can now use OTP login with your verified email address.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

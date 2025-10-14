@@ -241,9 +241,9 @@ async function sendVerificationEmail(userEmail, userName, verificationToken) {
 
     console.log(`📧 Sending verification email to ${userEmail} for user ${userName}`);
     
-    // Use standalone email verification page for now
+    // Use proper React route for email verification
     const frontendUrl = process.env.FRONTEND_URL || 'https://vistapro-4xlusoclj-vistapros-projects.vercel.app';
-    const verificationUrl = `${frontendUrl}/email-verification-standalone.html?token=${verificationToken}`;
+    const verificationUrl = `${frontendUrl}/email-verification?token=${verificationToken}`;
     
     console.log(`🔗 Email verification URL: ${verificationUrl}`);
     console.log(`⚠️  TEMPORARY FIX: Using Vercel default domain due to vistapro.ng accessibility issue`);

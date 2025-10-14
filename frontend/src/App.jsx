@@ -7,6 +7,7 @@ import AccountSettings from "./components/AccountSettings";
 import PrivateRoute from "./components/PrivateRoute";
 import SubmissionUnderReview from "./components/SubmissionUnderReview";
 import EmailVerificationPage from "./pages/EmailVerificationPage";
+import EmailVerification from "./components/EmailVerification";
 import EnhancedPasswordReset from "./components/EnhancedPasswordReset";
 import { ToastContainer } from "./components/ui/toast";
 
@@ -18,6 +19,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
+        <Route path="/email-verification" element={<EmailVerification />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/verify-email/*" element={<EmailVerificationPage />} />
         <Route path="/reset-password" element={<EnhancedPasswordReset />} />
