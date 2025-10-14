@@ -3,21 +3,25 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./components/LandingPage";
 import UnifiedDashboard from "./components/UnifiedDashboard";
+import AccountSettings from "./components/AccountSettings";
 import PrivateRoute from "./components/PrivateRoute";
 import SubmissionUnderReview from "./components/SubmissionUnderReview";
+import EmailVerificationPage from "./pages/EmailVerificationPage";
 import EmailVerification from "./components/EmailVerification";
-import PasswordReset from "./components/PasswordReset";
+import EnhancedPasswordReset from "./components/EnhancedPasswordReset";
 import { ToastContainer } from "./components/ui/toast";
 
 function App() {
+  console.log('🚀 VistaPro App loaded - EMAIL VERIFICATION FIXED VERSION');
   return (
     <>
       <ToastContainer />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
-        <Route path="/verify-email" element={<EmailVerification />} />
-        <Route path="/reset-password" element={<PasswordReset />} />
+        <Route path="/email-verification" element={<EmailVerification />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
+        <Route path="/reset-password" element={<EnhancedPasswordReset />} />
         <Route 
           path="/dashboard/masteradmin" 
           element={
@@ -55,6 +59,15 @@ function App() {
           element={
             <PrivateRoute allowedRoles={["Marketer"]}>
               <UnifiedDashboard userRole="marketer" />
+            </PrivateRoute>
+          }
+        />
+        {/* Account Settings Route - Available for all roles */}
+        <Route
+          path="/dashboard/account-settings"
+          element={
+            <PrivateRoute allowedRoles={["MasterAdmin", "SuperAdmin", "Admin", "Marketer", "Dealer"]}>
+              <AccountSettings />
             </PrivateRoute>
           }
         />
