@@ -179,7 +179,7 @@ const registerUser = async (req, res, next) => {
 
     // Send verification email for non-marketer roles
     try {
-      await sendVerificationEmail(email, verificationToken, first_name);
+      await sendVerificationEmail(email, first_name, verificationToken);
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError);
       // Don't fail registration if email fails, but log it
@@ -310,7 +310,7 @@ const resendVerificationEmail = async (req, res, next) => {
 
     // Send verification email
     try {
-      await sendVerificationEmail(email, verificationToken, user.first_name);
+      await sendVerificationEmail(email, user.first_name, verificationToken);
       res.json({ message: 'Verification email sent successfully.' });
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError);
