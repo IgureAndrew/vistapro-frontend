@@ -106,15 +106,14 @@ export const ROLE_CONFIG = {
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
       { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
-      { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "stock", label: "Stock Pickups", icon: Package, component: SuperAdminStockPickups },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: SuperAdminManageOrders },
       { key: "wallet", label: "Wallet", icon: Wallet, component: SuperAdminWallet },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
       { key: "submissions", label: "Submissions", icon: FileText, component: SuperAdminSubmissionsNew },
-      { key: "assigned", label: "Assigned Users", icon: UserPlus, component: SuperAdminAssignedUsers },
-      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
+      { key: "assigned", label: "Assigned Users", icon: UserPlus, component: SuperAdminAssignedUsers }
     ],
     metrics: [
       { key: "assignedUsers", label: "Assigned Users", icon: Users, color: "blue" },
@@ -137,15 +136,14 @@ export const ROLE_CONFIG = {
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: DashboardOverview },
       { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
-      { key: "profile", label: "Profile", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "manage-orders", label: "Manage Orders", icon: ClipboardList, component: ManageOrders },
       { key: "stock", label: "Stock Pickups", icon: Package, component: AdminStockPickups },
       { key: "marketers", label: "Assigned Marketers", icon: Users, component: UserAssignmentManagement },
       { key: "submissions", label: "Submissions", icon: FileText, component: AdminSubmissionsNew },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "verification", label: "Verification", icon: CheckCircle, component: Verification },
-      { key: "wallet", label: "Wallet", icon: Wallet, component: AdminWallet },
-      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
+      { key: "wallet", label: "Wallet", icon: Wallet, component: AdminWallet }
     ],
     metrics: [
       { key: "assignedMarketers", label: "Assigned Marketers", icon: Users, color: "blue" },
@@ -191,7 +189,7 @@ export const ROLE_CONFIG = {
     modules: [
       { key: "overview", label: "Overview", icon: Home, component: MarketersOverview },
       { key: "targets", label: "My Targets", icon: Target, component: UserTargets },
-      { key: "account-settings", label: "Account Settings", icon: User, component: ProfileUpdate },
+      { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings },
       { key: "verification", label: "Verification", icon: CheckCircle, component: VerificationMarketer },
       { key: "stock-pickup", label: "Stock Pickup", icon: Package, component: MarketerStockPickup },
       { key: "order", label: "Orders", icon: ShoppingCart, component: Order },
