@@ -1,29 +1,48 @@
 {
-  "name": "vistapro",
+  "name": "vistapro-backend",
   "version": "1.0.0",
-  "description": "Vistapro - Phone Distribution Management Platform",
-  "private": true,
+  "description": "Vistapro Backend API",
+  "main": "start.js",
   "scripts": {
-    "start": "cd backend && node start.js",
-    "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "cd backend && npm install",
-    "build:frontend": "cd frontend && npm install && npm run build",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
+    "start": "node start.js",
+    "dev": "nodemon start.js"
   },
   "dependencies": {
+    "axios": "^1.6.2",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.0",
+    "cors": "^2.8.5",
+    "cron": "^3.1.6",
     "dotenv": "^16.3.1",
-    "node-cron": "^3.0.3"
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.11.3",
+    "resend": "^6.1.2",
+    "socket.io": "^4.7.4",
+    "streamifier": "^0.1.1",
+    "uuid": "^13.0.0",
+    "winston": "^3.18.3"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "nodemon": "^3.0.2"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
-  "workspaces": [
-    "backend",
-    "frontend"
-  ]
+  "keywords": [
+    "node",
+    "express",
+    "postgresql",
+    "vistapro"
+  ],
+  "author": "Vistapro Team",
+  "license": "MIT"
 }
