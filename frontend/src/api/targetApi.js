@@ -41,9 +41,14 @@ targetApi.interceptors.response.use(
 
 // API methods for target management
 export const targetApiService = {
+  // Get unique user locations
+  getLocations: () => {
+    return targetApi.get('/locations');
+  },
+
   // Get all targets (Master Admin)
   getAllTargets: (filters = {}) => {
-    return targetApi.get('/', { params: filters });
+    return targetApi.get('/all', { params: filters });
   },
 
   // Get targets for a specific user
@@ -58,12 +63,12 @@ export const targetApiService = {
 
   // Get target types
   getTargetTypes: () => {
-    return targetApi.get('/target-types');
+    return targetApi.get('/types');
   },
 
   // Create a new target
   createTarget: (targetData) => {
-    return targetApi.post('/', targetData);
+    return targetApi.post('/create', targetData);
   },
 
   // Update a target
@@ -79,6 +84,24 @@ export const targetApiService = {
   // Activate/Deactivate a target
   toggleTargetStatus: (targetId, isActive) => {
     return targetApi.patch(`/${targetId}/status`, { is_active: isActive });
+  },
+
+  // Get users for target creation
+  getUsersForTargetCreation: (role = null, location = null) => {
+    const params = {};
+    if (role) params.role = role;
+    if (location) params.location = location;
+    return targetApi.get('/users-for-target-creation', { params });
+  },
+
+  // Bulk create targets
+  bulkCreateTargets: (targetsData) => {
+    return targetApi.post('/bulk-create', targetsData);
+  },
+
+  // Deactivate target (alias for deleteTarget)
+  deactivateTarget: (targetId) => {
+    return targetApi.delete(`/${targetId}`);
   }
 };
 

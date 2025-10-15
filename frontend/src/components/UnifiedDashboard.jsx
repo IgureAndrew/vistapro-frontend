@@ -18,7 +18,9 @@ import {
   Shield,
   User as UserIcon,
   Settings,
-  Clock
+  Clock,
+  Bell,
+  HelpCircle
 } from 'lucide-react';
 import { getRoleConfig } from '../config/RoleConfig';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,55 +30,45 @@ import Performance from './Performance';
 import UsersManagement from './UsersManagement';
 import MasterAdminWallet from './MasterAdminWallet';
 import MarketerVerificationDashboard from './MarketerVerificationDashboard';
+import OTPTransitionDashboard from './OTPTransitionDashboard';
 import UserTargets from './UserTargets';
+import EmailVerificationPrompt from './EmailVerificationPrompt';
+import GracePeriodWarningBanner from './GracePeriodWarningBanner';
+import OTPSetupWizard from './OTPSetupWizard';
+import OTPHelpCenter from './OTPHelpCenter';
+import OTPNotificationPanel from './OTPNotificationPanel';
 
 const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
   // State Management
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeModule, setActiveModule] = useState('overview');
   const [activeTab, setActiveTab] = useState('overview');
+  const [showOTPWizard, setShowOTPWizard] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(false);
+  const [showOTPNotifications, setShowOTPNotifications] = useState(false);
   const [user, setUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Hooks
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user: globalUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const roleConfig = getRoleConfig(userRole);
 
   // Computed: Check if current theme is dark
   const isDarkMode = theme === 'dark';
 
-  // Load user data and listen for updates
+  // Use global user state from AuthContext for real-time updates
   useEffect(() => {
-    const loadUser = () => {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
+    if (globalUser) {
         // Ensure user has avatar URL constructed from profile_image
-        if (userData.profile_image && !userData.avatar) {
+      const userData = { ...globalUser };
+      if (userData.profile_image) {
           userData.avatar = getAvatarUrl(userData.profile_image);
-          setUser(userData);
-          // Update localStorage with avatar URL
-          localStorage.setItem('user', JSON.stringify(userData));
-        } else {
-          setUser(userData);
-        }
       }
-    };
-
-    // Load user initially
-    loadUser();
-
-    // Listen for user updates from profile changes
-    const handleUserUpdate = (event) => {
-      const { user: updatedUser } = event.detail;
-      setUser(updatedUser);
-    };
-
-    window.addEventListener('userUpdated', handleUserUpdate);
-    return () => window.removeEventListener('userUpdated', handleUserUpdate);
-  }, []);
+          setUser(userData);
+    }
+  }, [globalUser]);
 
   // Check verification status for marketers (only on initial load)
   useEffect(() => {
@@ -219,8 +211,8 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                 ID: {user.unique_id}
               </p>
             )}
-          </div>
-        </div>
+                      </div>
+                    </div>
         </div>
 
       {/* Navigation */}
@@ -237,27 +229,27 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           }
           
           return modulesToShow.map((module) => {
-            const Icon = module.icon;
-            const isActive = activeModule === module.key;
-            
-            return (
+          const Icon = module.icon;
+          const isActive = activeModule === module.key;
+          
+          return (
               <a
-                key={module.key}
+              key={module.key}
                 href={getModuleUrl(module.key)}
                 onClick={(e) => {
                   e.preventDefault();
                   handleNavigate(module.key);
                 }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{module.label}</span>
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="font-medium">{module.label}</span>
               </a>
-            );
+          );
           });
         })()}
       </nav>
@@ -267,12 +259,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
         <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
           <Avatar className="w-10 h-10">
             <AvatarImage 
-              src={user?.avatar} 
+              src={user?.profile_image ? getAvatarUrl(user.profile_image) : user?.avatar} 
               onError={(e) => {
-                // Try fallback URL if original fails
-                if (user?.profile_image && !user?.avatar?.includes('/api/uploads/')) {
-                  const fallbackUrl = getAvatarUrl(user.profile_image);
-                }
+                console.log('❌ Avatar failed to load:', e.target.src);
+                e.target.style.display = 'none';
               }}
             />
             <AvatarFallback className="bg-orange-500 text-white">
@@ -342,9 +332,9 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   </h1>
                   <div className="flex items-center space-x-2 mt-1">
                     <Badge className={`${roleBadge.color} hidden sm:inline-flex`}>
-                      <RoleBadgeIcon className="w-3 h-3 mr-1" />
-                      {roleBadge.text}
-                    </Badge>
+                    <RoleBadgeIcon className="w-3 h-3 mr-1" />
+                    {roleBadge.text}
+                  </Badge>
                     {/* Verification Status for Marketers */}
                     {userRole === 'marketer' && user && (user.overall_verification_status === null || user.overall_verification_status === undefined || user.overall_verification_status !== 'approved') && (
                       <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
@@ -366,6 +356,28 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   className="rounded-full"
               >
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </Button>
+
+              {/* OTP Notifications Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowOTPNotifications(true)}
+                className="relative"
+                title="OTP Notifications"
+              >
+                <Bell className="w-5 h-5" />
+              </Button>
+
+              {/* OTP Help Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHelpCenter(true)}
+                className="relative"
+                title="OTP Help"
+              >
+                <HelpCircle className="w-5 h-5" />
               </Button>
 
               {/* Notifications */}
@@ -392,9 +404,10 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                   >
                     <Avatar className="w-8 h-8">
                       <AvatarImage 
-                        src={user?.avatar} 
+                        src={user?.profile_image ? getAvatarUrl(user.profile_image) : user?.avatar} 
                         onError={(e) => {
-                          // Handle avatar load error silently
+                          console.log('❌ Header avatar failed to load:', e.target.src);
+                          e.target.style.display = 'none';
                         }}
                       />
                       <AvatarFallback className="bg-orange-500 text-white text-xs">
@@ -455,39 +468,59 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
                 } else if (userRole === 'masteradmin') {
                   console.log('✅ Showing MasterAdmin dashboard');
                   return (
-                    <div className="p-3 sm:p-4 md:p-6">
-                      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="mb-4 sm:mb-6">
-                          <TabsTrigger value="overview">Overview</TabsTrigger>
-                          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                          <TabsTrigger value="users">Users</TabsTrigger>
-                          <TabsTrigger value="wallet">Wallet</TabsTrigger>
-                        </TabsList>
+                <div className="p-3 sm:p-4 md:p-6">
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="mb-4 sm:mb-6">
+                      <TabsTrigger value="overview">Overview</TabsTrigger>
+                      <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                      <TabsTrigger value="users">Users</TabsTrigger>
+                      <TabsTrigger value="wallet">Wallet</TabsTrigger>
+                          <TabsTrigger value="otp-transition">OTP Transition</TabsTrigger>
+                    </TabsList>
 
-                        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
-                          {getCurrentModuleComponent()}
-                        </TabsContent>
+                    <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+                          {/* OTP Transition UI Components */}
+                          {user && !user.email_verified && (
+                            <EmailVerificationPrompt 
+                              user={user} 
+                              isDismissible={true}
+                            />
+                          )}
+                          
+                          {user && user.email_verified && !user.otp_enabled && (
+                            <GracePeriodWarningBanner 
+                              user={user}
+                              isDismissible={false}
+                            />
+                          )}
+                          
+                      {getCurrentModuleComponent()}
+                    </TabsContent>
 
-                        <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
+                    <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
                           <Performance userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
-                        </TabsContent>
+                    </TabsContent>
 
-                        <TabsContent value="users" className="space-y-4 sm:space-y-6">
+                    <TabsContent value="users" className="space-y-4 sm:space-y-6">
                           <UsersManagement userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
-                        </TabsContent>
+                    </TabsContent>
 
-                        <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
+                    <TabsContent value="wallet" className="space-y-4 sm:space-y-6">
                           <MasterAdminWallet userRole={userRole} onNavigate={handleNavigate} isDarkMode={isDarkMode} />
                         </TabsContent>
-                      </Tabs>
-                    </div>
+
+                        <TabsContent value="otp-transition" className="space-y-4 sm:space-y-6">
+                          <OTPTransitionDashboard />
+                    </TabsContent>
+                  </Tabs>
+                </div>
                   );
                 } else {
                   console.log('✅ Showing other role dashboard');
                   return (
-                    <div className="p-3 sm:p-4 md:p-6">
-                      {getCurrentModuleComponent()}
-                    </div>
+                <div className="p-3 sm:p-4 md:p-6">
+                  {getCurrentModuleComponent()}
+          </div>
                   );
                 }
               })()}
@@ -505,6 +538,30 @@ const UnifiedDashboard = ({ userRole = 'masteradmin' }) => {
           }}
         />
       )}
+
+      {/* OTP Setup Wizard */}
+      <OTPSetupWizard
+        isOpen={showOTPWizard}
+        onClose={() => setShowOTPWizard(false)}
+        user={user}
+        onComplete={() => {
+          setShowOTPWizard(false);
+          // Refresh user data
+          window.location.reload();
+        }}
+      />
+
+      {/* OTP Help Center */}
+      <OTPHelpCenter
+        isOpen={showHelpCenter}
+        onClose={() => setShowHelpCenter(false)}
+      />
+
+      {/* OTP Notifications Panel */}
+      <OTPNotificationPanel
+        isOpen={showOTPNotifications}
+        onClose={() => setShowOTPNotifications(false)}
+      />
     </div>
   );
 };

@@ -1,19 +1,33 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Moon, Sun } from "lucide-react";
+import { getAvatarUrl, getUserInitials } from "../utils/avatarUtils";
 
 function AvatarDropdown({ user, handleLogout, toggleDarkMode, isDarkMode, setActiveModule }) {
   const [open, setOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(user);
 
-  // Get the initial from first_name or last_name; fallback to "U"
-  const getInitial = () => {
-    if (user) {
-      if (user.first_name && user.first_name.length > 0) {
-        return user.first_name.charAt(0).toUpperCase();
-      } else if (user.last_name && user.last_name.length > 0) {
-        return user.last_name.charAt(0).toUpperCase();
-      }
+  // Listen for user updates from profile changes
+  useEffect(() => {
+    const handleUserUpdate = (event) => {
+      const { user: updatedUser } = event.detail;
+      setCurrentUser(updatedUser);
+    };
+
+    window.addEventListener('userUpdated', handleUserUpdate);
+    return () => window.removeEventListener('userUpdated', handleUserUpdate);
+  }, []);
+
+  // Update current user when prop changes
+  useEffect(() => {
+    setCurrentUser(user);
+  }, [user]);
+
+  // Get avatar URL from profile_image, fallback to initials
+  const getAvatarSrc = () => {
+    if (currentUser?.profile_image) {
+      return getAvatarUrl(currentUser.profile_image);
     }
-    return "U";
+    return null;
   };
 
   return (
@@ -22,8 +36,24 @@ function AvatarDropdown({ user, handleLogout, toggleDarkMode, isDarkMode, setAct
         onClick={() => setOpen(!open)}
         className="inline-flex justify-center w-full rounded-full border border-gray-300 dark:border-gray-600 shadow-sm p-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
       >
-        <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-          <span className="font-bold text-gray-700 dark:text-gray-200">{getInitial()}</span>
+        <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
+          {getAvatarSrc() ? (
+            <img 
+              src={getAvatarSrc()} 
+              alt="Profile" 
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <span 
+            className="font-bold text-gray-700 dark:text-gray-200"
+            style={{ display: getAvatarSrc() ? 'none' : 'flex' }}
+          >
+            {getUserInitials(currentUser)}
+          </span>
         </div>
       </button>
       {open && (

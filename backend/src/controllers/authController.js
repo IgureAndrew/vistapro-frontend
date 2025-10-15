@@ -52,6 +52,14 @@ const loginUser = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // Check grace period - disable password login after grace period ends
+    if (user.otp_grace_period_end && new Date() > new Date(user.otp_grace_period_end)) {
+      return res.status(403).json({
+        message: 'Password login has been disabled. Please use OTP login with your verified email address.',
+        requiresOTP: true
+      });
+    }
+
     // Email verification check removed - all users can login immediately
 
     // Special access control for Marketers
@@ -84,6 +92,7 @@ const loginUser = async (req, res, next) => {
         email: user.email,
         role: user.role,
         location: user.location,
+        profile_image: user.profile_image,
         email_verified: user.email_verified,
         bio_submitted: user.bio_submitted,
         guarantor_submitted: user.guarantor_submitted,
@@ -195,7 +204,12 @@ const registerUser = async (req, res, next) => {
  */
 const verifyEmail = async (req, res, next) => {
   try {
-    const { token } = req.params;
+    // Accept token from both body and params for flexibility
+    const token = req.body?.token || req.params?.token;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required.' });
+    }
 
     // Find user with this token
     const query = `
@@ -258,11 +272,41 @@ const resendVerificationEmail = async (req, res, next) => {
     const verificationToken = generateVerificationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Update user with new token
-    await pool.query(
-      'UPDATE users SET email_verification_token = $1, email_verification_expires = $2, email_verification_sent_at = NOW() WHERE id = $3',
-      [verificationToken, expiresAt, user.id]
-    );
+    // Update user with new token - handle missing columns gracefully
+    try {
+      // First check if the columns exist
+      const columnCheck = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name IN ('email_verification_token', 'email_verification_expires')
+      `);
+      
+      const existingColumns = columnCheck.rows.map(row => row.column_name);
+      
+      if (existingColumns.includes('email_verification_token') && existingColumns.includes('email_verification_expires')) {
+        await pool.query(
+          'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
+          [verificationToken, expiresAt, user.id]
+        );
+      } else {
+        // Fallback: try to add the columns first
+        try {
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255)');
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP');
+          await pool.query(
+            'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
+            [verificationToken, expiresAt, user.id]
+          );
+        } catch (alterError) {
+          console.error('Error adding verification columns:', alterError);
+          throw new Error('Database schema needs to be updated. Please contact administrator.');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating verification token:', error);
+      throw error;
+    }
 
     // Send verification email
     try {
@@ -278,17 +322,18 @@ const resendVerificationEmail = async (req, res, next) => {
 };
 
 /**
- * forgotPassword - Sends password reset email
+ * forgotPassword - Sends password reset email with grace period check
  */
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    // Find user
-    const { rows } = await pool.query(
-      'SELECT id, first_name FROM users WHERE email = $1',
-      [email]
-    );
+    // Find user with grace period info
+    const { rows } = await pool.query(`
+      SELECT id, first_name, otp_grace_period_end, otp_enabled 
+      FROM users 
+      WHERE email = $1
+    `, [email]);
 
     if (rows.length === 0) {
       // Don't reveal if user exists or not
@@ -297,20 +342,51 @@ const forgotPassword = async (req, res, next) => {
 
     const user = rows[0];
 
+    // Check if password reset is allowed (grace period active or OTP not enabled)
+    const now = new Date();
+    const gracePeriodEnd = user.otp_grace_period_end ? new Date(user.otp_grace_period_end) : null;
+    const isInGracePeriod = gracePeriodEnd && gracePeriodEnd > now;
+    
+    // Allow password reset if:
+    // 1. User is in grace period, OR
+    // 2. User doesn't have OTP enabled yet, OR  
+    // 3. Grace period hasn't been set (existing users)
+    if (user.otp_enabled && !isInGracePeriod && gracePeriodEnd) {
+      return res.status(403).json({ 
+        message: 'Password reset is no longer available. Please use OTP login with your verified email address.',
+        requiresOTP: true
+      });
+    }
+
     // Generate reset token
     const resetToken = generateVerificationToken();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    // Store reset token
-    await pool.query(
-      'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
-      [resetToken, expiresAt, user.id]
-    );
+    // Store reset token (using dedicated password reset fields if they exist)
+    try {
+      // Try to use dedicated password reset columns first
+      await pool.query(`
+        UPDATE users 
+        SET password_reset_token = $1, password_reset_expires = $2 
+        WHERE id = $3
+      `, [resetToken, expiresAt, user.id]);
+    } catch (columnError) {
+      // Fallback to email verification columns if password reset columns don't exist
+      console.log('Using email verification columns for password reset token');
+      await pool.query(
+        'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
+        [resetToken, expiresAt, user.id]
+      );
+    }
 
     // Send reset email
     try {
       await sendPasswordResetEmail(email, resetToken, user.first_name);
-      res.json({ message: 'Password reset email sent successfully.' });
+      res.json({ 
+        message: 'Password reset email sent successfully.',
+        gracePeriodActive: isInGracePeriod,
+        daysRemaining: isInGracePeriod ? Math.ceil((gracePeriodEnd - now) / (24 * 60 * 60 * 1000)) : null
+      });
     } catch (emailError) {
       console.error('Failed to send password reset email:', emailError);
       res.status(500).json({ message: 'Failed to send password reset email. Please try again.' });
@@ -321,17 +397,28 @@ const forgotPassword = async (req, res, next) => {
 };
 
 /**
- * resetPassword - Resets password with token
+ * resetPassword - Resets password with token and grace period check
  */
 const resetPassword = async (req, res, next) => {
   try {
     const { token, newPassword } = req.body;
 
-    // Find user with this token
-    const { rows } = await pool.query(
-      'SELECT id, email_verification_expires FROM users WHERE email_verification_token = $1',
-      [token]
-    );
+    // Validate password strength
+    if (!newPassword || newPassword.length < 10) {
+      return res.status(400).json({ message: 'Password must be at least 10 characters long.' });
+    }
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{10,}$/.test(newPassword)) {
+      return res.status(400).json({ message: 'Password must contain at least one letter and one number.' });
+    }
+
+    // Find user with this token and grace period info
+    const { rows } = await pool.query(`
+      SELECT id, email_verification_expires, password_reset_expires, 
+             otp_grace_period_end, otp_enabled
+      FROM users 
+      WHERE email_verification_token = $1 OR password_reset_token = $1
+    `, [token]);
 
     if (rows.length === 0) {
       return res.status(400).json({ message: 'Invalid reset token.' });
@@ -339,21 +426,51 @@ const resetPassword = async (req, res, next) => {
 
     const user = rows[0];
 
-    // Check if token is expired
-    if (new Date() > new Date(user.email_verification_expires)) {
+    // Check if token is expired (try both token types)
+    const emailExpires = user.email_verification_expires;
+    const resetExpires = user.password_reset_expires;
+    const expiresAt = resetExpires || emailExpires;
+    
+    if (!expiresAt || new Date() > new Date(expiresAt)) {
       return res.status(400).json({ message: 'Reset token has expired.' });
+    }
+
+    // Check grace period status
+    const now = new Date();
+    const gracePeriodEnd = user.otp_grace_period_end ? new Date(user.otp_grace_period_end) : null;
+    const isInGracePeriod = gracePeriodEnd && gracePeriodEnd > now;
+    
+    // Allow password reset if:
+    // 1. User is in grace period, OR
+    // 2. User doesn't have OTP enabled yet, OR  
+    // 3. Grace period hasn't been set (existing users)
+    if (user.otp_enabled && !isInGracePeriod && gracePeriodEnd) {
+      return res.status(403).json({ 
+        message: 'Password reset is no longer available. Please use OTP login with your verified email address.',
+        requiresOTP: true
+      });
     }
 
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password and clear token
-    await pool.query(
-      'UPDATE users SET password = $1, email_verification_token = NULL, email_verification_expires = NULL, updated_at = NOW() WHERE id = $2',
-      [hashedPassword, user.id]
-    );
+    // Update password and clear all tokens
+    await pool.query(`
+      UPDATE users 
+      SET password = $1, 
+          email_verification_token = NULL, 
+          email_verification_expires = NULL,
+          password_reset_token = NULL,
+          password_reset_expires = NULL,
+          updated_at = NOW() 
+      WHERE id = $2
+    `, [hashedPassword, user.id]);
 
-    res.json({ message: 'Password reset successfully. You can now log in with your new password.' });
+    res.json({ 
+      message: 'Password reset successfully. You can now log in with your new password.',
+      gracePeriodActive: isInGracePeriod,
+      daysRemaining: isInGracePeriod ? Math.ceil((gracePeriodEnd - now) / (24 * 60 * 60 * 1000)) : null
+    });
   } catch (error) {
     next(error);
   }
@@ -381,7 +498,7 @@ const getCurrentUser = async (req, res, next) => {
       : 'true as email_verified';
     
     const query = `
-      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location,
+      SELECT u.id, u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location, u.profile_image,
              ${emailVerifiedSelect}, u.bio_submitted, u.guarantor_submitted, u.commitment_submitted,
              u.overall_verification_status, u.locked, u.admin_id,
              a.first_name as admin_first_name, a.last_name as admin_last_name
@@ -413,6 +530,53 @@ const getCurrentUser = async (req, res, next) => {
 };
 
 /**
+ * checkPasswordResetStatus - Check if password reset is allowed for user
+ */
+const checkPasswordResetStatus = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    // Find user with grace period info
+    const { rows } = await pool.query(`
+      SELECT id, otp_grace_period_end, otp_enabled 
+      FROM users 
+      WHERE email = $1
+    `, [email]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+
+    // Check grace period status
+    const now = new Date();
+    const gracePeriodEnd = user.otp_grace_period_end ? new Date(user.otp_grace_period_end) : null;
+    const isInGracePeriod = gracePeriodEnd && gracePeriodEnd > now;
+    
+    // Determine if password reset is allowed
+    const passwordResetAllowed = !user.otp_enabled || isInGracePeriod || !gracePeriodEnd;
+    
+    res.json({
+      success: true,
+      passwordResetAllowed,
+      isInGracePeriod,
+      daysRemaining: isInGracePeriod ? Math.ceil((gracePeriodEnd - now) / (24 * 60 * 60 * 1000)) : null,
+      gracePeriodEnd: gracePeriodEnd?.toISOString() || null,
+      message: passwordResetAllowed 
+        ? 'Password reset is available.' 
+        : 'Password reset is no longer available. Please use OTP login.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * logoutUser - Handles user logout
  */
 const logoutUser = async (req, res, next) => {
@@ -432,6 +596,41 @@ const logoutUser = async (req, res, next) => {
   }
 };
 
+/**
+ * checkEmailStatus - Check if email is verified and user status
+ */
+const checkEmailStatus = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    // Find user by email
+    const { rows } = await pool.query(
+      'SELECT id, email, email_verified, otp_enabled, otp_grace_period_end FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+
+    res.json({
+      email: user.email,
+      email_verified: user.email_verified || false,
+      otp_enabled: user.otp_enabled || false,
+      in_grace_period: user.otp_grace_period_end ? new Date() < new Date(user.otp_grace_period_end) : false,
+      grace_period_end: user.otp_grace_period_end
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   loginUser,
   registerUser,
@@ -439,6 +638,8 @@ module.exports = {
   resendVerificationEmail,
   forgotPassword,
   resetPassword,
+  checkPasswordResetStatus,
   getCurrentUser,
-  logoutUser
+  logoutUser,
+  checkEmailStatus
 };

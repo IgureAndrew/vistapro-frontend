@@ -4,7 +4,7 @@ async function runStartupMigration() {
   let pool;
   
   try {
-    console.log('🔧 Running startup migration...'); // OTP table fix
+    console.log('🔧 Running startup migration...'); // OTP JWT token fix
     
     // Create database connection
     pool = new Pool({
@@ -27,6 +27,7 @@ async function runStartupMigration() {
       'additional_pickup_requests',
       'product_activity_logs',
       'user_otps',
+      'otp_notifications',
       'target_types',
       'targets',
       'target_percentage_mappings'
@@ -426,6 +427,37 @@ async function runStartupMigration() {
         console.log('✅ user_otps table created');
       }
       
+      // Create otp_notifications table if missing
+      if (missingTables.includes('otp_notifications')) {
+        console.log('📋 Creating otp_notifications table...');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS otp_notifications (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            type VARCHAR(100) NOT NULL,
+            message TEXT NOT NULL,
+            metadata JSONB DEFAULT '{}',
+            priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+            read BOOLEAN DEFAULT FALSE,
+            read_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        
+        // Create indexes for better query performance
+        try {
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_otp_notifications_user_id ON otp_notifications(user_id);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_otp_notifications_type ON otp_notifications(type);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_otp_notifications_priority ON otp_notifications(priority);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_otp_notifications_read ON otp_notifications(read);');
+          await pool.query('CREATE INDEX IF NOT EXISTS idx_otp_notifications_created_at ON otp_notifications(created_at DESC);');
+        } catch (error) {
+          console.log('⚠️  Could not create indexes for otp_notifications');
+        }
+        
+        console.log('✅ otp_notifications table created');
+      }
+      
       // Add OTP-related columns to users table if missing
       try {
         console.log('🔧 Adding OTP-related columns to users table...');
@@ -435,7 +467,11 @@ async function runStartupMigration() {
           { name: 'email_verified', type: 'BOOLEAN DEFAULT FALSE' },
           { name: 'otp_enabled', type: 'BOOLEAN DEFAULT FALSE' },
           { name: 'otp_grace_period_end', type: 'TIMESTAMP' },
-          { name: 'email_update_required', type: 'BOOLEAN DEFAULT FALSE' }
+          { name: 'email_update_required', type: 'BOOLEAN DEFAULT FALSE' },
+          { name: 'email_verification_token', type: 'VARCHAR(255)' },
+          { name: 'email_verification_expires', type: 'TIMESTAMP' },
+          { name: 'password_reset_token', type: 'VARCHAR(255)' },
+          { name: 'password_reset_expires', type: 'TIMESTAMP' }
         ];
         
         for (const column of columnsToAdd) {
@@ -631,6 +667,30 @@ async function runStartupMigration() {
       
     } else {
       console.log('✅ All required tables already exist');
+    }
+
+    // Add last_reminder_sent column to users table if it doesn't exist
+    console.log('🔧 Checking for last_reminder_sent column in users table...');
+    try {
+      const columnCheck = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'last_reminder_sent'
+      `);
+
+      if (columnCheck.rows.length === 0) {
+        console.log('Adding last_reminder_sent column to users table...');
+        await pool.query(`
+          ALTER TABLE users 
+          ADD COLUMN last_reminder_sent TIMESTAMP DEFAULT NULL
+        `);
+        console.log('✅ last_reminder_sent column added successfully');
+      } else {
+        console.log('✅ last_reminder_sent column already exists');
+      }
+    } catch (columnError) {
+      console.error('Error checking/adding last_reminder_sent column:', columnError.message);
     }
     
   } catch (error) {

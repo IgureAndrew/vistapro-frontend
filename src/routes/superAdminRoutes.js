@@ -12,20 +12,12 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Multer storage config - use memory storage for Cloudinary uploads
+const memoryStorage = multer.memoryStorage();
+
 // Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    console.log('📁 Multer destination:', uploadDir);
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const filename = Date.now() + '-' + file.originalname;
-    console.log('📁 Multer filename:', filename);
-    cb(null, filename);
-  }
-});
 const upload = multer({ 
-  storage,
+  storage: memoryStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     if (file.fieldname === 'profile_image') {

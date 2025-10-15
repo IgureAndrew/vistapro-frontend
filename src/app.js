@@ -33,7 +33,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://www.vistapro.ng",
-  "https://vistapro.ng"
+  "https://vistapro.ng",
+  "https://vistapro-frontend.vercel.app"
 ];
 
 // Handle preflight requests manually
@@ -132,18 +133,18 @@ app.use('/uploads', (req, res, next) => {
   // Always set CORS headers for static files
   const origin = req.headers.origin;
   
-  // Set CORS headers
-  res.header('Access-Control-Allow-Origin', origin || '*');
+  // Set CORS headers - use wildcard for static files since they don't need credentials
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Referer');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Credentials', 'false'); // Must be false when using wildcard origin
   res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Date, Server, Transfer-Encoding');
   
   // Additional headers to prevent caching issues
   res.header('Cache-Control', 'public, max-age=3600');
   res.header('Vary', 'Origin');
   
-  console.log('✅ CORS headers set for origin:', origin);
+  console.log('✅ CORS headers set for static file (origin:', origin || 'undefined', ')');
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -158,7 +159,8 @@ app.use('/uploads', (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
     res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Referer');
-    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Access-Control-Allow-Credentials', 'false'); // Must be false when using wildcard origin
+    res.set('Cache-Control', 'public, max-age=3600'); // Cache static files for 1 hour
     console.log('📁 Static file served with CORS headers:', path);
   }
 }));
@@ -207,6 +209,12 @@ app.use('/api/target-management', require('./routes/targetManagementRoutes'));
 app.use('/api/percentage-mappings', require('./routes/percentageMappingRoutes'));
 app.use('/api/target-performance', require('./routes/targetPerformanceRoutes'));
 app.use('/api/otp', require('./routes/otpRoutes'));
+app.use('/api/otp-transition', require('./routes/otpTransitionRoutes'));
+app.use('/api/otp-notifications', require('./routes/otpNotificationRoutes'));
+app.use('/api/reminders', require('./routes/reminderRoutes'));
+
+// Emergency database fix endpoint
+app.use('/api/emergency', require('../fix_schema_endpoint'));
 app.use('/api/stock',          require('./routes/stockupdateRoutes'));
 app.use('/api/verification',   require('./routes/verificationRoutes'));
 // app.use('/api/verification-workflow', require('./routes/verificationWorkflowRoutes')); // DISABLED - conflicting with main verification system

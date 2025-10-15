@@ -16,6 +16,7 @@ import {
   updatePercentageMapping, 
   deletePercentageMapping 
 } from '../api/percentageMappingApi';
+import { targetApiService } from '../api/targetApi';
 import { showSuccess, showError } from '../utils/toast';
 
 const TargetScaleConfiguration = () => {
@@ -97,11 +98,16 @@ const TargetScaleConfiguration = () => {
 
   const loadLocations = async () => {
     try {
-      // This would typically come from a locations API
-      // For now, using static data
-      setAvailableLocations(['Lagos', 'Abuja', 'Port Harcourt', 'Kano', 'Ibadan']);
+      const response = await targetApiService.getLocations();
+      if (response.data.success) {
+        // Add "All Locations" option at the beginning
+        const locationsWithAll = ['All Locations', ...response.data.locations];
+        setAvailableLocations(locationsWithAll);
+      }
     } catch (error) {
       console.error('Error loading locations:', error);
+      // Fallback to empty array if API fails
+      setAvailableLocations(['All Locations']);
     }
   };
 
@@ -198,6 +204,40 @@ const TargetScaleConfiguration = () => {
         <p className="text-sm text-gray-600">
           Configure percentage-to-orders mappings for target setting
         </p>
+        
+        {/* Instructions */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+          <div className="flex items-start space-x-3">
+            <div className="text-blue-600 mt-0.5">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-2">How to Configure Percentage Mappings:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <p className="font-medium mb-1">Performance Levels:</p>
+                  <ul className="space-y-1">
+                    <li><span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-2"></span><strong>10-30%:</strong> Beginner</li>
+                    <li><span className="inline-block w-3 h-3 bg-blue-500 rounded-full mr-2"></span><strong>40-60%:</strong> Intermediate</li>
+                    <li><span className="inline-block w-3 h-3 bg-yellow-500 rounded-full mr-2"></span><strong>70-80%:</strong> Advanced</li>
+                    <li><span className="inline-block w-3 h-3 bg-purple-500 rounded-full mr-2"></span><strong>90-100%:</strong> Expert</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Configuration Tips:</p>
+                  <ul className="space-y-1">
+                    <li>• Set realistic values for each percentage</li>
+                    <li>• Consider user experience levels</li>
+                    <li>• Adjust based on business goals</li>
+                    <li>• Test with different user groups</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       
       <CardContent className="space-y-4">

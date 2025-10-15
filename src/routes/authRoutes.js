@@ -8,9 +8,11 @@ const {
   verifyEmail,
   resendVerificationEmail,
   forgotPassword, 
-  resetPassword, 
+  resetPassword,
+  checkPasswordResetStatus,
   getCurrentUser,
-  logoutUser
+  logoutUser,
+  checkEmailStatus
 } = require('../controllers/authController');
 const { verifyToken } = require("../middlewares/authMiddleware");
 
@@ -64,6 +66,9 @@ router.post(
 // GET /api/auth/verify-email/:token
 router.get('/verify-email/:token', verifyEmail);
 
+// POST /api/auth/verify-email (with token in body)
+router.post('/verify-email', verifyEmail);
+
 // POST /api/auth/resend-verification
 router.post(
   '/resend-verification',
@@ -111,6 +116,36 @@ router.post(
       return res.status(422).json({ errors: errors.array() });
     }
     resetPassword(req, res, next);
+  }
+);
+
+// POST /api/auth/check-password-reset-status
+router.post(
+  '/check-password-reset-status',
+  [
+    body('email').isEmail().withMessage('A valid email is required.')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+    checkPasswordResetStatus(req, res, next);
+  }
+);
+
+// POST /api/auth/check-email-status
+router.post(
+  '/check-email-status',
+  [
+    body('email').isEmail().withMessage('A valid email is required.')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+    checkEmailStatus(req, res, next);
   }
 );
 

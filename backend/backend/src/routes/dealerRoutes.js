@@ -1,0 +1,92 @@
+// src/routes/dealerRoutes.js
+const express = require("express");
+const multer  = require("multer");
+const { pool } = require("../config/database");
+const { verifyToken } = require("../middlewares/authMiddleware");
+const { verifyRole }  = require("../middlewares/roleMiddleware");
+const {
+  getAccount,
+  updateAccount,
+  getAccountSettings,
+  updateAccountSettings,
+  uploadInventory,
+  getOrderHistory
+} = require("../controllers/dealerController");
+
+const router = express.Router();
+
+// In-memory storage for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
+/**
+ * ── MasterAdmin: list all dealers ───────────────────────────────────────
+ */
+router.get(
+  "/",
+  verifyToken,
+  verifyRole(["MasterAdmin"]),   // only MasterAdmin can list everyone
+  async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        "SELECT id, unique_id, business_name, email, location, locked FROM users WHERE role = 'Dealer'"
+      );
+      res.json({ dealers: rows });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+/**
+ * ── Dealer: view & update own account (standardized) ─────────────────────────────────
+ */
+// GET /api/dealer/account - Get Dealer account details (standardized)
+router.get('/account', verifyToken, verifyRole(['Dealer']), getAccount);
+
+// PATCH /api/dealer/account - Update Dealer account settings (standardized)
+router.patch('/account', verifyToken, verifyRole(['Dealer']), upload.single('profile_image'), updateAccount);
+
+/**
+ * ── Dealer: view & update own account (legacy) ─────────────────────────────────
+ */
+router
+  .route("/account-legacy")
+  // GET  /api/dealer/account-legacy
+  .get(
+    verifyToken,
+    verifyRole(["Dealer"]),
+    getAccountSettings
+  )
+  // PATCH /api/dealer/account-legacy
+  .patch(
+    verifyToken,
+    verifyRole(["Dealer"]),
+    upload.fields([
+      { name: "cacCertificate", maxCount: 1 },
+      { name: "profileImage",    maxCount: 1 }
+    ]),
+    updateAccountSettings
+  );
+
+/**
+ * ── Dealer: manage inventory ────────────────────────────────────────────
+ */
+router.post(
+  "/inventory",
+  verifyToken,
+  verifyRole(["Dealer"]),
+  upload.none(),   // no file expected here
+  uploadInventory
+);
+
+/**
+ * ── Dealer: view own order history ─────────────────────────────────────
+ */
+router.get(
+  "/orders",
+  verifyToken,
+  verifyRole(["Dealer"]),
+  getOrderHistory
+);
+
+module.exports = router;
