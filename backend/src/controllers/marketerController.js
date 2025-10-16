@@ -6,7 +6,6 @@ const {
   creditAdminCommission,
   creditSuperAdminCommission
 } = require('../services/walletService');
-const uploadToCloudinary = require('../utils/uploadToCloudinary');
 
 // Commission rates per device
 const COMMISSION_RATES = {
@@ -75,66 +74,11 @@ async function updateAccount(req, res, next) {
   try {
     const userId = req.user.id; // From JWT token
     const { email, phone, displayName } = req.body;
+    let profile_image = req.body.profile_image; // This might be a base64 string or URL
     
-    // Handle image data - upload to Cloudinary for lasting solution
-    let profileImageData = null;
-    
+    // Handle file upload for profile image
     if (req.file) {
-      // File upload via multer - upload to Cloudinary
-      try {
-        console.log('🖼️ Uploading file to Cloudinary for Marketer:', userId);
-        console.log('📁 File details:', {
-          fieldname: req.file.fieldname,
-          originalname: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-          bufferLength: req.file.buffer ? req.file.buffer.length : 'undefined'
-        });
-        
-        if (!req.file.buffer) {
-          console.error('❌ File buffer is undefined');
-          return res.status(400).json({ message: 'File buffer is missing' });
-        }
-        
-        const result = await uploadToCloudinary(req.file.buffer, {
-          folder: 'vistapro/profile-images',
-          public_id: `profile_${userId}_${Date.now()}`,
-          resource_type: 'image',
-          transformation: [
-            { width: 300, height: 300, crop: 'fill', gravity: 'face' },
-            { quality: 'auto' }
-          ]
-        });
-        
-        profileImageData = result.secure_url;
-        console.log('✅ Profile image uploaded to Cloudinary:', result.secure_url);
-      } catch (error) {
-        console.error('❌ Error uploading to Cloudinary:', error);
-        return res.status(400).json({ message: 'Failed to upload image: ' + error.message });
-      }
-    } else if (req.body.profile_image && req.body.profile_image.startsWith('data:image/')) {
-      // Base64 fallback - upload to Cloudinary
-      try {
-        console.log('🖼️ Uploading Base64 image to Cloudinary for Marketer:', userId);
-        const base64Data = req.body.profile_image.replace(/^data:image\/[a-z]+;base64,/, '');
-        const buffer = Buffer.from(base64Data, 'base64');
-        
-        const result = await uploadToCloudinary(buffer, {
-          folder: 'vistapro/profile-images',
-          public_id: `profile_${userId}_${Date.now()}`,
-          resource_type: 'image',
-          transformation: [
-            { width: 300, height: 300, crop: 'fill', gravity: 'face' },
-            { quality: 'auto' }
-          ]
-        });
-        
-        profileImageData = result.secure_url;
-        console.log('✅ Base64 image uploaded to Cloudinary:', result.secure_url);
-      } catch (error) {
-        console.error('❌ Error uploading Base64 to Cloudinary:', error);
-        return res.status(400).json({ message: 'Failed to upload image' });
-      }
+      profile_image = req.file.path; // Multer saves file and provides path
     }
     
     // Get current user data first
@@ -158,7 +102,7 @@ async function updateAccount(req, res, next) {
     const finalEmail = email || current.email;
     const finalPhone = phone || current.phone;
     const finalDisplayName = displayName || `${current.first_name || ''} ${current.last_name || ''}`.trim();
-    const finalProfileImage = profileImageData || current.profile_image;
+    const finalProfileImage = profile_image || current.profile_image;
     
     // Check if email is already taken by another user (only if email is being changed)
     if (email && email !== current.email) {
@@ -1320,7 +1264,7 @@ async function getRecentActivities(req, res, next) {
           'stock_pickup' as type,
           'Picked up ' || p.device_name || ' ' || p.device_model || ' (' || su.quantity || ' units)' as description,
           su.pickup_date as timestamp,
-          su.status::VARCHAR as status,
+          su.status,
           p.device_name,
           p.device_model,
           su.quantity,
@@ -1336,7 +1280,7 @@ async function getRecentActivities(req, res, next) {
           'order_placed' as type,
           'Order #' || o.id || ' - ' || o.device_name || ' ' || o.device_model || ' for ' || o.customer_name as description,
           o.sale_date as timestamp,
-          o.status::VARCHAR as status,
+          o.status,
           o.device_name,
           o.device_model,
           o.number_of_devices as quantity,
@@ -1351,7 +1295,7 @@ async function getRecentActivities(req, res, next) {
           'stock_return' as type,
           'Returned ' || p.device_name || ' ' || p.device_model || ' (' || su.quantity || ' units)' as description,
           su.updated_at as timestamp,
-          su.status::VARCHAR as status,
+          su.status,
           p.device_name,
           p.device_model,
           su.quantity,
@@ -1367,7 +1311,7 @@ async function getRecentActivities(req, res, next) {
           'stock_transfer' as type,
           'Transferred ' || p.device_name || ' ' || p.device_model || ' (' || su.quantity || ' units)' as description,
           su.updated_at as timestamp,
-          su.status::VARCHAR as status,
+          su.status,
           p.device_name,
           p.device_model,
           su.quantity,

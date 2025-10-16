@@ -9,7 +9,6 @@ function initSocket(server) {
       origin: [
         'https://vistapro.ng',      // your production frontend (no www)
         'https://www.vistapro.ng',  // keep if you also host with www
-        'https://vistapro-frontend.vercel.app',  // Vercel deployment
         'http://localhost:5173'     // local dev
       ],
       methods: ['GET', 'POST', 'OPTIONS'],

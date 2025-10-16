@@ -7,7 +7,6 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 const otpService = require('../services/otpService');
 const emailService = require('../services/emailService');
 const { pool } = require('../config/database');
-const { notifyOTPEnabled } = require('../services/otpNotificationService');
 
 /**
  * Send OTP to user's email
@@ -24,7 +23,7 @@ router.post('/send', async (req, res) => {
       });
     }
     
-    console.log(`📧 Sending OTP to ${email} - Request received at ${new Date().toISOString()}`);
+    console.log(`📧 Sending OTP to ${email}`);
     
     // Find user by email
     const userResult = await pool.query(`
@@ -54,18 +53,14 @@ router.post('/send', async (req, res) => {
     
     // Generate and store OTP
     const otpCode = otpService.generateOTP();
-    console.log(`🔐 Generated OTP code: ${otpCode} for user ${user.id}`);
     await otpService.storeOTP(user.id, otpCode);
-    console.log(`💾 OTP stored successfully for user ${user.id}`);
     
     // Send OTP email
-    console.log(`📤 Sending OTP email to ${user.email}`);
     await emailService.sendOTPEmail(
       user.email,
       `${user.first_name} ${user.last_name}`,
       otpCode
     );
-    console.log(`✅ OTP email sent successfully to ${user.email}`);
     
     console.log(`✅ OTP sent to user ${user.id} (${user.email})`);
     
@@ -107,7 +102,7 @@ router.post('/verify', async (req, res) => {
     
     // Find user by email
     const userResult = await pool.query(`
-      SELECT id, unique_id, email, first_name, last_name, role, otp_enabled, otp_grace_period_end, email_update_required
+      SELECT id, email, first_name, last_name, role, otp_enabled, otp_grace_period_end, email_update_required
       FROM users 
       WHERE email = $1
     `, [email]);
@@ -124,15 +119,13 @@ router.post('/verify', async (req, res) => {
     // Verify OTP
     await otpService.verifyOTP(user.id, otpCode);
     
-    // Generate JWT token (using same format as regular login)
+    // Generate JWT token
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { 
-        id: user.id, 
-        unique_id: user.unique_id, 
-        role: user.role, 
-        first_name: user.first_name, 
-        last_name: user.last_name 
+        userId: user.id, 
+        email: user.email,
+        role: user.role 
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
@@ -145,13 +138,6 @@ router.post('/verify', async (req, res) => {
         SET otp_enabled = TRUE, email_update_required = FALSE
         WHERE id = $1
       `, [user.id]);
-      
-      // Send OTP enabled notification
-      try {
-        await notifyOTPEnabled(user.id);
-      } catch (notifError) {
-        console.error('Error sending OTP enabled notification:', notifError);
-      }
     }
     
     console.log(`✅ OTP verified and user ${user.id} logged in successfully`);
@@ -166,7 +152,6 @@ router.post('/verify', async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role,
-        profile_image: user.profile_image,
         otpEnabled: true,
         emailVerified: true
       }

@@ -24,7 +24,7 @@ import {
 
 // Import existing components
 import DashboardOverview from '../components/DashboardOverview';
-import AccountSettings from '../components/AccountSettings';
+import ProfileUpdate from '../components/ProfileUpdate';
 import UsersManagement from '../components/UsersManagement';
 import MasterAdminWallet from '../components/MasterAdminWallet';
 import SuperAdminWallet from '../components/SuperAdminWallet';
@@ -53,6 +53,7 @@ import SuperAdminSubmissionsNew from '../components/SuperAdminSubmissionsNew';
 import MasterAdminSubmissions from '../components/MasterAdminSubmissions';
 import MasterAdminBlockedAccounts from '../components/MasterAdminBlockedAccounts';
 import MarketersOverview from '../components/MarketersOverview';
+import AccountSettings from '../components/AccountSettings';
 import OTPTransitionDashboard from '../components/OTPTransitionDashboard';
 
 export const ROLE_CONFIG = {
@@ -217,7 +218,6 @@ export const MOBILE_NAV_CONFIG = {
     { key: 'wallet', label: 'Wallet', icon: Wallet },
     { key: 'users', label: 'Users', icon: Users },
     { key: 'manage-orders', label: 'Orders', icon: ShoppingCart },
-    { key: 'otp-transition', label: 'OTP', icon: Shield },
     { key: 'performance', label: 'Stats', icon: BarChart3 },
     { key: 'more', label: 'More', icon: Settings }
   ],

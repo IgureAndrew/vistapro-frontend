@@ -28,9 +28,10 @@ if (isProduction) {
 }
 
 // Create a new PostgreSQL pool using the connection string from the environment
+const isLocalDatabase = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 const pool = new Pool({
   connectionString: connectionString,
-  ssl: isProduction ? { rejectUnauthorized: false } : false, // Enable SSL for production
+  ssl: (isProduction && !isLocalDatabase) ? { rejectUnauthorized: false } : false, // Enable SSL for production, but not for local
 });
 
 /**

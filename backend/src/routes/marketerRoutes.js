@@ -35,23 +35,12 @@ const {
   if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true });
 });
 
-// Multer storage config - use memory storage for Cloudinary uploads
-const memoryStorage = multer.memoryStorage();
-
 // multer storage
-const upload = multer({ 
-  storage: memoryStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    if (file.fieldname === 'profile_image') {
-      if (file.mimetype.startsWith('image/')) {
-        return cb(null, true);
-      }
-      return cb(new Error('Only image files allowed for profile image'), false);
-    }
-    cb(null, true);
-  }
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
+const upload = multer({ storage });
 
 // ─ Account Settings ─────────────────────────────────────────────────────────
 // GET /api/marketer/account - Get Marketer account details (standardized)

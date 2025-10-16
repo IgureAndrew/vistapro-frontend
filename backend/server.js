@@ -7,8 +7,8 @@ console.log('✅ Database config loaded');
 const http = require('http');
 const { initSocket } = require('./src/socket');
 console.log('✅ Socket config loaded');
-const runStartupMigration = require('./startup_migration');
-console.log('✅ Startup migration loaded');
+// const runStartupMigration = require('./startup_migration'); // Removed during cleanup
+// console.log('✅ Startup migration loaded');
 const { startGracePeriodReminderJob } = require('./src/jobs/gracePeriodReminderJob');
 console.log('✅ Grace period reminder job loaded');
 
@@ -50,8 +50,8 @@ const PORT = process.env.PORT || 5007;
 // Connect to the database and then start the HTTP server.
 connectDB()
   .then(async () => {
-    // Run startup migration to create missing tables
-    await runStartupMigration();
+    // Run startup migration to create missing tables (removed during cleanup)
+    // await runStartupMigration();
     
     // Start grace period reminder cron job
     startGracePeriodReminderJob();

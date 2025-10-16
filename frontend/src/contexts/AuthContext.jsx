@@ -25,9 +25,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const handleUserUpdate = (event) => {
       const { user: updatedUser } = event.detail;
-      // Ensure avatar URL is set for the updated user
-      const userWithAvatar = updateUserWithAvatar(updatedUser);
-      setUser(userWithAvatar);
+      setUser(updatedUser);
     };
 
     window.addEventListener('userUpdated', handleUserUpdate);

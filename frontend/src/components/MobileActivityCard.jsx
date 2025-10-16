@@ -1,6 +1,5 @@
 import React from 'react';
 import { Clock, User, CheckCircle, AlertCircle, Info } from 'lucide-react';
-import { getAvatarUrl, getUserInitials } from '../utils/avatarUtils';
 
 const MobileActivityCard = ({ activity, index }) => {
   // Helper function to get activity icon based on type
@@ -70,8 +69,8 @@ const MobileActivityCard = ({ activity, index }) => {
     }
   };
 
-  // Helper function to get user initials from name string
-  const getUserInitialsFromName = (name) => {
+  // Helper function to get user initials
+  const getUserInitials = (name) => {
     if (!name) return 'S';
     return name
       .split(' ')
@@ -119,23 +118,9 @@ const MobileActivityCard = ({ activity, index }) => {
     <div className="mobile-card">
       <div className="flex items-start space-x-3">
         {/* User Avatar */}
-        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
-          {activity.actor_profile_image ? (
-            <img 
-              src={getAvatarUrl(activity.actor_profile_image)} 
-              alt="Profile" 
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-          ) : null}
-          <span 
-            className="mobile-caption font-semibold text-blue-600 dark:text-blue-400"
-            style={{ display: activity.actor_profile_image ? 'none' : 'flex' }}
-          >
-            {getUserInitialsFromName(activity.actor_name)}
+        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+          <span className="mobile-caption font-semibold text-blue-600 dark:text-blue-400">
+            {getUserInitials(activity.actor_name)}
           </span>
         </div>
         

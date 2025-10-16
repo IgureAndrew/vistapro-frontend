@@ -43,33 +43,25 @@ const {
 } = require('../controllers/masterAdminController');
 
 // Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '../uploads');
+const uploadDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer storage config - use memory storage for Cloudinary uploads
-const memoryStorage = multer.memoryStorage();
+// Multer storage config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+});
 
 // Multer handlers
 const uploadImage = multer({
-  storage: memoryStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    // Accept only image files
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  }
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 const uploadPDF = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
-  }),
+  storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.fieldname === 'registrationCertificate') {
@@ -90,7 +82,6 @@ router.put(
   '/profile',
   verifyToken,
   verifyRole(['MasterAdmin']),
-  uploadImage.single('profile_image'),
   updateProfile
 );
 router.get(
@@ -101,7 +92,7 @@ router.get(
     try {
       const userId = req.user.id;
       const query = `
-        SELECT id, unique_id, first_name, last_name, email, phone, gender, profile_image, role, location
+        SELECT id, unique_id, first_name, last_name, email, phone, gender, profile_image, role
         FROM users
         WHERE id = $1
       `;
@@ -119,105 +110,6 @@ router.get(
     }
   }
 );
-
-// --- Account Settings Extensions (MasterAdmin only) ---
-// Get login history
-router.get('/profile/login-history', verifyToken, verifyRole(['MasterAdmin']), async (req, res) => {
-  try {
-    // For now, return mock data. In a real scenario, this would query a login_history table.
-    const mockHistory = [
-      { device: 'Chrome on Windows', location: 'Lagos, Nigeria', created_at: new Date(Date.now() - 3600000) },
-      { device: 'Firefox on Linux', location: 'Abuja, Nigeria', created_at: new Date(Date.now() - 86400000) },
-      { device: 'Mobile App (Android)', location: 'Lagos, Nigeria', created_at: new Date(Date.now() - 172800000) },
-    ];
-    res.json({ success: true, history: mockHistory });
-  } catch (error) {
-    console.error('Error fetching login history:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch login history' });
-  }
-});
-
-// Toggle OTP
-router.patch('/profile/otp-toggle', verifyToken, verifyRole(['MasterAdmin']), async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { enable } = req.body; // boolean
-    
-    if (typeof enable !== 'boolean') {
-      return res.status(400).json({ success: false, message: 'Invalid value for enable' });
-    }
-
-    await pool.query(
-      'UPDATE users SET otp_enabled = $1, updated_at = NOW() WHERE id = $2',
-      [enable, userId]
-    );
-    res.json({ success: true, message: `OTP ${enable ? 'enabled' : 'disabled'} successfully` });
-  } catch (error) {
-    console.error('Error toggling OTP:', error);
-    res.status(500).json({ success: false, message: 'Failed to toggle OTP' });
-  }
-});
-
-// Get preferences
-router.get('/profile/preferences', verifyToken, verifyRole(['MasterAdmin']), async (req, res) => {
-  try {
-    // For now, return mock data. In a real scenario, this would query a user_preferences table.
-    const mockPreferences = {
-      theme: 'light',
-      language: 'en',
-      timezone: 'Africa/Lagos'
-    };
-    res.json({ success: true, preferences: mockPreferences });
-  } catch (error) {
-    console.error('Error fetching preferences:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch preferences' });
-  }
-});
-
-// Update preferences
-router.patch('/profile/preferences', verifyToken, verifyRole(['MasterAdmin']), async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { theme, language, timezone } = req.body;
-    // In a real scenario, this would update a user_preferences table.
-    // For now, we'll just acknowledge the update.
-    res.json({ success: true, message: 'Preferences updated successfully' });
-  } catch (error) {
-    console.error('Error updating preferences:', error);
-    res.status(500).json({ success: false, message: 'Failed to update preferences' });
-  }
-});
-
-// Get notification preferences
-router.get('/profile/notification-preferences', verifyToken, verifyRole(['MasterAdmin']), async (req, res) => {
-  try {
-    // For now, return mock data. In a real scenario, this would query a user_notification_preferences table.
-    const mockNotificationPreferences = {
-      emailNotifications: true,
-      pushNotifications: false,
-      orderUpdates: true,
-      securityAlerts: true
-    };
-    res.json({ success: true, preferences: mockNotificationPreferences });
-  } catch (error) {
-    console.error('Error fetching notification preferences:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch notification preferences' });
-  }
-});
-
-// Update notification preferences
-router.patch('/profile/notification-preferences', verifyToken, verifyRole(['MasterAdmin']), async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { emailNotifications, pushNotifications, orderUpdates, securityAlerts } = req.body;
-    // In a real scenario, this would update a user_notification_preferences table.
-    // For now, we'll just acknowledge the update.
-    res.json({ success: true, message: 'Notification preferences updated successfully' });
-  } catch (error) {
-    console.error('Error updating notification preferences:', error);
-    res.status(500).json({ success: false, message: 'Failed to update notification preferences' });
-  }
-});
 
 // --- User Management (MasterAdmin only) ---
 router.get(   '/users',         verifyToken, verifyRole(['MasterAdmin']), getUsers);

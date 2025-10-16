@@ -1,8 +1,8 @@
 const express = require('express');
 const { Pool } = require('pg');
 const router = express.Router();
-const createAdminVerificationTableEndpoint = require('../../create_admin_table_endpoint');
-const { runEnhancedTargetMigration } = require('../../run_enhanced_target_migration');
+// const createAdminVerificationTableEndpoint = require('../../create_admin_table_endpoint'); // Removed during cleanup
+// const { runEnhancedTargetMigration } = require('../../run_enhanced_target_migration'); // Removed during cleanup
 
 // Production migration endpoint
 router.post('/guarantor-structure', async (req, res) => {
@@ -1338,15 +1338,15 @@ router.post('/add-users-deleted-column', async (req, res) => {
   }
 });
 
-// Create admin verification details table endpoint
-router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
+// Create admin verification details table endpoint (removed during cleanup)
+// router.post('/create-admin-verification-table', createAdminVerificationTableEndpoint);
 
 // Enhanced Target Management Migration
 router.post('/enhance-target-management', async (req, res) => {
   try {
     console.log('🚀 Starting Enhanced Target Management Migration...');
     
-    await runEnhancedTargetMigration();
+    // await runEnhancedTargetMigration(); // Removed during cleanup
     
     res.json({
       success: true,
@@ -1687,77 +1687,6 @@ router.get('/user-otps-table-status', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to check user_otps table',
-      error: error.message
-    });
-  }
-});
-
-// Debug OTP data for specific user
-router.get('/debug-otp-data/:email', async (req, res) => {
-  try {
-    const { email } = req.params;
-    
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false
-      }
-    });
-    
-    // Find user by email
-    const userResult = await pool.query(`
-      SELECT id, email, first_name, last_name, role, otp_enabled, otp_grace_period_end, email_update_required
-      FROM users 
-      WHERE email = $1
-    `, [email]);
-    
-    if (userResult.rows.length === 0) {
-      await pool.end();
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-    
-    const user = userResult.rows[0];
-    
-    // Get all OTP records for this user
-    const otpResult = await pool.query(`
-      SELECT 
-        id, user_id, otp_code, expires_at, used, used_at, created_at,
-        (expires_at > NOW()) as is_expired,
-        (NOW() - created_at) as age
-      FROM user_otps 
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT 10
-    `, [user.id]);
-    
-    await pool.end();
-    
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        role: user.role,
-        otp_enabled: user.otp_enabled,
-        otp_grace_period_end: user.otp_grace_period_end,
-        email_update_required: user.email_update_required
-      },
-      otpRecords: otpResult.rows,
-      totalOtpRecords: otpResult.rows.length,
-      currentTime: new Date().toISOString(),
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ Error debugging OTP data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to debug OTP data',
       error: error.message
     });
   }

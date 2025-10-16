@@ -6,12 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AlertDialog from "@/components/ui/alert-dialog";
-import { Eye, EyeOff, Mail, Lock, Shield, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Shield, Clock, AlertTriangle } from "lucide-react";
 import OTPInputModal from "./OTPInputModal";
-import GracePeriodAlert from "./GracePeriodAlert";
 import GracePeriodBanner from "./GracePeriodBanner";
-import OTPTransitionBanner from "./OTPTransitionBanner";
-import otpApiService from "../api/otpApi";
+import EmailVerificationPrompt from "./EmailVerificationPrompt";
 
 // Define our colors
 const goldColor = "#C6A768";
@@ -26,34 +24,6 @@ function isPasswordValid(password) {
   const hasDigit = /[0-9]/.test(password);
   return hasLetter && hasDigit;
 }
-
-  // Check email verification status
-  const checkEmailVerificationStatus = async (email) => {
-    if (!email || !email.includes('@')) return;
-    
-    setCheckingEmailStatus(true);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com'}/api/auth/check-email-status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setEmailVerificationStatus(data);
-      } else {
-        setEmailVerificationStatus({ email_verified: false });
-      }
-    } catch (error) {
-      console.error('Error checking email status:', error);
-      setEmailVerificationStatus({ email_verified: false });
-    } finally {
-      setCheckingEmailStatus(false);
-    }
-  };
 
 function LandingPage() {
   // Define which form to show: "login", "register", or "forgot"
@@ -75,21 +45,9 @@ function LandingPage() {
   // For toggling password visibility in the register and login forms.
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-  
-  // For OTP-only mode
-  const [emailVerificationStatus, setEmailVerificationStatus] = useState(null);
-  const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
-  const [otpSuccess, setOtpSuccess] = useState(false);
 
-  // Alert dialog state
-  const [alertDialog, setAlertDialog] = useState({
-    open: false,
-    type: "info",
-    title: "",
-    message: "",
-    confirmText: "OK",
-    onConfirm: null
-  });
+  // For email verification status checking
+  const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
 
   // OTP and Grace Period state
   const [showOTPModal, setShowOTPModal] = useState(false);
@@ -102,6 +60,16 @@ function LandingPage() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [transitionBannerDismissed, setTransitionBannerDismissed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Alert dialog state
+  const [alertDialog, setAlertDialog] = useState({
+    open: false,
+    type: "info",
+    title: "",
+    message: "",
+    confirmText: "OK",
+    onConfirm: null
+  });
 
   // Use the API base URL from environment variables.
   const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -118,169 +86,144 @@ function LandingPage() {
     });
   };
 
-  // Check grace period status on component mount
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
+  // Check email verification status
+  const checkEmailVerificationStatus = async (email) => {
+    if (!email || !email.includes('@')) return;
     
-    if (token && user) {
-      setIsLoggedIn(true);
-      checkGracePeriodStatus();
-    } else {
-      setIsLoggedIn(false);
-    }
-  }, []);
-
-  // Check grace period status
-  const checkGracePeriodStatus = async () => {
+    setCheckingEmailStatus(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.log('No token found, skipping grace period check');
-        return;
-      }
+      const response = await fetch(`${API_BASE_URL}/api/auth/check-email-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
       
-      const response = await otpApiService.getGracePeriodStatus(token);
-      if (response.data.success) {
-        setGracePeriodData(response.data.data);
-        if (response.data.data.isInGracePeriod && response.data.data.emailUpdateRequired) {
-          setShowGracePeriodAlert(true);
-        }
-        
-        // If grace period has ended, force OTP login
-        if (!response.data.data.isInGracePeriod) {
-          setLoginMethod("otp");
-        }
+      if (response.ok) {
+        const data = await response.json();
+        // Handle email status response if needed
+        console.log('Email verification status:', data);
       }
     } catch (error) {
-      console.error('Error checking grace period status:', error);
+      console.error('Error checking email status:', error);
+    } finally {
+      setCheckingEmailStatus(false);
     }
   };
 
-  // Handle OTP login
-  const handleOTPLogin = async () => {
-    // Prevent multiple clicks
-    if (otpLoading) {
-      console.log('🚫 OTP request already in progress, ignoring click');
-      return;
-    }
-
-    if (!loginData.email) {
-      showAlert("error", "Email Required", "Please enter your email address to receive the OTP code.");
-      return;
-    }
-
-    console.log('📧 Sending OTP request...', { email: loginData.email });
+  // OTP Functions
+  const handleSendOTP = async (email) => {
     setOtpLoading(true);
     setOtpError(null);
-
+    
     try {
-      await otpApiService.sendOTP(loginData.email);
-      console.log('✅ OTP sent successfully, showing modal');
-      setOtpSuccess(true);
-      setOtpError(null);
-      setShowOTPModal(true);
+      const response = await fetch(`${API_BASE_URL}/api/otp/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
       
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setOtpSuccess(false);
-      }, 5000);
+      const data = await response.json();
+      
+      if (response.ok) {
+        setShowOTPModal(true);
+        showAlert("success", "OTP Sent", "Please check your email for the verification code.");
+      } else {
+        setOtpError(data.message || "Failed to send OTP");
+        showAlert("error", "OTP Error", data.message || "Failed to send OTP");
+      }
     } catch (error) {
-      console.error('❌ Failed to send OTP:', error);
-      setOtpError(error.response?.data?.message || "Failed to send OTP. Please try again.");
-      setOtpSuccess(false);
+      console.error('Error sending OTP:', error);
+      setOtpError("Network error. Please try again.");
+      showAlert("error", "Network Error", "Unable to send OTP. Please check your connection.");
     } finally {
       setOtpLoading(false);
     }
   };
 
-  // Verify OTP
   const handleVerifyOTP = async (otpCode) => {
-    console.log('🔍 LandingPage: Starting OTP verification...', { email: loginData.email, otpCode });
     setOtpLoading(true);
     setOtpError(null);
-
+    
     try {
-      const response = await otpApiService.verifyOTP(loginData.email, otpCode);
-      console.log('🔍 LandingPage: OTP verification response received:', response);
-      console.log('🔍 LandingPage: Response type:', typeof response);
-      console.log('🔍 LandingPage: Response keys:', Object.keys(response || {}));
+      const response = await fetch(`${API_BASE_URL}/api/otp/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: loginData.email, 
+          otp: otpCode 
+        }),
+      });
       
-      if (response && response.success === true) {
-        console.log('✅ LandingPage: OTP verification successful!');
-        localStorage.setItem("token", response.token);
-        const updatedUserData = updateUserWithAvatar(response.user);
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem("token", data.token);
+        const updatedUserData = updateUserWithAvatar(data.user);
         localStorage.setItem("user", JSON.stringify(updatedUserData));
         
-        console.log('✅ LandingPage: User data stored, closing modal and redirecting...');
-        
-        // Close OTP modal
         setShowOTPModal(false);
+        setIsLoggedIn(true);
         
         // Redirect based on role
-        redirectToDashboard(response.user.role);
+        switch (data.user.role) {
+          case "SuperAdmin":
+            navigate("/dashboard/superadmin");
+            break;
+          case "MasterAdmin":
+            navigate("/dashboard/masteradmin");
+            break;
+          case "Admin":
+            navigate("/dashboard/admin");
+            break;
+          case "Marketer":
+            navigate("/dashboard/marketer");
+            break;
+          case "Dealer":
+            navigate("/dashboard/dealer");
+            break;
+          default:
+            navigate("/dashboard/masteradmin");
+        }
       } else {
-        console.log('❌ LandingPage: OTP verification failed - response.success is not true');
-        console.log('❌ LandingPage: response.success value:', response?.success);
-        setOtpError(response?.message || "Invalid OTP code. Please try again.");
+        setOtpError(data.message || "Invalid OTP code");
+        showAlert("error", "Verification Failed", data.message || "Invalid OTP code");
       }
     } catch (error) {
-      console.error('❌ LandingPage: OTP verification error caught:', error);
-      console.error('❌ LandingPage: Error message:', error.message);
-      console.error('❌ LandingPage: Error response:', error.response);
-      setOtpError(error.message || "Invalid OTP code. Please try again.");
+      console.error('Error verifying OTP:', error);
+      setOtpError("Network error. Please try again.");
+      showAlert("error", "Network Error", "Unable to verify OTP. Please check your connection.");
     } finally {
       setOtpLoading(false);
     }
   };
 
-  // Resend OTP
   const handleResendOTP = async () => {
-    setOtpLoading(true);
-    setOtpError(null);
+    await handleSendOTP(loginData.email);
+  };
 
+  // Handler for login submission.
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
     try {
-      await otpApiService.sendOTP(loginData.email);
-      setOtpError(null);
-    } catch (error) {
-      setOtpError(error.response?.data?.message || "Failed to resend OTP. Please try again.");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // Update email address
-  const handleUpdateEmail = async (newEmail) => {
-    setOtpLoading(true);
-
-    try {
-      await otpApiService.updateEmail(newEmail);
-      setGracePeriodData(prev => ({
-        ...prev,
-        emailUpdateRequired: false
-      }));
-      setShowGracePeriodAlert(false);
-      showAlert("success", "Email Updated", "Your email address has been updated successfully.");
-    } catch (error) {
-      throw error; // Let the GracePeriodAlert handle the error display
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // Handle banner dismiss
-  const handleBannerDismiss = () => {
-    setBannerDismissed(true);
-  };
-
-  // Handle transition banner dismiss
-  const handleTransitionBannerDismiss = () => {
-    setTransitionBannerDismissed(true);
-  };
-
-  // Redirect to dashboard based on role
-  const redirectToDashboard = (role) => {
-    switch (role) {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loginData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        // Update user data with avatar URL if profile_image exists
+        const updatedUserData = updateUserWithAvatar(data.user);
+        localStorage.setItem("user", JSON.stringify(updatedUserData));
+        // Redirect based on the user's role.
+        switch (data.user.role) {
           case "SuperAdmin":
             navigate("/dashboard/superadmin");
             break;
@@ -297,37 +240,11 @@ function LandingPage() {
             navigate("/dashboard/marketer");
             break;
           default:
-        navigate("/dashboard");
-    }
-  };
-
-  // Handler for login submission.
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginData),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("token", data.token);
-        // Update user data with avatar URL if profile_image exists
-        const updatedUserData = updateUserWithAvatar(data.user);
-        localStorage.setItem("user", JSON.stringify(updatedUserData));
-        
-        // Check grace period status after successful login
-        await checkGracePeriodStatus();
-        
-        // Redirect based on the user's role.
-        redirectToDashboard(data.user.role);
+            navigate("/");
+            break;
+        }
       } else {
-        if (data.requiresOTP) {
-          showAlert("warning", "Password Login Disabled", "Password login has been disabled. Please use OTP login with your verified email address.");
-          setLoginMethod("otp");
-        } else if (data.requiresAssignment) {
+        if (data.requiresAssignment) {
           showAlert("warning", "Account Pending Assignment", "Your account is pending Admin assignment. Please wait for assignment.");
         } else if (data.accountLocked) {
           showAlert("error", "Account Locked", "Your account is locked. Please contact your assigned Admin.");
@@ -338,8 +255,6 @@ function LandingPage() {
     } catch (error) {
       console.error("Error logging in:", error);
       showAlert("error", "Error", "Error logging in");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -408,7 +323,7 @@ function LandingPage() {
   const renderForm = () => {
     if (view === "login") {
       return (
-        <form className="space-y-4" onSubmit={handleLoginSubmit}>
+        <form className="space-y-4" onSubmit={loginMethod === "password" ? handleLoginSubmit : (e) => { e.preventDefault(); handleSendOTP(loginData.email); }}>
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium text-foreground">
               Email
@@ -421,256 +336,95 @@ function LandingPage() {
                 placeholder="Enter your email"
                 className="pl-10 border-border focus:ring-ring"
                 value={loginData.email}
-                onChange={(e) => {
-                  setLoginData({ ...loginData, email: e.target.value });
-                  // Check email verification status when email changes
-                  const email = e.target.value;
-                  if (email && email.includes('@')) {
-                    checkEmailVerificationStatus(email);
-                  } else {
-                    setEmailVerificationStatus(null);
-                  }
-                }}
-                required
-              />
-            </div>
-          </div>
-          
-          {/* Login Method Toggle - Hide for verified users */}
-          {!emailVerificationStatus?.email_verified && (
-            <div className="flex space-x-2 mb-4">
-              <Button
-                type="button"
-                variant={loginMethod === "password" ? "default" : "outline"}
-                size="sm"
-                className="flex-1"
-                onClick={() => setLoginMethod("password")}
-                disabled={gracePeriodData && !gracePeriodData.isInGracePeriod}
-              >
-                <Lock className="h-4 w-4 mr-2" />
-                Password
-                {gracePeriodData && !gracePeriodData.isInGracePeriod && (
-                  <span className="ml-1 text-xs">(Disabled)</span>
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant={loginMethod === "otp" ? "default" : "outline"}
-                size="sm"
-                className="flex-1"
-                onClick={() => setLoginMethod("otp")}
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                OTP Code
-                {gracePeriodData && !gracePeriodData.isInGracePeriod && (
-                  <span className="ml-1 text-xs">(Required)</span>
-                )}
-              </Button>
-            </div>
-          )}
-
-          {/* OTP-Only Notice for Verified Users */}
-          {emailVerificationStatus?.email_verified && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center space-x-2">
-                <Shield className="h-4 w-4 text-green-500" />
-                <p className="text-sm text-green-800">
-                  <strong>Email verified!</strong> You can now use OTP login with your verified email address.
-                </p>
-              </div>
-            </div>
-          )}
-          
-          {/* Grace Period Active Notice */}
-          {gracePeriodData && gracePeriodData.isInGracePeriod && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-4 w-4 text-yellow-500" />
-                <div className="text-sm text-yellow-800">
-                  <p><strong>Grace Period Active:</strong> You have {gracePeriodData.daysRemaining} days left to verify your email.</p>
-                  <p className="text-xs mt-1">After this period, password login will be disabled and OTP login will be required.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Grace Period Ended Notice */}
-          {gracePeriodData && !gracePeriodData.isInGracePeriod && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                <p className="text-sm text-red-800">
-                  <strong>Password login has been disabled.</strong> Please use OTP login with your verified email address.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Password Field (only show for password method and unverified users) */}
-          {loginMethod === "password" && !emailVerificationStatus?.email_verified && (
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-foreground">
-              Password
-            </Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                type={showLoginPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                className="pl-10 pr-10 border-border focus:ring-ring"
-                value={loginData.password}
                 onChange={(e) =>
-                  setLoginData({ ...loginData, password: e.target.value })
+                  setLoginData({ ...loginData, email: e.target.value })
                 }
                 required
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowLoginPassword(!showLoginPassword)}
-              >
-                {showLoginPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
-              </Button>
-            </div>
-            
-            {/* Forgot Password Link - Only show for unverified users */}
-            {!emailVerificationStatus?.email_verified && (
-              <div className="text-right">
-                <button
-                  type="button"
-                  onClick={() => navigate('/reset-password')}
-                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* OTP Info (show for OTP method or verified users) */}
-          {(loginMethod === "otp" || emailVerificationStatus?.email_verified) && (
-            <div className="space-y-2">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Shield className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium text-blue-900">
-                    {emailVerificationStatus?.email_verified ? 'Email Verified - OTP Login Required' : 'Secure OTP Login'}
-                  </span>
-                </div>
-                <p className="text-xs text-blue-800">
-                  {emailVerificationStatus?.email_verified 
-                    ? 'Your email is verified. Please use OTP login for enhanced security.'
-                    : 'Enter your email above and click "Send OTP" to receive a 6-digit verification code.'
-                  }
-                </p>
             </div>
           </div>
-          )}
-
-          {/* Submit Buttons */}
-          {(loginMethod === "password" && !emailVerificationStatus?.email_verified) ? (
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Signing in...
-              </>
-            ) : (
-              "Sign In"
-            )}
-          </Button>
-          ) : (
+          
+          {/* Login Method Toggle */}
+          <div className="flex space-x-2">
             <Button
               type="button"
-              onClick={handleOTPLogin}
-              disabled={otpLoading || !loginData.email}
-              className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              variant={loginMethod === "password" ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setLoginMethod("password")}
             >
-              {otpLoading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Sending OTP...
-                </>
-              ) : (
-                emailVerificationStatus?.email_verified ? "Send OTP Code" : "Send OTP Code"
-              )}
+              <Lock className="w-4 h-4 mr-2" />
+              Password
+            </Button>
+            <Button
+              type="button"
+              variant={loginMethod === "otp" ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setLoginMethod("otp")}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              OTP
+            </Button>
+          </div>
+
+          {/* Password Field - Only show for password login */}
+          {loginMethod === "password" && (
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type={showLoginPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  className="pl-10 pr-10 border-border focus:ring-ring"
+                  value={loginData.password}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                >
+                  {showLoginPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:brightness-95 text-primary-foreground font-medium py-2.5"
+            disabled={loading || otpLoading}
+          >
+            {loading || otpLoading ? (
+              <>
+                <Clock className="w-4 h-4 mr-2 animate-spin" />
+                {loginMethod === "otp" ? "Sending OTP..." : "Signing In..."}
+              </>
+            ) : (
+              loginMethod === "otp" ? "Send OTP" : "Sign In"
+            )}
           </Button>
-          )}
-
-          {/* Success Display */}
-          {otpSuccess && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <div>
-                  <p className="text-green-800 text-sm font-medium">OTP Sent Successfully!</p>
-                  <p className="text-green-600 text-xs">Check your email for the 6-digit code. It expires in 10 minutes.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Error Display */}
-          {otpError && (loginMethod === "otp" || emailVerificationStatus?.email_verified) && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <XCircle className="h-4 w-4 text-red-500" />
-                <p className="text-red-600 text-sm">{otpError}</p>
-              </div>
-            </div>
-          )}
-
-          {/* General Error Display */}
-          {alertDialog.open && alertDialog.type === "error" && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <XCircle className="h-4 w-4 text-red-500" />
-                <div>
-                  <p className="text-red-800 text-sm font-medium">{alertDialog.title}</p>
-                  <p className="text-red-600 text-xs">{alertDialog.message}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Helpful Tips */}
-          {!emailVerificationStatus?.email_verified && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-              <div className="flex items-start space-x-2">
-                <div className="flex-shrink-0 mt-0.5">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                </div>
-                <div className="text-xs text-gray-700">
-                  <p className="font-medium mb-1">💡 Quick Tips:</p>
-                  <ul className="space-y-1 text-xs">
-                    <li>• Verify your email to use secure OTP login</li>
-                    <li>• Check your spam folder for verification emails</li>
-                    <li>• OTP codes expire after 10 minutes</li>
-                    <li>• Contact support if you need help</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="text-center space-y-2">
             <Button
               type="button"
               variant="link"
               className="text-sm text-muted-foreground hover:text-foreground p-0 h-auto"
-              onClick={() => navigate('/reset-password')}
+              onClick={() => setView("forgot")}
             >
               Forgot your password?
             </Button>
@@ -887,21 +641,6 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white font-['Geist',sans-serif]">
-      {/* OTP Transition Banner - Shows for all users */}
-      {!transitionBannerDismissed && (
-        <OTPTransitionBanner onDismiss={handleTransitionBannerDismiss} />
-      )}
-      
-      {/* Grace Period Countdown Banner - Shows only for logged-in users */}
-      {isLoggedIn && (
-        <GracePeriodBanner
-          gracePeriodData={gracePeriodData}
-          onUpdateEmail={() => setShowGracePeriodAlert(true)}
-          onDismiss={handleBannerDismiss}
-          isLoggedIn={isLoggedIn}
-        />
-      )}
-
       {/* Main content area */}
       <div className="flex flex-col lg:flex-row min-h-screen">
         {/* Left Section: Title, Tagline & Image */}
@@ -970,25 +709,22 @@ function LandingPage() {
         email={loginData.email}
         onVerifyOTP={handleVerifyOTP}
         onResendOTP={handleResendOTP}
-        isLoading={otpLoading}
-        error={otpError}
         onBackToPassword={() => {
           setShowOTPModal(false);
           setLoginMethod("password");
-          setOtpError(null);
         }}
-      />
-
-      {/* Grace Period Alert */}
-      <GracePeriodAlert
-        isOpen={showGracePeriodAlert}
-        onClose={() => setShowGracePeriodAlert(false)}
-        daysRemaining={gracePeriodData?.daysRemaining || 0}
-        currentEmail={gracePeriodData?.currentEmail || ''}
-        onUpdateEmail={handleUpdateEmail}
         isLoading={otpLoading}
         error={otpError}
       />
+
+      {/* Grace Period Banner */}
+      {!transitionBannerDismissed && (
+        <GracePeriodBanner
+          user={null}
+          isDismissible={true}
+          onDismiss={() => setTransitionBannerDismissed(true)}
+        />
+      )}
     </div>
   );
 }
