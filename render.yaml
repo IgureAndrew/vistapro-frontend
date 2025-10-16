@@ -3,6 +3,7 @@ services:
     name: vistapro-backend
     env: node
     plan: free
+    rootDir: backend
     buildCommand: npm install
     startCommand: node start.js
     envVars:
