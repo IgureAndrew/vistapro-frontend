@@ -216,6 +216,7 @@ app.use('/api/messages',       require('./routes/messageRoutes'));
 app.use('/api/targets',        require('./routes/targetRoutes'));
 app.use('/api/messaging',      require('./routes/messagingRoutes'));
 app.use('/api/migration',      require('./routes/migrationRoutes'));
+app.use('/api/user-management', require('./routes/userManagementRoutes'));
 
 // ——— Health check endpoint
 app.get('/api/health', (req, res) => {

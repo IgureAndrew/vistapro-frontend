@@ -10,6 +10,7 @@ import { Eye, EyeOff, Mail, Lock, Shield, Clock, AlertTriangle } from "lucide-re
 import OTPInputModal from "./OTPInputModal";
 import GracePeriodBanner from "./GracePeriodBanner";
 import EmailVerificationPrompt from "./EmailVerificationPrompt";
+import LockAlertDialog from "./LockAlertDialog";
 
 // Define our colors
 const goldColor = "#C6A768";
@@ -69,6 +70,12 @@ function LandingPage() {
     message: "",
     confirmText: "OK",
     onConfirm: null
+  });
+
+  // Lock alert state
+  const [lockAlert, setLockAlert] = useState({
+    open: false,
+    reason: ""
   });
 
   // Use the API base URL from environment variables.
@@ -244,7 +251,19 @@ function LandingPage() {
             break;
         }
       } else {
-        if (data.requiresAssignment) {
+        if (data.isLocked) {
+          // Show lock alert with reason
+          setLockAlert({
+            open: true,
+            reason: data.lockReason || "No reason provided"
+          });
+        } else if (data.isDeleted) {
+          if (data.deletionType === 'hard') {
+            showAlert("error", "Account Deleted", "Your account has been permanently deleted.");
+          } else if (data.deletionType === 'soft') {
+            showAlert("error", "Account Suspended", "Your account has been suspended. Please contact support.");
+          }
+        } else if (data.requiresAssignment) {
           showAlert("warning", "Account Pending Assignment", "Your account is pending Admin assignment. Please wait for assignment.");
         } else if (data.accountLocked) {
           showAlert("error", "Account Locked", "Your account is locked. Please contact your assigned Admin.");
@@ -725,6 +744,13 @@ function LandingPage() {
           onDismiss={() => setTransitionBannerDismissed(true)}
         />
       )}
+
+      {/* Lock Alert Dialog */}
+      <LockAlertDialog
+        isOpen={lockAlert.open}
+        onClose={() => setLockAlert({ open: false, reason: "" })}
+        lockReason={lockAlert.reason}
+      />
     </div>
   );
 }

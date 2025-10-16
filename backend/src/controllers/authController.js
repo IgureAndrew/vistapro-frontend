@@ -52,6 +52,32 @@ const loginUser = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // Check if account is locked
+    if (user.is_locked) {
+      return res.status(403).json({ 
+        message: 'Your account has been locked by an administrator.',
+        isLocked: true,
+        lockReason: user.lock_reason || 'No reason provided'
+      });
+    }
+
+    // Check if account is deleted
+    if (user.is_deleted) {
+      if (user.deletion_type === 'hard') {
+        return res.status(403).json({ 
+          message: 'Your account has been permanently deleted.',
+          isDeleted: true,
+          deletionType: 'hard'
+        });
+      } else if (user.deletion_type === 'soft') {
+        return res.status(403).json({ 
+          message: 'Your account has been suspended. Please contact support.',
+          isDeleted: true,
+          deletionType: 'soft'
+        });
+      }
+    }
+
     // Email verification check removed - all users can login immediately
 
     // Special access control for Marketers
