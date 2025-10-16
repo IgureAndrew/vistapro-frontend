@@ -142,3 +142,23 @@ production_dump.sql
 # Docker volumes and data
 postgres_data/
 docker-compose.override.yml
+
+# Backup files
+backups/
+*.backup
+*.bak
+
+# Test uploads
+backend/src/uploads/
+uploads/
+
+# Development guides and test files
+SHADCN_UI_GUIDE.md
+UNIFIED_DASHBOARD_GUIDE.md
+TESTING_CHECKLIST.md
+test-deployment.txt
+logo-base64.txt
+
+# Deployment scripts (not needed with Git)
+deploy-*.sh
+deploy-*.bat
