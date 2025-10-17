@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
@@ -21,7 +20,7 @@ export default function EmailVerification() {
 
     // Call backend verification endpoint
     const API_BASE = import.meta.env.VITE_API_URL || 'https://vistapro-backend.onrender.com';
-    axios.post(`${API_BASE}/api/auth/verify-email`, { token })
+    axios.get(`${API_BASE}/api/auth/verify-email/${token}`)
       .then((response) => {
         setStatus('success');
         setMessage('Email verified successfully! You can now log in to your account.');
