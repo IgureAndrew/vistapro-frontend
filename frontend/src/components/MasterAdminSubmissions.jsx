@@ -22,7 +22,7 @@ import {
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
-  Timeline
+  Activity
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -692,7 +692,7 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                                 className="bg-purple-600 hover:bg-purple-700 text-white"
                                 size="sm"
                               >
-                                <Timeline className="w-4 h-4 mr-1" />
+                                <Activity className="w-4 h-4 mr-1" />
                                 Timeline
                               </Button>
                             )}
