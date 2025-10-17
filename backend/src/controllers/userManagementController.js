@@ -1,6 +1,8 @@
 const pool = require('../config/database');
 const { logActivity } = require('../utils/auditLogger');
 
+console.log('✅ userManagementController.js loaded successfully');
+
 /**
  * User Management Controller
  * MasterAdmin only - Lock, Unlock, Soft Delete, Hard Delete, Restore users
@@ -660,6 +662,17 @@ const checkUserStatus = async (req, res) => {
     });
   }
 };
+
+console.log('✅ Exports defined:', {
+  lockUser: typeof lockUser,
+  unlockUser: typeof unlockUser,
+  softDeleteUser: typeof softDeleteUser,
+  hardDeleteUser: typeof hardDeleteUser,
+  restoreUser: typeof restoreUser,
+  getDeletedUsers: typeof getDeletedUsers,
+  getUserActivity: typeof getUserActivity,
+  checkUserStatus: typeof checkUserStatus
+});
 
 module.exports = {
   lockUser,
