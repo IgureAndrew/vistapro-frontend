@@ -101,19 +101,28 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         return;
       }
 
-      // Use KYC tracking API to get all submissions
-      const response = await kycTrackingService.getAllKYCTracking({ days: 30 });
-      
-      // Safely set submissions with fallback
-      setSubmissions(response.data || []);
-      
-      // Update stats from response with safe fallbacks
-      if (response.data && typeof response.marketer_verifications !== 'undefined') {
-        setStats(prev => ({
-          ...prev,
-          marketerVerifications: response.marketer_verifications || 0,
-          adminSuperadminApprovals: response.admin_superadmin_approvals || 0
-        }));
+      // Fetch from the original endpoint that returns both marketer and admin/superadmin submissions
+      const response = await axios.get(`${API_URL}/api/verification/submissions/master`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.data.success) {
+        console.log('📊 MasterAdmin Submissions Response:', response.data);
+        console.log('📋 Submissions count:', response.data.submissions?.length);
+        setSubmissions(response.data.submissions || []);
+        
+        // Update stats from response
+        if (response.data.marketer_verifications !== undefined) {
+          setStats(prev => ({
+            ...prev,
+            marketerVerifications: response.data.marketer_verifications || 0,
+            adminSuperadminApprovals: response.data.admin_superadmin_approvals || 0
+          }));
+        }
+      } else {
+        setSubmissions([]);
       }
       
       setError(null);
