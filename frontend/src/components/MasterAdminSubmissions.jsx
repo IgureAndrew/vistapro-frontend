@@ -21,13 +21,16 @@ import {
   Camera,
   MessageSquare,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Timeline
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { format } from "date-fns";
+import KYCTimeline from "./KYCTimeline";
+import { kycTrackingService } from "../api/kycTrackingApi";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -68,6 +71,8 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
     marketerVerifications: 0,
     adminSuperadminApprovals: 0,
   });
+  const [selectedTimelineSubmission, setSelectedTimelineSubmission] = useState(null);
+  const [showAllSubmissions, setShowAllSubmissions] = useState(false); // Toggle to show all submissions
 
   useEffect(() => {
     fetchSubmissions();
@@ -83,7 +88,7 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
   useEffect(() => {
     applyFilters();
     calculateStats();
-  }, [searchTerm, statusFilter, superAdminFilter, submissions, historySubmissions]);
+  }, [searchTerm, statusFilter, superAdminFilter, submissions, historySubmissions, showAllSubmissions, activeTab]);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -96,24 +101,18 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         return;
       }
 
-      const response = await axios.get(
-        `${API_URL}/api/verification/submissions/master`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      // Use KYC tracking API to get all submissions
+      const response = await kycTrackingService.getAllKYCTracking({ days: 30 });
       
       // Safely set submissions with fallback
-      setSubmissions(response.data?.submissions || []);
+      setSubmissions(response.data || []);
       
       // Update stats from response with safe fallbacks
-      if (response.data && typeof response.data.marketer_verifications !== 'undefined') {
+      if (response.data && typeof response.marketer_verifications !== 'undefined') {
         setStats(prev => ({
           ...prev,
-          marketerVerifications: response.data.marketer_verifications || 0,
-          adminSuperadminApprovals: response.data.admin_superadmin_approvals || 0
+          marketerVerifications: response.marketer_verifications || 0,
+          adminSuperadminApprovals: response.admin_superadmin_approvals || 0
         }));
       }
       
@@ -193,6 +192,14 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
   const applyFilters = () => {
     let filtered = submissions;
 
+    // If showAllSubmissions is false, only show submissions pending masteradmin approval
+    if (!showAllSubmissions && activeTab === "pending") {
+      filtered = filtered.filter((s) => 
+        s.submission_status === 'pending_masteradmin_approval' || 
+        s.submission_status === 'superadmin_verified'
+      );
+    }
+
     if (searchTerm) {
       filtered = filtered.filter(
         (s) =>
@@ -219,6 +226,9 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
+      pending_marketer_forms: { color: "bg-yellow-100 text-yellow-800", icon: Clock, label: "Pending Forms" },
+      pending_admin_review: { color: "bg-blue-100 text-blue-800", icon: Clock, label: "Pending Admin Review" },
+      pending_superadmin_review: { color: "bg-indigo-100 text-indigo-800", icon: Clock, label: "Pending SuperAdmin Review" },
       superadmin_verified: { color: "bg-green-100 text-green-800", icon: CheckCircle, label: "SuperAdmin Verified" },
       pending_masteradmin_approval: { color: "bg-purple-100 text-purple-800", icon: Clock, label: "Pending Approval" },
       approved: { color: "bg-green-100 text-green-800", icon: ThumbsUp, label: "Approved" },
@@ -378,27 +388,43 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         </p>
 
         {/* Tab Navigation */}
-        <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
-          <button
-            onClick={() => setActiveTab("pending")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "pending"
-                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            }`}
-          >
-            Pending Approval
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "history"
-                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            }`}
-          >
-            History
-          </button>
+        <div className="flex items-center justify-between">
+          <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setActiveTab("pending")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "pending"
+                  ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              Pending Approval
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "history"
+                  ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              History
+            </button>
+          </div>
+          
+          {/* Show All Submissions Toggle */}
+          {activeTab === "pending" && (
+            <button
+              onClick={() => setShowAllSubmissions(!showAllSubmissions)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                showAllSubmissions
+                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              }`}
+            >
+              {showAllSubmissions ? "Show Only Pending MasterAdmin" : "Show All Submissions"}
+            </button>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -660,6 +686,16 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                               <Eye className="w-4 h-4 mr-1" />
                               Review
                             </Button>
+                            {isMarketerVerification && (
+                              <Button
+                                onClick={() => setSelectedTimelineSubmission(submission.submission_id)}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                                size="sm"
+                              >
+                                <Timeline className="w-4 h-4 mr-1" />
+                                Timeline
+                              </Button>
+                            )}
                             {((isMarketerVerification && 
                                (submission.submission_status === 'superadmin_verified' || submission.submission_status === 'pending_masteradmin_approval')) ||
                               (isAdminSuperadminApproval && submission.overall_verification_status === 'masteradmin_approval_pending')) && (
@@ -1353,6 +1389,14 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* KYC Timeline Modal */}
+      {selectedTimelineSubmission && (
+        <KYCTimeline
+          submissionId={selectedTimelineSubmission}
+          onClose={() => setSelectedTimelineSubmission(null)}
+        />
       )}
     </div>
   );
