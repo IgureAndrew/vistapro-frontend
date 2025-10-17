@@ -108,9 +108,13 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         },
       });
 
+      console.log('📊 Full API Response:', response);
+      console.log('📊 Response Data:', response.data);
+      
       if (response.data.success) {
-        console.log('📊 MasterAdmin Submissions Response:', response.data);
+        console.log('✅ API Success - Submissions:', response.data.submissions);
         console.log('📋 Submissions count:', response.data.submissions?.length);
+        console.log('📋 First submission:', response.data.submissions?.[0]);
         setSubmissions(response.data.submissions || []);
         
         // Update stats from response
@@ -199,14 +203,21 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
   };
 
   const applyFilters = () => {
+    console.log('🔍 applyFilters called');
+    console.log('📊 Total submissions:', submissions.length);
+    console.log('🔘 showAllSubmissions:', showAllSubmissions);
+    console.log('📑 activeTab:', activeTab);
+    
     let filtered = submissions;
 
     // If showAllSubmissions is false, only show submissions pending masteradmin approval
     if (!showAllSubmissions && activeTab === "pending") {
+      console.log('🔍 Filtering to show only pending masteradmin approval');
       filtered = filtered.filter((s) => 
         s.submission_status === 'pending_masteradmin_approval' || 
         s.submission_status === 'superadmin_verified'
       );
+      console.log('📊 Filtered count:', filtered.length);
     }
 
     if (searchTerm) {
