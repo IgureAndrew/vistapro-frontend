@@ -1,7 +1,7 @@
 // src/controllers/kycTrackingController.js
 // Controller for KYC tracking and timeline
 
-const pool = require('../config/database');
+const { pool } = require('../config/database');
 
 /**
  * Get KYC timeline for a specific submission
