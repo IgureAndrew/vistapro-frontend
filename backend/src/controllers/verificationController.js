@@ -1725,7 +1725,7 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
     const hasVerificationSubmissionsTable = await checkVerificationSubmissionsTable();
     
     if (hasVerificationSubmissionsTable) {
-      // Get marketer verifications (full workflow)
+      // Get marketer verifications (full workflow) - ALL STATUSES
       const marketerSubmissionsQuery = `
       SELECT
           vs.id as submission_id,
@@ -1755,36 +1755,14 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
         JOIN users u ON u.id = vs.marketer_id
         LEFT JOIN users admin ON admin.id = vs.admin_id
         LEFT JOIN users superadmin ON superadmin.id = vs.super_admin_id
-        WHERE vs.submission_status = 'pending_masteradmin_approval'
+        -- Return ALL marketer submissions at ALL stages
         ORDER BY vs.updated_at DESC
       `;
       
-      // Get admin/superadmin direct approvals (no verification needed)
-      const adminSuperadminQuery = `
-      SELECT
-          u.id as user_id,
-          u.unique_id as user_unique_id,
-          u.first_name,
-          u.last_name,
-          u.email,
-          u.location,
-          u.overall_verification_status,
-          u.role,
-          u.created_at,
-          u.updated_at
-        FROM users u
-        WHERE u.role IN ('Admin', 'SuperAdmin')
-          AND u.overall_verification_status = 'masteradmin_approval_pending'
-          AND u.deleted_at IS NULL
-        ORDER BY u.updated_at DESC
-      `;
+      // Only get marketer verifications (no admin/superadmin approvals)
+      const marketerResult = await pool.query(marketerSubmissionsQuery);
       
-      const [marketerResult, adminSuperadminResult] = await Promise.all([
-        pool.query(marketerSubmissionsQuery),
-        pool.query(adminSuperadminQuery)
-      ]);
-      
-      console.log(`✅ Found ${marketerResult.rows.length} marketer verifications and ${adminSuperadminResult.rows.length} admin/superadmin approvals`);
+      console.log(`✅ Found ${marketerResult.rows.length} marketer verifications`);
       
       // Process marketer submissions with form details
       const marketerSubmissions = await Promise.all(
@@ -1836,30 +1814,13 @@ const getAllSubmissionsForMasterAdmin = async (req, res, next) => {
         })
       );
       
-      // Process admin/superadmin approvals (no forms needed)
-      const adminSuperadminApprovals = adminSuperadminResult.rows.map(user => ({
-        user_id: user.user_id,
-        user_unique_id: user.user_unique_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        location: user.location,
-        role: user.role,
-        overall_verification_status: user.overall_verification_status,
-        submission_type: 'admin_superadmin_approval',
-        created_at: user.created_at,
-        updated_at: user.updated_at
-      }));
-      
-      // Combine all submissions
-      const allSubmissions = [...marketerSubmissions, ...adminSuperadminApprovals];
-      
+      // Return only marketer submissions
       return res.json({
         success: true,
-        submissions: allSubmissions,
-        total: allSubmissions.length,
+        submissions: marketerSubmissions,
+        total: marketerSubmissions.length,
         marketer_verifications: marketerSubmissions.length,
-        admin_superadmin_approvals: adminSuperadminApprovals.length
+        admin_superadmin_approvals: 0
       });
       
     } else {
