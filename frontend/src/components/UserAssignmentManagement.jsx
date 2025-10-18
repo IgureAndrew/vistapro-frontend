@@ -181,8 +181,8 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
         }
         
         const assignmentData = {
-          adminUniqueId: admin.unique_id,
-          superAdminUniqueId: superAdmin.unique_id
+          adminId: admin.unique_id,
+          newSuperAdminId: superAdmin.unique_id
         };
         
         await adminAssignmentApiService.assignAdminToSuperAdmin(assignmentData);
