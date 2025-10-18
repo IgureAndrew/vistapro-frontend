@@ -1030,12 +1030,23 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                       const admin = availableAssignees.find(a => a.id === formData.marketerId);
                       const adminLocation = admin?.location;
                       
+                      console.log('🔍 Admin being assigned:', admin);
+                      console.log('📍 Admin location:', adminLocation);
+                      console.log('👥 All available assignees:', availableAssignees);
+                      
                       // Filter SuperAdmins by location
                       const filteredSuperAdmins = availableAssignees.filter(a => 
                         a.role === 'SuperAdmin' && a.location === adminLocation
                       );
                       
+                      console.log('✅ Filtered SuperAdmins:', filteredSuperAdmins);
+                      
                       if (filteredSuperAdmins.length === 0) {
+                        // Check if location field is missing
+                        const superAdminsWithoutLocation = availableAssignees.filter(a => a.role === 'SuperAdmin');
+                        console.log('⚠️ All SuperAdmins:', superAdminsWithoutLocation);
+                        console.log('⚠️ Do they have location field?', superAdminsWithoutLocation.map(sa => ({ name: sa.first_name, hasLocation: 'location' in sa, location: sa.location })));
+                        
                         return <option value="" disabled>No SuperAdmins found in {adminLocation || 'same location'}</option>;
                       }
                       
