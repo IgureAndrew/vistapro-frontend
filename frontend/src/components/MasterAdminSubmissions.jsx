@@ -117,14 +117,14 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         console.log('📋 First submission:', response.data.submissions?.[0]);
         setSubmissions(response.data.submissions || []);
         
-        // Update stats from response
-        if (response.data.marketer_verifications !== undefined) {
-          setStats(prev => ({
-            ...prev,
-            marketerVerifications: response.data.marketer_verifications || 0,
-            adminSuperadminApprovals: response.data.admin_superadmin_approvals || 0
-          }));
-        }
+      // Update stats from response
+      if (response.data.marketer_verifications !== undefined) {
+        setStats(prev => ({
+          ...prev,
+          marketerVerifications: response.data.marketer_verifications || 0,
+          adminSuperadminApprovals: 0 // Not used anymore
+        }));
+      }
       } else {
         setSubmissions([]);
       }
@@ -189,8 +189,7 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
         : s.overall_verification_status === 'rejected'
     ).length;
     
-    const marketerVerifications = submissions.filter(s => s.submission_type === 'marketer_verification').length;
-    const adminSuperadminApprovals = submissions.filter(s => s.submission_type === 'admin_superadmin_approval').length;
+    const marketerVerifications = submissions.length; // All submissions are marketer verifications
     
     setStats({
       totalSubmissions,
@@ -198,7 +197,7 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
       approved,
       rejected,
       marketerVerifications,
-      adminSuperadminApprovals
+      adminSuperadminApprovals: 0 // Not used anymore
     });
   };
 
@@ -606,11 +605,8 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {filteredSubmissions.map((submission) => {
-                    const isMarketerVerification = submission.submission_type === 'marketer_verification';
-                    const isAdminSuperadminApproval = submission.submission_type === 'admin_superadmin_approval';
-                    
                     return (
-                      <tr key={submission.submission_id || submission.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <tr key={submission.submission_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
@@ -620,64 +616,36 @@ const MasterAdminSubmissions = ({ onNavigate, isDarkMode }) => {
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                {isMarketerVerification 
-                                  ? `${submission.marketer_first_name} ${submission.marketer_last_name}`
-                                  : `${submission.first_name} ${submission.last_name}`
-                                }
+                                {submission.marketer_first_name} {submission.marketer_last_name}
                               </div>
                               <div className="text-sm text-gray-500 dark:text-gray-400">
-                                {isMarketerVerification ? submission.marketer_email : submission.email}
+                                {submission.marketer_email}
                               </div>
-                              {isMarketerVerification && (
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {submission.marketer_unique_id}
-                                </div>
-                              )}
-                              {isAdminSuperadminApproval && (
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {submission.user_unique_id}
-                                </div>
-                              )}
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {submission.marketer_unique_id}
+                              </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge 
-                            className={
-                              isMarketerVerification 
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                            }
-                          >
-                            {isMarketerVerification ? 'Marketer Verification' : `${submission.role} Approval`}
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            Marketer Verification
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 dark:text-white">
-                            {isMarketerVerification ? (
-                              <>
-                                {submission.admin_first_name} {submission.admin_last_name}
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {submission.admin_unique_id}
-                                </div>
-                              </>
-                            ) : (
-                              'N/A'
-                            )}
+                            {submission.admin_first_name} {submission.admin_last_name}
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {submission.admin_unique_id}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 dark:text-white">
-                            {isMarketerVerification ? (
-                              <>
-                                {submission.superadmin_first_name} {submission.superadmin_last_name}
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {submission.superadmin_unique_id}
-                                </div>
-                              </>
-                            ) : (
-                              'N/A'
-                            )}
+                            {submission.superadmin_first_name} {submission.superadmin_last_name}
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {submission.superadmin_unique_id}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
