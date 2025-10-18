@@ -675,16 +675,36 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                         </h4>
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           {Object.entries(selectedTimeline.stages.forms.forms.biodata.data).map(([key, value]) => {
-                            // Skip internal fields
-                            if (['id', 'marketer_unique_id', 'created_at', 'updated_at', 'passport_photo', 'id_document'].includes(key)) return null;
+                            // Skip only ID and timestamp fields
+                            if (['id', 'marketer_unique_id', 'created_at', 'updated_at'].includes(key)) return null;
+                            
                             return (
-                              <div key={key}>
+                              <div key={key} className={['passport_photo', 'id_document'].includes(key) ? 'col-span-2' : ''}>
                                 <label className="text-gray-500 dark:text-gray-400 capitalize">
                                   {key.replace(/_/g, ' ')}:
                                 </label>
-                                <p className="text-gray-900 dark:text-white font-medium">
-                                  {value || 'N/A'}
-                                </p>
+                                {['passport_photo', 'id_document'].includes(key) && value ? (
+                                  <div className="mt-1">
+                                    <img 
+                                      src={value} 
+                                      alt={key.replace(/_/g, ' ')} 
+                                      className="max-w-full h-auto rounded border border-gray-300 dark:border-gray-600"
+                                      style={{ maxHeight: '200px' }}
+                                    />
+                                    <a 
+                                      href={value} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 dark:text-blue-400 text-xs mt-1 block"
+                                    >
+                                      Open in new tab
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <p className="text-gray-900 dark:text-white font-medium break-words">
+                                    {value || 'N/A'}
+                                  </p>
+                                )}
                               </div>
                             );
                           })}
@@ -701,16 +721,36 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                         </h4>
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           {Object.entries(selectedTimeline.stages.forms.forms.guarantor.data).map(([key, value]) => {
-                            // Skip internal fields
-                            if (['id', 'marketer_id', 'created_at', 'updated_at', 'identification_file', 'signature'].includes(key)) return null;
+                            // Skip only ID and timestamp fields
+                            if (['id', 'marketer_id', 'created_at', 'updated_at'].includes(key)) return null;
+                            
                             return (
-                              <div key={key}>
+                              <div key={key} className={['identification_file', 'signature'].includes(key) ? 'col-span-2' : ''}>
                                 <label className="text-gray-500 dark:text-gray-400 capitalize">
                                   {key.replace(/_/g, ' ')}:
                                 </label>
-                                <p className="text-gray-900 dark:text-white font-medium">
-                                  {value || 'N/A'}
-                                </p>
+                                {['identification_file', 'signature'].includes(key) && value ? (
+                                  <div className="mt-1">
+                                    <img 
+                                      src={value} 
+                                      alt={key.replace(/_/g, ' ')} 
+                                      className="max-w-full h-auto rounded border border-gray-300 dark:border-gray-600"
+                                      style={{ maxHeight: '200px' }}
+                                    />
+                                    <a 
+                                      href={value} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 dark:text-blue-400 text-xs mt-1 block"
+                                    >
+                                      Open in new tab
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <p className="text-gray-900 dark:text-white font-medium break-words">
+                                    {value || 'N/A'}
+                                  </p>
+                                )}
                               </div>
                             );
                           })}
@@ -727,14 +767,15 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                         </h4>
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           {Object.entries(selectedTimeline.stages.forms.forms.commitment.data).map(([key, value]) => {
-                            // Skip internal fields
+                            // Skip only ID and timestamp fields
                             if (['id', 'marketer_id', 'created_at', 'updated_at'].includes(key)) return null;
+                            
                             return (
                               <div key={key}>
                                 <label className="text-gray-500 dark:text-gray-400 capitalize">
                                   {key.replace(/_/g, ' ')}:
                                 </label>
-                                <p className="text-gray-900 dark:text-white font-medium">
+                                <p className="text-gray-900 dark:text-white font-medium break-words">
                                   {value || 'N/A'}
                                 </p>
                               </div>
