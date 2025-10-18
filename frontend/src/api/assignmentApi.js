@@ -48,7 +48,7 @@ export const assignmentApiService = {
   getUnassignedMarketers: () => assignmentApi.get('/unassigned-marketers'),
   
   // Get available assignees (admins and superadmins)
-  getAvailableAssignees: () => axios.get(`${import.meta.env.VITE_API_URL}/api/assignment/assignees`, {
+  getAvailableAssignees: () => axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/assignees`, {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
