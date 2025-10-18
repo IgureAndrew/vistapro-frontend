@@ -99,7 +99,9 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
         console.log('Unassigned marketers data:', unassignedRes.data?.marketers || unassignedRes.data || []);
         
         setUnassignedMarketers(unassignedRes.data?.marketers || unassignedRes.data || []);
-        setAvailableAssignees(assigneesRes.data?.users || assigneesRes.data || []);
+        // Handle both array and object response from getAvailableAssignees
+        const assigneesData = assigneesRes.data?.data || assigneesRes.data;
+        setAvailableAssignees(Array.isArray(assigneesData) ? assigneesData : []);
         setStats(statsRes.data || {});
         setCurrentAssignments(assignmentsRes.data || {});
         setAvailableLocations(locationsRes.data || []);
