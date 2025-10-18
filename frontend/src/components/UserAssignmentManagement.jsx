@@ -626,14 +626,14 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                       {availableAssignees
                         .filter(a => a.role === 'Admin' && !a.super_admin_id)
                         .map((admin) => (
-                          <div key={admin.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                          <div key={admin.unique_id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded">
                             <div>
                               <p className="font-medium">{admin.first_name} {admin.last_name}</p>
                               <p className="text-sm text-muted-foreground">{admin.email}</p>
                             </div>
                             <Button onClick={() => {
                               setFormData({
-                                marketerId: admin.id,
+                                marketerId: admin.unique_id,
                                 assignedToId: '',
                                 assignmentType: 'superadmin',
                                 notes: ''
@@ -1029,7 +1029,7 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                 {formData.assignmentType === 'superadmin' 
                   ? (() => {
                       // Get the admin's location
-                      const admin = availableAssignees.find(a => a.id === formData.marketerId);
+                      const admin = availableAssignees.find(a => a.unique_id === formData.marketerId);
                       const adminLocation = admin?.location;
                       
                       console.log('🔍 Admin being assigned:', admin);
@@ -1053,13 +1053,13 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                       }
                       
                       return filteredSuperAdmins.map((assignee) => (
-                        <option key={assignee.id} value={assignee.id}>
+                        <option key={assignee.unique_id} value={assignee.unique_id}>
                           {assignee.first_name} {assignee.last_name} ({assignee.email}) - {assignee.location}
                         </option>
                       ));
                     })()
                   : availableAssignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.id}>
+                      <option key={assignee.unique_id} value={assignee.unique_id}>
                         {assignee.first_name} {assignee.last_name} ({assignee.role})
                       </option>
                     ))
@@ -1205,7 +1205,7 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
               >
                 <option value="">Select assignee</option>
                 {availableAssignees.map((assignee) => (
-                  <option key={assignee.id} value={assignee.id}>
+                  <option key={assignee.unique_id} value={assignee.unique_id}>
                     {assignee.first_name} {assignee.last_name} ({assignee.role})
                   </option>
                 ))}
