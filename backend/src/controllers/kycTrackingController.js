@@ -63,6 +63,12 @@ const getKYCTimeline = async (req, res) => {
     `;
     const commitment = await pool.query(commitmentQuery, [sub.marketer_id]);
     
+    console.log(`📋 Form data for ${sub.unique_id}:`, {
+      biodata: biodata.rows.length,
+      guarantor: guarantor.rows.length,
+      commitment: commitment.rows.length
+    });
+    
     // Get audit logs
     const auditLogsQuery = `
       SELECT 
@@ -98,17 +104,20 @@ const getKYCTimeline = async (req, res) => {
             biodata: {
               status: biodata.rows.length > 0 ? 'completed' : 'pending',
               completed_at: biodata.rows[0]?.created_at || null,
-              data: biodata.rows[0] || null
+              data: biodata.rows[0] || null,
+              has_data: biodata.rows.length > 0
             },
             guarantor: {
               status: guarantor.rows.length > 0 ? 'completed' : 'pending',
               completed_at: guarantor.rows[0]?.created_at || null,
-              data: guarantor.rows[0] || null
+              data: guarantor.rows[0] || null,
+              has_data: guarantor.rows.length > 0
             },
             commitment: {
               status: commitment.rows.length > 0 ? 'completed' : 'pending',
               completed_at: commitment.rows[0]?.created_at || null,
-              data: commitment.rows[0] || null
+              data: commitment.rows[0] || null,
+              has_data: commitment.rows.length > 0
             }
           }
         },
@@ -341,8 +350,34 @@ const getAllKYCTimelines = async (req, res) => {
     
     const result = await pool.query(query);
     
+    // Fetch form data for all submissions
+    const submissionsWithForms = await Promise.all(result.rows.map(async (submission) => {
+      // Get form data
+      const biodata = await pool.query(
+        'SELECT id FROM marketer_biodata WHERE marketer_unique_id = $1 LIMIT 1',
+        [submission.marketer_unique_id]
+      );
+      
+      const guarantor = await pool.query(
+        'SELECT id FROM marketer_guarantor_form WHERE marketer_id = $1 LIMIT 1',
+        [submission.marketer_id]
+      );
+      
+      const commitment = await pool.query(
+        'SELECT id FROM marketer_commitment_form WHERE marketer_id = $1 LIMIT 1',
+        [submission.marketer_id]
+      );
+      
+      return {
+        ...submission,
+        has_biodata: biodata.rows.length > 0,
+        has_guarantor: guarantor.rows.length > 0,
+        has_commitment: commitment.rows.length > 0
+      };
+    }));
+    
     // Process each submission to calculate timeline metrics
-    const timelines = result.rows.map(submission => {
+    const timelines = submissionsWithForms.map(submission => {
       const now = new Date();
       const stages = {};
       
@@ -376,15 +411,15 @@ const getAllKYCTimelines = async (req, res) => {
           time_elapsed_ms: formsCompletedAt - new Date(submission.submission_created_at),
           forms_detail: {
             biodata: {
-              status: 'completed',
+              status: submission.has_biodata ? 'completed' : 'pending',
               submitted_at: submission.marketer_biodata_submitted_at || formsCompletedAt
             },
             guarantor: {
-              status: 'completed',
+              status: submission.has_guarantor ? 'completed' : 'pending',
               submitted_at: submission.marketer_guarantor_submitted_at || formsCompletedAt
             },
             commitment: {
-              status: 'completed',
+              status: submission.has_commitment ? 'completed' : 'pending',
               submitted_at: submission.marketer_commitment_submitted_at || formsCompletedAt
             }
           }
@@ -396,15 +431,15 @@ const getAllKYCTimelines = async (req, res) => {
           time_elapsed_ms: null,
           forms_detail: {
             biodata: {
-              status: submission.marketer_biodata_submitted_at ? 'completed' : 'pending',
+              status: submission.has_biodata ? 'completed' : 'pending',
               submitted_at: submission.marketer_biodata_submitted_at
             },
             guarantor: {
-              status: submission.marketer_guarantor_submitted_at ? 'completed' : 'pending',
+              status: submission.has_guarantor ? 'completed' : 'pending',
               submitted_at: submission.marketer_guarantor_submitted_at
             },
             commitment: {
-              status: submission.marketer_commitment_submitted_at ? 'completed' : 'pending',
+              status: submission.has_commitment ? 'completed' : 'pending',
               submitted_at: submission.marketer_commitment_submitted_at
             }
           }
