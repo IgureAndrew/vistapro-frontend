@@ -9,7 +9,8 @@ const {
   getKYCTimeline,
   getAllKYCTracking,
   logKYCAction,
-  getKYCStatistics
+  getKYCStatistics,
+  getAllKYCTimelines
 } = require('../controllers/kycTrackingController');
 
 /**
@@ -22,6 +23,9 @@ router.get('/:submissionId/timeline', verifyToken, verifyRole(['MasterAdmin', 'S
 
 // Get all KYC tracking data (MasterAdmin only)
 router.get('/', verifyToken, verifyRole(['MasterAdmin']), getAllKYCTracking);
+
+// Get all KYC timelines with detailed tracking (MasterAdmin only)
+router.get('/timelines', verifyToken, verifyRole(['MasterAdmin']), getAllKYCTimelines);
 
 // Log a KYC action (MasterAdmin, SuperAdmin, Admin)
 router.post('/log', verifyToken, verifyRole(['MasterAdmin', 'SuperAdmin', 'Admin']), logKYCAction);

@@ -293,10 +293,249 @@ const getKYCStatistics = async (req, res) => {
   }
 };
 
+/**
+ * Get all KYC timelines with detailed tracking information
+ * GET /api/kyc-tracking/timelines
+ */
+const getAllKYCTimelines = async (req, res) => {
+  try {
+    console.log('🔍 Getting all KYC timelines...');
+    
+    // Get all submissions with timeline data
+    const query = `
+      SELECT
+        vs.id AS submission_id,
+        vs.marketer_id,
+        vs.submission_status,
+        vs.created_at AS submission_created_at,
+        vs.updated_at AS submission_updated_at,
+        vs.marketer_biodata_submitted_at,
+        vs.marketer_guarantor_submitted_at,
+        vs.marketer_commitment_submitted_at,
+        vs.admin_review_started_at,
+        vs.admin_review_completed_at,
+        vs.superadmin_review_started_at,
+        vs.superadmin_review_completed_at,
+        vs.masteradmin_approval_started_at,
+        vs.masteradmin_approved_at,
+        vs.rejection_reason,
+        vs.rejected_by,
+        vs.rejected_at,
+        u.unique_id AS marketer_unique_id,
+        u.first_name AS marketer_first_name,
+        u.last_name AS marketer_last_name,
+        u.email AS marketer_email,
+        admin.first_name AS admin_first_name,
+        admin.last_name AS admin_last_name,
+        superadmin.first_name AS superadmin_first_name,
+        superadmin.last_name AS superadmin_last_name
+      FROM verification_submissions vs
+      LEFT JOIN users u ON vs.marketer_id = u.id
+      LEFT JOIN users admin ON vs.admin_id = admin.id
+      LEFT JOIN users superadmin ON vs.super_admin_id = superadmin.id
+      ORDER BY vs.created_at DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    // Process each submission to calculate timeline metrics
+    const timelines = result.rows.map(submission => {
+      const now = new Date();
+      const stages = {};
+      
+      // Stage 1: Forms Submission
+      if (submission.marketer_biodata_submitted_at && 
+          submission.marketer_guarantor_submitted_at && 
+          submission.marketer_commitment_submitted_at) {
+        const formsCompleted = new Date(Math.max(
+          new Date(submission.marketer_biodata_submitted_at),
+          new Date(submission.marketer_guarantor_submitted_at),
+          new Date(submission.marketer_commitment_submitted_at)
+        ));
+        
+        stages.forms = {
+          status: 'completed',
+          completed_at: formsCompleted,
+          time_elapsed_ms: formsCompleted - new Date(submission.submission_created_at)
+        };
+      } else {
+        stages.forms = {
+          status: 'in_progress',
+          completed_at: null,
+          time_elapsed_ms: null
+        };
+      }
+      
+      // Stage 2: Admin Review
+      if (submission.admin_review_completed_at) {
+        const started = submission.admin_review_started_at 
+          ? new Date(submission.admin_review_started_at) 
+          : stages.forms.completed_at;
+        
+        stages.admin_review = {
+          status: 'completed',
+          started_at: started,
+          completed_at: new Date(submission.admin_review_completed_at),
+          time_elapsed_ms: new Date(submission.admin_review_completed_at) - started
+        };
+      } else if (submission.admin_review_started_at) {
+        stages.admin_review = {
+          status: 'in_progress',
+          started_at: new Date(submission.admin_review_started_at),
+          completed_at: null,
+          time_elapsed_ms: now - new Date(submission.admin_review_started_at)
+        };
+      } else if (stages.forms.status === 'completed') {
+        stages.admin_review = {
+          status: 'pending',
+          started_at: null,
+          completed_at: null,
+          time_elapsed_ms: null
+        };
+      }
+      
+      // Stage 3: SuperAdmin Review
+      if (submission.superadmin_review_completed_at) {
+        const started = submission.superadmin_review_started_at 
+          ? new Date(submission.superadmin_review_started_at) 
+          : stages.admin_review?.completed_at;
+        
+        stages.superadmin_review = {
+          status: 'completed',
+          started_at: started,
+          completed_at: new Date(submission.superadmin_review_completed_at),
+          time_elapsed_ms: new Date(submission.superadmin_review_completed_at) - started
+        };
+      } else if (submission.superadmin_review_started_at) {
+        stages.superadmin_review = {
+          status: 'in_progress',
+          started_at: new Date(submission.superadmin_review_started_at),
+          completed_at: null,
+          time_elapsed_ms: now - new Date(submission.superadmin_review_started_at)
+        };
+      } else if (stages.admin_review?.status === 'completed') {
+        stages.superadmin_review = {
+          status: 'pending',
+          started_at: null,
+          completed_at: null,
+          time_elapsed_ms: null
+        };
+      }
+      
+      // Stage 4: MasterAdmin Approval
+      if (submission.masteradmin_approved_at) {
+        const started = submission.masteradmin_approval_started_at 
+          ? new Date(submission.masteradmin_approval_started_at) 
+          : stages.superadmin_review?.completed_at;
+        
+        stages.masteradmin_approval = {
+          status: 'completed',
+          started_at: started,
+          completed_at: new Date(submission.masteradmin_approved_at),
+          time_elapsed_ms: new Date(submission.masteradmin_approved_at) - started,
+          result: 'approved'
+        };
+      } else if (submission.rejected_at) {
+        stages.masteradmin_approval = {
+          status: 'completed',
+          started_at: submission.masteradmin_approval_started_at 
+            ? new Date(submission.masteradmin_approval_started_at) 
+            : stages.superadmin_review?.completed_at,
+          completed_at: new Date(submission.rejected_at),
+          time_elapsed_ms: null,
+          result: 'rejected',
+          rejection_reason: submission.rejection_reason
+        };
+      } else if (submission.masteradmin_approval_started_at) {
+        stages.masteradmin_approval = {
+          status: 'in_progress',
+          started_at: new Date(submission.masteradmin_approval_started_at),
+          completed_at: null,
+          time_elapsed_ms: now - new Date(submission.masteradmin_approval_started_at)
+        };
+      } else if (stages.superadmin_review?.status === 'completed') {
+        stages.masteradmin_approval = {
+          status: 'pending',
+          started_at: null,
+          completed_at: null,
+          time_elapsed_ms: null
+        };
+      }
+      
+      // Calculate total time and progress
+      const totalTimeElapsed = now - new Date(submission.submission_created_at);
+      const completedStages = Object.values(stages).filter(s => s.status === 'completed').length;
+      const progressPercentage = Math.round((completedStages / 4) * 100);
+      
+      // Detect bottlenecks
+      const isStuck = Object.values(stages).some(stage => {
+        if (stage.status === 'in_progress' && stage.time_elapsed_ms) {
+          const hoursStuck = stage.time_elapsed_ms / (1000 * 60 * 60);
+          return hoursStuck > 24; // Stuck for more than 24 hours
+        }
+        return false;
+      });
+      
+      const bottleneckStage = Object.entries(stages).find(([name, stage]) => {
+        if (stage.status === 'in_progress' && stage.time_elapsed_ms) {
+          const hoursStuck = stage.time_elapsed_ms / (1000 * 60 * 60);
+          return hoursStuck > 24;
+        }
+        return false;
+      })?.[0];
+      
+      return {
+        submission_id: submission.submission_id,
+        marketer: {
+          id: submission.marketer_id,
+          unique_id: submission.marketer_unique_id,
+          name: `${submission.marketer_first_name} ${submission.marketer_last_name}`,
+          email: submission.marketer_email
+        },
+        admin: {
+          name: submission.admin_first_name && submission.admin_last_name 
+            ? `${submission.admin_first_name} ${submission.admin_last_name}` 
+            : null
+        },
+        superadmin: {
+          name: submission.superadmin_first_name && submission.superadmin_last_name 
+            ? `${submission.superadmin_first_name} ${submission.superadmin_last_name}` 
+            : null
+        },
+        current_status: submission.submission_status,
+        progress_percentage: progressPercentage,
+        total_time_elapsed_ms: totalTimeElapsed,
+        stages,
+        is_stuck: isStuck,
+        bottleneck_stage: bottleneckStage,
+        created_at: submission.submission_created_at,
+        updated_at: submission.submission_updated_at
+      };
+    });
+    
+    console.log(`✅ Found ${timelines.length} KYC timelines`);
+    
+    res.json({
+      success: true,
+      data: timelines,
+      count: timelines.length
+    });
+    
+  } catch (error) {
+    console.error('Error getting all KYC timelines:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get KYC timelines',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getKYCTimeline,
   getAllKYCTracking,
   logKYCAction,
-  getKYCStatistics
+  getKYCStatistics,
+  getAllKYCTimelines
 };
 
