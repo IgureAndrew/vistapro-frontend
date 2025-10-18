@@ -376,16 +376,16 @@ const getAllKYCTimelines = async (req, res) => {
           time_elapsed_ms: formsCompletedAt - new Date(submission.submission_created_at),
           forms_detail: {
             biodata: {
-              status: submission.marketer_biodata_submitted_at ? 'completed' : 'pending',
-              submitted_at: submission.marketer_biodata_submitted_at
+              status: 'completed',
+              submitted_at: submission.marketer_biodata_submitted_at || formsCompletedAt
             },
             guarantor: {
-              status: submission.marketer_guarantor_submitted_at ? 'completed' : 'pending',
-              submitted_at: submission.marketer_guarantor_submitted_at
+              status: 'completed',
+              submitted_at: submission.marketer_guarantor_submitted_at || formsCompletedAt
             },
             commitment: {
-              status: submission.marketer_commitment_submitted_at ? 'completed' : 'pending',
-              submitted_at: submission.marketer_commitment_submitted_at
+              status: 'completed',
+              submitted_at: submission.marketer_commitment_submitted_at || formsCompletedAt
             }
           }
         };
