@@ -1092,7 +1092,9 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
               <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Assign Marketer</Button>
+              <Button type="submit">
+                {formData.assignmentType === 'superadmin' ? 'Assign Admin' : 'Assign Marketer'}
+              </Button>
             </div>
           </form>
         </div>
