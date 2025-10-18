@@ -52,6 +52,13 @@ export const adminAssignmentApiService = {
   
   // Get verification submissions
   getVerificationSubmissions: () => adminAssignmentApi.get('/verification-submissions'),
+  
+  // Assign admin to superadmin (MasterAdmin only)
+  assignAdminToSuperAdmin: (data) => axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/reassign/admin`, data, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    }
+  }),
 };
 
 export default adminAssignmentApiService;
