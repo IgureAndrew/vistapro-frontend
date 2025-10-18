@@ -347,19 +347,33 @@ const getAllKYCTimelines = async (req, res) => {
       const stages = {};
       
       // Stage 1: Forms Submission
-      if (submission.marketer_biodata_submitted_at && 
+      // Check if forms are completed based on status or timestamps
+      const formsCompleted = submission.marketer_biodata_submitted_at && 
           submission.marketer_guarantor_submitted_at && 
-          submission.marketer_commitment_submitted_at) {
-        const formsCompleted = new Date(Math.max(
-          new Date(submission.marketer_biodata_submitted_at),
-          new Date(submission.marketer_guarantor_submitted_at),
-          new Date(submission.marketer_commitment_submitted_at)
-        ));
+          submission.marketer_commitment_submitted_at;
+      
+      // If status is pending_admin_review or beyond, forms are definitely completed
+      const formsDefinitelyCompleted = [
+        'pending_admin_review',
+        'pending_superadmin_review',
+        'pending_masteradmin_approval',
+        'approved',
+        'rejected'
+      ].includes(submission.submission_status);
+      
+      if (formsCompleted || formsDefinitelyCompleted) {
+        const formsCompletedAt = formsCompleted 
+          ? new Date(Math.max(
+              new Date(submission.marketer_biodata_submitted_at),
+              new Date(submission.marketer_guarantor_submitted_at),
+              new Date(submission.marketer_commitment_submitted_at)
+            ))
+          : submission.submission_created_at; // Fallback to submission created date
         
         stages.forms = {
           status: 'completed',
-          completed_at: formsCompleted,
-          time_elapsed_ms: formsCompleted - new Date(submission.submission_created_at)
+          completed_at: formsCompletedAt,
+          time_elapsed_ms: formsCompletedAt - new Date(submission.submission_created_at)
         };
       } else {
         stages.forms = {
