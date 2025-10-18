@@ -796,8 +796,8 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                       {/* SuperAdmin Header */}
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                            <span className="text-purple-600 font-semibold text-sm">
+                          <div className={`w-10 h-10 ${superAdminGroup.superAdmin.id.startsWith('unassigned_') ? 'bg-orange-100' : 'bg-purple-100'} rounded-full flex items-center justify-center`}>
+                            <span className={`font-semibold text-sm ${superAdminGroup.superAdmin.id.startsWith('unassigned_') ? 'text-orange-600' : 'text-purple-600'}`}>
                               {superAdminGroup.superAdmin.firstName[0]}{superAdminGroup.superAdmin.lastName[0]}
                             </span>
                           </div>
@@ -812,11 +812,13 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              SuperAdmin • {superAdminGroup.superAdmin.email}
+                              {superAdminGroup.superAdmin.id.startsWith('unassigned_') ? 'Unassigned Admins' : `SuperAdmin • ${superAdminGroup.superAdmin.email}`}
                             </p>
                           </div>
                         </div>
-                        <Badge className="bg-purple-100 text-purple-800">SuperAdmin</Badge>
+                        <Badge className={superAdminGroup.superAdmin.id.startsWith('unassigned_') ? 'bg-orange-100 text-orange-800' : 'bg-purple-100 text-purple-800'}>
+                          {superAdminGroup.superAdmin.id.startsWith('unassigned_') ? 'Unassigned' : 'SuperAdmin'}
+                        </Badge>
                       </div>
 
                       {/* Admins under this SuperAdmin */}
