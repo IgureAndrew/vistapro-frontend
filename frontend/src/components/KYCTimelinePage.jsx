@@ -517,7 +517,7 @@ const KYCTimelinePage = ({ isDarkMode }) => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Timeline Details - {selectedTimeline.marketer.name}
+                  Timeline Details - {selectedTimeline.submission?.marketer_name || selectedTimeline.marketer?.name || 'Unknown'}
                 </h2>
                 <button
                   onClick={() => setShowDetailModal(false)}
@@ -535,19 +535,27 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Name</label>
-                    <p className="text-gray-900 dark:text-white">{selectedTimeline.marketer.name}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.submission?.marketer_name || selectedTimeline.marketer?.name || 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Unique ID</label>
-                    <p className="text-gray-900 dark:text-white">{selectedTimeline.marketer.unique_id}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.submission?.marketer_unique_id || selectedTimeline.marketer?.unique_id || 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</label>
-                    <p className="text-gray-900 dark:text-white">{selectedTimeline.marketer.email}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.submission?.marketer_email || selectedTimeline.marketer?.email || 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</label>
-                    <p className="text-gray-900 dark:text-white">{selectedTimeline.current_status}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.submission?.status || selectedTimeline.current_status || 'N/A'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -805,19 +813,31 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Progress</label>
-                    <p className="text-gray-900 dark:text-white">{selectedTimeline.progress_percentage}%</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.progress_percentage !== undefined ? `${selectedTimeline.progress_percentage}%` : 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Time</label>
-                    <p className="text-gray-900 dark:text-white">{formatTime(selectedTimeline.total_time_elapsed_ms)}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.total_time_elapsed_ms ? formatTime(selectedTimeline.total_time_elapsed_ms) : 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Created</label>
-                    <p className="text-gray-900 dark:text-white">{format(new Date(selectedTimeline.created_at), 'MMM dd, yyyy HH:mm')}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.submission?.created_at || selectedTimeline.created_at 
+                        ? format(new Date(selectedTimeline.submission?.created_at || selectedTimeline.created_at), 'MMM dd, yyyy HH:mm')
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</label>
-                    <p className="text-gray-900 dark:text-white">{format(new Date(selectedTimeline.updated_at), 'MMM dd, yyyy HH:mm')}</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedTimeline.updated_at 
+                        ? format(new Date(selectedTimeline.updated_at), 'MMM dd, yyyy HH:mm')
+                        : 'N/A'}
+                    </p>
                   </div>
                 </div>
               </div>
