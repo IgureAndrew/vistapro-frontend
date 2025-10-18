@@ -167,24 +167,48 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
   const handleAssignMarketer = async (e) => {
     e.preventDefault();
     try {
-      // Map frontend field names to backend expected field names
-      const assignmentData = {
-        marketerId: formData.marketerId,
-        adminId: formData.assignedToId,
-        assignmentType: formData.assignmentType,
-        notes: formData.notes
-      };
+      // Check if this is an admin-to-superadmin assignment
+      if (formData.assignmentType === 'superadmin') {
+        // Get the admin's unique_id
+        const admin = availableAssignees.find(a => a.id === formData.marketerId);
+        const superAdmin = availableAssignees.find(a => a.id === formData.assignedToId);
+        
+        if (!admin || !superAdmin) {
+          showError("Invalid admin or superadmin selected");
+          return;
+        }
+        
+        const assignmentData = {
+          adminUniqueId: admin.unique_id,
+          superAdminUniqueId: superAdmin.unique_id
+        };
+        
+        await adminAssignmentApiService.assignAdminToSuperAdmin(assignmentData);
+        showSuccess("Admin assigned to SuperAdmin successfully");
+      } else {
+        // Regular marketer-to-admin assignment
+        const assignmentData = {
+          marketerId: formData.marketerId,
+          adminId: formData.assignedToId,
+          assignmentType: formData.assignmentType,
+          notes: formData.notes
+        };
+        
+        await assignmentApiService.assignMarketer(assignmentData);
+        showSuccess("Marketer assigned successfully");
+      }
       
-      await assignmentApiService.assignMarketer(assignmentData);
-      showSuccess("Marketer assigned successfully");
       setAssignDialogOpen(false);
       setFormData({ marketerId: '', assignedToId: '', assignmentType: '', notes: '' });
       loadData();
     } catch (error) {
-      console.error('Error assigning marketer:', error);
+      console.error('Error assigning:', error);
       
       // Extract specific error message from API response
-      let errorMessage = "Failed to assign marketer";
+      let errorMessage = formData.assignmentType === 'superadmin' 
+        ? "Failed to assign admin to superadmin"
+        : "Failed to assign marketer";
+      
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
@@ -462,6 +486,7 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
             <>
           <TabsTrigger value="unassigned">Unassigned Marketers</TabsTrigger>
           <TabsTrigger value="assignees">Available Assignees</TabsTrigger>
+          <TabsTrigger value="admin-assignments">Admin Assignments</TabsTrigger>
             </>
           )}
           <TabsTrigger value="current">
@@ -565,6 +590,127 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        )}
+
+        {userRole === 'MasterAdmin' && (
+        <TabsContent value="admin-assignments">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Assign Admins to SuperAdmins</CardTitle>
+                <div className="flex gap-2">
+                  <Button onClick={() => setAssignDialogOpen(true)} variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Assign Admin
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Unassigned Admins */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-semibold mb-3 flex items-center">
+                    <UserX className="h-4 w-4 mr-2 text-orange-600" />
+                    Unassigned Admins
+                  </h3>
+                  {availableAssignees.filter(a => a.role === 'Admin' && !a.super_admin_id).length === 0 ? (
+                    <p className="text-muted-foreground text-sm">All admins are assigned to superadmins</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableAssignees
+                        .filter(a => a.role === 'Admin' && !a.super_admin_id)
+                        .map((admin) => (
+                          <div key={admin.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                            <div>
+                              <p className="font-medium">{admin.first_name} {admin.last_name}</p>
+                              <p className="text-sm text-muted-foreground">{admin.email}</p>
+                            </div>
+                            <Button onClick={() => {
+                              setFormData({
+                                marketerId: admin.id,
+                                assignedToId: '',
+                                assignmentType: 'superadmin',
+                                notes: ''
+                              });
+                              setAssignDialogOpen(true);
+                            }} size="sm">
+                              Assign to SuperAdmin
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* SuperAdmins with their Admins */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-semibold mb-3 flex items-center">
+                    <Users className="h-4 w-4 mr-2 text-purple-600" />
+                    SuperAdmin Assignments
+                  </h3>
+                  {availableAssignees.filter(a => a.role === 'SuperAdmin').length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No superadmins found</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {availableAssignees
+                        .filter(a => a.role === 'SuperAdmin')
+                        .map((superAdmin) => {
+                          const assignedAdmins = availableAssignees.filter(a => 
+                            a.role === 'Admin' && a.super_admin_id === superAdmin.id
+                          );
+                          return (
+                            <div key={superAdmin.id} className="border-l-2 border-purple-200 pl-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <p className="font-medium text-purple-900 dark:text-purple-100">
+                                    {superAdmin.first_name} {superAdmin.last_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">{superAdmin.email}</p>
+                                </div>
+                                <Badge className="bg-purple-100 text-purple-800">SuperAdmin</Badge>
+                              </div>
+                              {assignedAdmins.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No admins assigned</p>
+                              ) : (
+                                <div className="ml-4 space-y-2">
+                                  {assignedAdmins.map((admin) => (
+                                    <div key={admin.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+                                      <div>
+                                        <p className="text-sm font-medium">{admin.first_name} {admin.last_name}</p>
+                                        <p className="text-xs text-muted-foreground">{admin.email}</p>
+                                      </div>
+                                      <Button 
+                                        onClick={() => {
+                                          if (confirm(`Reassign ${admin.first_name} ${admin.last_name} to a different SuperAdmin?`)) {
+                                            setFormData({
+                                              marketerId: admin.id,
+                                              assignedToId: '',
+                                              assignmentType: 'superadmin',
+                                              notes: ''
+                                            });
+                                            setAssignDialogOpen(true);
+                                          }
+                                        }}
+                                        variant="outline" 
+                                        size="sm"
+                                      >
+                                        Reassign
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -840,56 +986,71 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
         </TabsContent>
       </Tabs>
 
-      {/* Assign Marketer Dialog */}
+      {/* Assign Marketer/Admin Dialog */}
       <Modal isOpen={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
         <div className="max-w-md">
-          <h2 className="text-xl font-semibold mb-4">Assign Marketer</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            {formData.assignmentType === 'superadmin' ? 'Assign Admin to SuperAdmin' : 'Assign Marketer'}
+          </h2>
           <form onSubmit={handleAssignMarketer} className="space-y-4">
+            {formData.assignmentType !== 'superadmin' && (
+              <div>
+                <Label htmlFor="marketerId">Marketer</Label>
+                <select 
+                  value={formData.marketerId} 
+                  onChange={(e) => setFormData({...formData, marketerId: e.target.value})}
+                  className="select-soft h-11 w-full"
+                  required={formData.assignmentType !== 'superadmin'}
+                >
+                  <option value="">Select a marketer</option>
+                  {Array.isArray(unassignedMarketers) ? unassignedMarketers.map((marketer) => (
+                    <option key={marketer.id} value={marketer.id}>
+                      {marketer.first_name} {marketer.last_name} ({marketer.email})
+                    </option>
+                  )) : null}
+                </select>
+              </div>
+            )}
             <div>
-              <Label htmlFor="marketerId">Marketer</Label>
-              <select 
-                value={formData.marketerId} 
-                onChange={(e) => setFormData({...formData, marketerId: e.target.value})}
-                className="select-soft h-11 w-full"
-                required
-              >
-                <option value="">Select a marketer</option>
-                {Array.isArray(unassignedMarketers) ? unassignedMarketers.map((marketer) => (
-                  <option key={marketer.id} value={marketer.id}>
-                    {marketer.first_name} {marketer.last_name} ({marketer.email})
-                  </option>
-                )) : null}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="assignedToId">Assign To</Label>
+              <Label htmlFor="assignedToId">
+                {formData.assignmentType === 'superadmin' ? 'Assign To (SuperAdmin)' : 'Assign To'}
+              </Label>
               <select 
                 value={formData.assignedToId} 
                 onChange={(e) => setFormData({...formData, assignedToId: e.target.value})}
                 className="select-soft h-11 w-full"
                 required
               >
-                <option value="">Select assignee</option>
-                {availableAssignees.map((assignee) => (
-                  <option key={assignee.id} value={assignee.id}>
-                    {assignee.first_name} {assignee.last_name} ({assignee.role})
-                  </option>
-                ))}
+                <option value="">Select {formData.assignmentType === 'superadmin' ? 'SuperAdmin' : 'assignee'}</option>
+                {formData.assignmentType === 'superadmin' 
+                  ? availableAssignees.filter(a => a.role === 'SuperAdmin').map((assignee) => (
+                      <option key={assignee.id} value={assignee.id}>
+                        {assignee.first_name} {assignee.last_name} ({assignee.email})
+                      </option>
+                    ))
+                  : availableAssignees.map((assignee) => (
+                      <option key={assignee.id} value={assignee.id}>
+                        {assignee.first_name} {assignee.last_name} ({assignee.role})
+                      </option>
+                    ))
+                }
               </select>
             </div>
-            <div>
-              <Label htmlFor="assignmentType">Assignment Type</Label>
-              <select 
-                value={formData.assignmentType} 
-                onChange={(e) => setFormData({...formData, assignmentType: e.target.value})}
-                className="select-soft h-11 w-full"
-                required
-              >
-                <option value="">Select type</option>
-                <option value="admin">Admin</option>
-                <option value="superadmin">SuperAdmin</option>
-              </select>
-            </div>
+            {!formData.marketerId && (
+              <div>
+                <Label htmlFor="assignmentType">Assignment Type</Label>
+                <select 
+                  value={formData.assignmentType} 
+                  onChange={(e) => setFormData({...formData, assignmentType: e.target.value, assignedToId: ''})}
+                  className="select-soft h-11 w-full"
+                  required
+                >
+                  <option value="">Select type</option>
+                  <option value="admin">Admin</option>
+                  <option value="superadmin">SuperAdmin</option>
+                </select>
+              </div>
+            )}
             <div>
               <Label htmlFor="notes">Notes (Optional)</Label>
               <textarea
