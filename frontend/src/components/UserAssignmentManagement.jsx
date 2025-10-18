@@ -1025,11 +1025,26 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
               >
                 <option value="">Select {formData.assignmentType === 'superadmin' ? 'SuperAdmin' : 'assignee'}</option>
                 {formData.assignmentType === 'superadmin' 
-                  ? availableAssignees.filter(a => a.role === 'SuperAdmin').map((assignee) => (
-                      <option key={assignee.id} value={assignee.id}>
-                        {assignee.first_name} {assignee.last_name} ({assignee.email})
-                      </option>
-                    ))
+                  ? (() => {
+                      // Get the admin's location
+                      const admin = availableAssignees.find(a => a.id === formData.marketerId);
+                      const adminLocation = admin?.location;
+                      
+                      // Filter SuperAdmins by location
+                      const filteredSuperAdmins = availableAssignees.filter(a => 
+                        a.role === 'SuperAdmin' && a.location === adminLocation
+                      );
+                      
+                      if (filteredSuperAdmins.length === 0) {
+                        return <option value="" disabled>No SuperAdmins found in {adminLocation || 'same location'}</option>;
+                      }
+                      
+                      return filteredSuperAdmins.map((assignee) => (
+                        <option key={assignee.id} value={assignee.id}>
+                          {assignee.first_name} {assignee.last_name} ({assignee.email}) - {assignee.location}
+                        </option>
+                      ));
+                    })()
                   : availableAssignees.map((assignee) => (
                       <option key={assignee.id} value={assignee.id}>
                         {assignee.first_name} {assignee.last_name} ({assignee.role})
