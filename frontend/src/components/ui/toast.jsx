@@ -26,7 +26,7 @@ export default function Toast({
   }, [duration, onClose]);
 
   return (
-    <div className={`fixed top-4 right-4 z-50 w-96 max-w-md rounded-lg border p-4 shadow-lg transition-all duration-300 ease-in-out ${className}`}>
+    <div className={`fixed top-4 right-4 z-[100] w-96 max-w-md rounded-lg border p-4 shadow-lg transition-all duration-300 ease-in-out ${className}`}>
       <div className="flex items-start gap-3">
         <Icon className="h-5 w-5 mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
@@ -52,7 +52,7 @@ export function ToastContainer() {
   const { toasts, removeToast } = useToast();
   
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed top-4 right-4 z-[100] space-y-2">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}
