@@ -571,18 +571,36 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                         )}
                       </div>
                       {stage.completed_at && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                           Completed: {format(new Date(stage.completed_at), 'MMM dd, yyyy HH:mm')}
                         </div>
                       )}
                       {stage.time_elapsed_ms && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                           Time Elapsed: {formatTime(stage.time_elapsed_ms)}
                         </div>
                       )}
+                      {stage.reviewed_by && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                          Reviewed By: {stage.reviewed_by}
+                        </div>
+                      )}
                       {stage.result && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          Result: {stage.result}
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                          Result: <span className={stage.result === 'approved' ? 'text-green-600' : 'text-red-600'}>
+                            {stage.result.toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {stage.rejection_reason && (
+                        <div className="text-sm text-red-600 dark:text-red-400 mb-1">
+                          Rejection Reason: {stage.rejection_reason}
+                        </div>
+                      )}
+                      {stage.notes && (
+                        <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes:</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">{stage.notes}</div>
                         </div>
                       )}
                     </div>

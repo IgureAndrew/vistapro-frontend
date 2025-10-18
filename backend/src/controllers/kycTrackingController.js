@@ -321,6 +321,9 @@ const getAllKYCTimelines = async (req, res) => {
         vs.rejection_reason,
         vs.rejected_by,
         vs.rejected_at,
+        vs.admin_notes,
+        vs.superadmin_notes,
+        vs.masteradmin_notes,
         u.unique_id AS marketer_unique_id,
         u.first_name AS marketer_first_name,
         u.last_name AS marketer_last_name,
@@ -376,14 +379,19 @@ const getAllKYCTimelines = async (req, res) => {
           status: 'completed',
           started_at: started,
           completed_at: new Date(submission.admin_review_completed_at),
-          time_elapsed_ms: new Date(submission.admin_review_completed_at) - started
+          time_elapsed_ms: new Date(submission.admin_review_completed_at) - started,
+          notes: submission.admin_notes,
+          reviewed_by: submission.admin_first_name && submission.admin_last_name 
+            ? `${submission.admin_first_name} ${submission.admin_last_name}` 
+            : null
         };
       } else if (submission.admin_review_started_at) {
         stages.admin_review = {
           status: 'in_progress',
           started_at: new Date(submission.admin_review_started_at),
           completed_at: null,
-          time_elapsed_ms: now - new Date(submission.admin_review_started_at)
+          time_elapsed_ms: now - new Date(submission.admin_review_started_at),
+          notes: submission.admin_notes
         };
       } else if (stages.forms.status === 'completed') {
         stages.admin_review = {
@@ -404,14 +412,19 @@ const getAllKYCTimelines = async (req, res) => {
           status: 'completed',
           started_at: started,
           completed_at: new Date(submission.superadmin_review_completed_at),
-          time_elapsed_ms: new Date(submission.superadmin_review_completed_at) - started
+          time_elapsed_ms: new Date(submission.superadmin_review_completed_at) - started,
+          notes: submission.superadmin_notes,
+          reviewed_by: submission.superadmin_first_name && submission.superadmin_last_name 
+            ? `${submission.superadmin_first_name} ${submission.superadmin_last_name}` 
+            : null
         };
       } else if (submission.superadmin_review_started_at) {
         stages.superadmin_review = {
           status: 'in_progress',
           started_at: new Date(submission.superadmin_review_started_at),
           completed_at: null,
-          time_elapsed_ms: now - new Date(submission.superadmin_review_started_at)
+          time_elapsed_ms: now - new Date(submission.superadmin_review_started_at),
+          notes: submission.superadmin_notes
         };
       } else if (stages.admin_review?.status === 'completed') {
         stages.superadmin_review = {
@@ -433,7 +446,8 @@ const getAllKYCTimelines = async (req, res) => {
           started_at: started,
           completed_at: new Date(submission.masteradmin_approved_at),
           time_elapsed_ms: new Date(submission.masteradmin_approved_at) - started,
-          result: 'approved'
+          result: 'approved',
+          notes: submission.masteradmin_notes
         };
       } else if (submission.rejected_at) {
         stages.masteradmin_approval = {
@@ -444,14 +458,16 @@ const getAllKYCTimelines = async (req, res) => {
           completed_at: new Date(submission.rejected_at),
           time_elapsed_ms: null,
           result: 'rejected',
-          rejection_reason: submission.rejection_reason
+          rejection_reason: submission.rejection_reason,
+          notes: submission.masteradmin_notes
         };
       } else if (submission.masteradmin_approval_started_at) {
         stages.masteradmin_approval = {
           status: 'in_progress',
           started_at: new Date(submission.masteradmin_approval_started_at),
           completed_at: null,
-          time_elapsed_ms: now - new Date(submission.masteradmin_approval_started_at)
+          time_elapsed_ms: now - new Date(submission.masteradmin_approval_started_at),
+          notes: submission.masteradmin_notes
         };
       } else if (stages.superadmin_review?.status === 'completed') {
         stages.masteradmin_approval = {
@@ -464,7 +480,12 @@ const getAllKYCTimelines = async (req, res) => {
       
       // Calculate total time and progress
       const totalTimeElapsed = now - new Date(submission.submission_created_at);
-      const completedStages = Object.values(stages).filter(s => s.status === 'completed').length;
+      
+      // For approved submissions, all stages are complete
+      let completedStages = Object.values(stages).filter(s => s.status === 'completed').length;
+      if (submission.submission_status === 'approved') {
+        completedStages = 4; // All stages complete
+      }
       const progressPercentage = Math.round((completedStages / 4) * 100);
       
       // Detect bottlenecks
