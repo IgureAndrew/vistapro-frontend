@@ -23,7 +23,7 @@ import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { format, formatDistance } from 'date-fns';
-import { getAllKYCTimelines } from '../api/kycTimelineApi';
+import { getAllKYCTimelines, getKYCTimelineById } from '../api/kycTimelineApi';
 
 const KYCTimelinePage = ({ isDarkMode }) => {
   const [timelines, setTimelines] = useState([]);
@@ -479,9 +479,20 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <Button
-                          onClick={() => {
-                            setSelectedTimeline(timeline);
-                            setShowDetailModal(true);
+                          onClick={async () => {
+                            try {
+                              // Fetch full timeline data with form details
+                              const response = await getKYCTimelineById(timeline.submission_id);
+                              if (response.success) {
+                                setSelectedTimeline(response.data);
+                                setShowDetailModal(true);
+                              }
+                            } catch (error) {
+                              console.error('Error fetching timeline details:', error);
+                              // Fallback to using existing timeline data
+                              setSelectedTimeline(timeline);
+                              setShowDetailModal(true);
+                            }
                           }}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                           size="sm"
