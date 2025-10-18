@@ -571,29 +571,54 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                         )}
                       </div>
                       
-                      {/* Forms Detail - Show individual form status */}
+                      {/* Forms Detail - Show individual form status and data */}
                       {stageName === 'forms' && stage.forms_detail && (
-                        <div className="mt-3 mb-3 p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                        <div className="mt-3 mb-3 space-y-3">
                           <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Forms Submitted:</div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div className="text-sm">
-                              <span className="font-medium text-gray-600 dark:text-gray-400">Biodata:</span>
-                              <span className={`ml-2 ${stage.forms_detail.biodata.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
-                                {stage.forms_detail.biodata.status === 'completed' ? '✓' : '○'}
+                          
+                          {/* Biodata Form */}
+                          <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-900 dark:text-white">Biodata Form</span>
+                              <span className={`text-sm ${stage.forms_detail.biodata.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                                {stage.forms_detail.biodata.status === 'completed' ? '✓ Completed' : '○ Pending'}
                               </span>
                             </div>
-                            <div className="text-sm">
-                              <span className="font-medium text-gray-600 dark:text-gray-400">Guarantor:</span>
-                              <span className={`ml-2 ${stage.forms_detail.guarantor.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
-                                {stage.forms_detail.guarantor.status === 'completed' ? '✓' : '○'}
+                            {stage.forms_detail.biodata.status === 'completed' && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Submitted: {stage.forms_detail.biodata.submitted_at ? format(new Date(stage.forms_detail.biodata.submitted_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Guarantor Form */}
+                          <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-900 dark:text-white">Guarantor Form</span>
+                              <span className={`text-sm ${stage.forms_detail.guarantor.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                                {stage.forms_detail.guarantor.status === 'completed' ? '✓ Completed' : '○ Pending'}
                               </span>
                             </div>
-                            <div className="text-sm">
-                              <span className="font-medium text-gray-600 dark:text-gray-400">Commitment:</span>
-                              <span className={`ml-2 ${stage.forms_detail.commitment.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
-                                {stage.forms_detail.commitment.status === 'completed' ? '✓' : '○'}
+                            {stage.forms_detail.guarantor.status === 'completed' && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Submitted: {stage.forms_detail.guarantor.submitted_at ? format(new Date(stage.forms_detail.guarantor.submitted_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Commitment Form */}
+                          <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-900 dark:text-white">Commitment Form</span>
+                              <span className={`text-sm ${stage.forms_detail.commitment.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                                {stage.forms_detail.commitment.status === 'completed' ? '✓ Completed' : '○ Pending'}
                               </span>
                             </div>
+                            {stage.forms_detail.commitment.status === 'completed' && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Submitted: {stage.forms_detail.commitment.submitted_at ? format(new Date(stage.forms_detail.commitment.submitted_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -635,6 +660,92 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                   ))}
                 </div>
               </div>
+
+              {/* Form Data Details */}
+              {selectedTimeline.stages.forms?.forms && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Form Details</h3>
+                  <div className="space-y-4">
+                    {/* Biodata Details */}
+                    {selectedTimeline.stages.forms.forms.biodata?.data && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                          <FileText className="w-4 h-4 mr-2" />
+                          Biodata Form
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {Object.entries(selectedTimeline.stages.forms.forms.biodata.data).map(([key, value]) => {
+                            // Skip internal fields
+                            if (['id', 'marketer_unique_id', 'created_at', 'updated_at', 'passport_photo', 'id_document'].includes(key)) return null;
+                            return (
+                              <div key={key}>
+                                <label className="text-gray-500 dark:text-gray-400 capitalize">
+                                  {key.replace(/_/g, ' ')}:
+                                </label>
+                                <p className="text-gray-900 dark:text-white font-medium">
+                                  {value || 'N/A'}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Guarantor Details */}
+                    {selectedTimeline.stages.forms.forms.guarantor?.data && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                          <FileText className="w-4 h-4 mr-2" />
+                          Guarantor Form
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {Object.entries(selectedTimeline.stages.forms.forms.guarantor.data).map(([key, value]) => {
+                            // Skip internal fields
+                            if (['id', 'marketer_id', 'created_at', 'updated_at', 'identification_file', 'signature'].includes(key)) return null;
+                            return (
+                              <div key={key}>
+                                <label className="text-gray-500 dark:text-gray-400 capitalize">
+                                  {key.replace(/_/g, ' ')}:
+                                </label>
+                                <p className="text-gray-900 dark:text-white font-medium">
+                                  {value || 'N/A'}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Commitment Details */}
+                    {selectedTimeline.stages.forms.forms.commitment?.data && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                          <FileText className="w-4 h-4 mr-2" />
+                          Commitment Form
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {Object.entries(selectedTimeline.stages.forms.forms.commitment.data).map(([key, value]) => {
+                            // Skip internal fields
+                            if (['id', 'marketer_id', 'created_at', 'updated_at'].includes(key)) return null;
+                            return (
+                              <div key={key}>
+                                <label className="text-gray-500 dark:text-gray-400 capitalize">
+                                  {key.replace(/_/g, ' ')}:
+                                </label>
+                                <p className="text-gray-900 dark:text-white font-medium">
+                                  {value || 'N/A'}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Summary */}
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">

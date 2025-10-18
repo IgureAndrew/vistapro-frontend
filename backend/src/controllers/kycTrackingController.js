@@ -38,10 +38,9 @@ const getKYCTimeline = async (req, res) => {
     
     const sub = submission.rows[0];
     
-    // Get form completion details
+    // Get form completion details with full data
     const biodataQuery = `
-      SELECT id, created_at, updated_at
-      FROM marketer_biodata
+      SELECT * FROM marketer_biodata
       WHERE marketer_unique_id = $1
       ORDER BY created_at DESC
       LIMIT 1;
@@ -49,8 +48,7 @@ const getKYCTimeline = async (req, res) => {
     const biodata = await pool.query(biodataQuery, [sub.unique_id]);
     
     const guarantorQuery = `
-      SELECT id, created_at, updated_at
-      FROM marketer_guarantor_form
+      SELECT * FROM marketer_guarantor_form
       WHERE marketer_id = $1
       ORDER BY created_at DESC
       LIMIT 1;
@@ -58,8 +56,7 @@ const getKYCTimeline = async (req, res) => {
     const guarantor = await pool.query(guarantorQuery, [sub.marketer_id]);
     
     const commitmentQuery = `
-      SELECT id, created_at, updated_at
-      FROM marketer_commitment_form
+      SELECT * FROM marketer_commitment_form
       WHERE marketer_id = $1
       ORDER BY created_at DESC
       LIMIT 1;
@@ -100,15 +97,18 @@ const getKYCTimeline = async (req, res) => {
           forms: {
             biodata: {
               status: biodata.rows.length > 0 ? 'completed' : 'pending',
-              completed_at: biodata.rows[0]?.created_at || null
+              completed_at: biodata.rows[0]?.created_at || null,
+              data: biodata.rows[0] || null
             },
             guarantor: {
               status: guarantor.rows.length > 0 ? 'completed' : 'pending',
-              completed_at: guarantor.rows[0]?.created_at || null
+              completed_at: guarantor.rows[0]?.created_at || null,
+              data: guarantor.rows[0] || null
             },
             commitment: {
               status: commitment.rows.length > 0 ? 'completed' : 'pending',
-              completed_at: commitment.rows[0]?.created_at || null
+              completed_at: commitment.rows[0]?.created_at || null,
+              data: commitment.rows[0] || null
             }
           }
         },
