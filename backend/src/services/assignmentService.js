@@ -24,7 +24,7 @@ async function getUnassignedMarketers() {
  */
 async function getAvailableAssignees() {
   const { rows } = await pool.query(`
-    SELECT u.unique_id, u.first_name, u.last_name, u.email, u.role
+    SELECT u.unique_id, u.first_name, u.last_name, u.email, u.role, u.location, u.super_admin_id
     FROM users u
     WHERE u.role IN ('Admin', 'SuperAdmin')
     AND u.deleted_at IS NULL
