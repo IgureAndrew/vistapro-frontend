@@ -481,12 +481,33 @@ const getAllKYCTimelines = async (req, res) => {
       // Calculate total time and progress
       const totalTimeElapsed = now - new Date(submission.submission_created_at);
       
-      // For approved submissions, all stages are complete
-      let completedStages = Object.values(stages).filter(s => s.status === 'completed').length;
-      if (submission.submission_status === 'approved') {
-        completedStages = 4; // All stages complete
+      // Calculate progress based on actual completion
+      // Stage 1 (Forms): 25%
+      // Stage 2 (Admin Review): 50%
+      // Stage 3 (SuperAdmin Review): 75%
+      // Stage 4 (MasterAdmin Approval): 100%
+      
+      let progressPercentage = 0;
+      
+      if (submission.submission_status === 'approved' || submission.submission_status === 'rejected') {
+        progressPercentage = 100; // Fully completed (approved or rejected)
+      } else if (stages.masteradmin_approval?.status === 'in_progress') {
+        progressPercentage = 75; // At MasterAdmin stage
+      } else if (stages.superadmin_review?.status === 'completed') {
+        progressPercentage = 75; // Completed SuperAdmin review
+      } else if (stages.superadmin_review?.status === 'in_progress') {
+        progressPercentage = 75; // In SuperAdmin review
+      } else if (stages.admin_review?.status === 'completed') {
+        progressPercentage = 50; // Completed Admin review
+      } else if (stages.admin_review?.status === 'in_progress') {
+        progressPercentage = 50; // In Admin review
+      } else if (stages.forms?.status === 'completed') {
+        progressPercentage = 25; // Completed forms
+      } else if (stages.forms?.status === 'in_progress') {
+        progressPercentage = 0; // Forms in progress (not fully submitted)
+      } else {
+        progressPercentage = 0; // Not started
       }
-      const progressPercentage = Math.round((completedStages / 4) * 100);
       
       // Detect bottlenecks
       const isStuck = Object.values(stages).some(stage => {
