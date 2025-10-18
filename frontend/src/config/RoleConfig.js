@@ -51,6 +51,7 @@ import Submissions from '../components/Submissions';
 import AdminSubmissionsNew from '../components/AdminSubmissionsNew';
 import SuperAdminSubmissionsNew from '../components/SuperAdminSubmissionsNew';
 import MasterAdminSubmissions from '../components/MasterAdminSubmissions';
+import KYCTimelinePage from '../components/KYCTimelinePage';
 import MasterAdminBlockedAccounts from '../components/MasterAdminBlockedAccounts';
 import MarketersOverview from '../components/MarketersOverview';
 import AccountSettings from '../components/AccountSettings';
@@ -76,6 +77,7 @@ export const ROLE_CONFIG = {
       { key: "wallet", label: "Wallets", icon: Wallet, component: MasterAdminWallet },
       { key: "messages", label: "Messages", icon: MessageSquare, component: Messaging },
       { key: "submissions", label: "Submissions", icon: FileText, component: MasterAdminSubmissions },
+      { key: "kyc-timeline", label: "KYC Timeline", icon: Activity, component: KYCTimelinePage },
       { key: "otp-transition", label: "OTP Transition", icon: Shield, component: OTPTransitionDashboard },
       { key: "account-settings", label: "Account Settings", icon: Settings, component: AccountSettings }
     ],
