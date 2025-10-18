@@ -172,8 +172,8 @@ const UserAssignmentManagement = ({ isDarkMode = false, onNavigate }) => {
       // Check if this is an admin-to-superadmin assignment
       if (formData.assignmentType === 'superadmin') {
         // Get the admin's unique_id
-        const admin = availableAssignees.find(a => a.id === formData.marketerId);
-        const superAdmin = availableAssignees.find(a => a.id === formData.assignedToId);
+        const admin = availableAssignees.find(a => a.unique_id === formData.marketerId);
+        const superAdmin = availableAssignees.find(a => a.unique_id === formData.assignedToId);
         
         if (!admin || !superAdmin) {
           showError("Invalid admin or superadmin selected");
