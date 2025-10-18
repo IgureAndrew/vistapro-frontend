@@ -373,13 +373,41 @@ const getAllKYCTimelines = async (req, res) => {
         stages.forms = {
           status: 'completed',
           completed_at: formsCompletedAt,
-          time_elapsed_ms: formsCompletedAt - new Date(submission.submission_created_at)
+          time_elapsed_ms: formsCompletedAt - new Date(submission.submission_created_at),
+          forms_detail: {
+            biodata: {
+              status: submission.marketer_biodata_submitted_at ? 'completed' : 'pending',
+              submitted_at: submission.marketer_biodata_submitted_at
+            },
+            guarantor: {
+              status: submission.marketer_guarantor_submitted_at ? 'completed' : 'pending',
+              submitted_at: submission.marketer_guarantor_submitted_at
+            },
+            commitment: {
+              status: submission.marketer_commitment_submitted_at ? 'completed' : 'pending',
+              submitted_at: submission.marketer_commitment_submitted_at
+            }
+          }
         };
       } else {
         stages.forms = {
           status: 'in_progress',
           completed_at: null,
-          time_elapsed_ms: null
+          time_elapsed_ms: null,
+          forms_detail: {
+            biodata: {
+              status: submission.marketer_biodata_submitted_at ? 'completed' : 'pending',
+              submitted_at: submission.marketer_biodata_submitted_at
+            },
+            guarantor: {
+              status: submission.marketer_guarantor_submitted_at ? 'completed' : 'pending',
+              submitted_at: submission.marketer_guarantor_submitted_at
+            },
+            commitment: {
+              status: submission.marketer_commitment_submitted_at ? 'completed' : 'pending',
+              submitted_at: submission.marketer_commitment_submitted_at
+            }
+          }
         };
       }
       

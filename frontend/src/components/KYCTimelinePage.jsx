@@ -570,6 +570,34 @@ const KYCTimelinePage = ({ isDarkMode }) => {
                           </Badge>
                         )}
                       </div>
+                      
+                      {/* Forms Detail - Show individual form status */}
+                      {stageName === 'forms' && stage.forms_detail && (
+                        <div className="mt-3 mb-3 p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Forms Submitted:</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="text-sm">
+                              <span className="font-medium text-gray-600 dark:text-gray-400">Biodata:</span>
+                              <span className={`ml-2 ${stage.forms_detail.biodata.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                                {stage.forms_detail.biodata.status === 'completed' ? '✓' : '○'}
+                              </span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-gray-600 dark:text-gray-400">Guarantor:</span>
+                              <span className={`ml-2 ${stage.forms_detail.guarantor.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                                {stage.forms_detail.guarantor.status === 'completed' ? '✓' : '○'}
+                              </span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-gray-600 dark:text-gray-400">Commitment:</span>
+                              <span className={`ml-2 ${stage.forms_detail.commitment.status === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                                {stage.forms_detail.commitment.status === 'completed' ? '✓' : '○'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {stage.completed_at && (
                         <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                           Completed: {format(new Date(stage.completed_at), 'MMM dd, yyyy HH:mm')}
